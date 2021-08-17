@@ -81,3 +81,9 @@ long_description = """
 This is a simple graphical user interface for Neovim. Where possible there are some graphical improvements, but it should act functionally like the terminal UI.
 """
 osx_minimum_system_version = "10.11"
+
+[patch.'https://github.com/neovide/winit']
+winit = { git = "https://github.com/fredizzimo/winit", branch = "fix-deadlock" }
+
+[patch.'https://github.com/kethku/winit']
+winit = { git = "https://github.com/fredizzimo/winit", branch = "fix-deadlock" }
