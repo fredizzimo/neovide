@@ -140,6 +140,7 @@ pub struct RenderedWindow {
     scroll_v: f32,
 
     pub padding: WindowPadding,
+    has_transparency: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -179,6 +180,7 @@ impl RenderedWindow {
             current_scroll: 0.0,
             scroll_v: 0.0,
             padding,
+            has_transparency: false,
         }
     }
 
@@ -276,15 +278,21 @@ impl RenderedWindow {
         self.draw_surface(font_dimensions);
 
         let pixel_region = self.pixel_region(font_dimensions);
+        let transparent_floating = self.floating_order.is_some() && self.has_transparency;
 
         root_canvas.save();
         root_canvas.clip_rect(&pixel_region, None, Some(false));
-
+        let need_blur = transparent_floating && settings.floating_blur;
         if self.floating_order.is_none() {
-            root_canvas.clear(default_background);
+            let paint = Paint::default()
+                .set_blend_mode(BlendMode::Src)
+                .set_anti_alias(false)
+                .set_color(default_background)
+                .to_owned();
+            root_canvas.draw_rect(pixel_region, &paint);
         }
 
-        if self.floating_order.is_some() && settings.floating_blur {
+        if need_blur {
             if let Some(blur) = blur(
                 (
                     settings.floating_blur_amount_x,
@@ -302,31 +310,35 @@ impl RenderedWindow {
             }
         }
 
-        let mut paint = Paint::default();
-        // We want each surface to overwrite the one underneath and will use layers to ensure
-        // only lower priority surfaces will get clobbered and not the underlying windows.
-        paint.set_blend_mode(BlendMode::Src);
-        paint.set_anti_alias(false);
-
-        // Save layer so that setting the blend mode doesn't effect the blur.
-        root_canvas.save_layer(&SaveLayerRec::default());
-        let mut a = 255;
-        if self.floating_order.is_some() {
-            a = (settings.floating_opacity.min(1.0).max(0.0) * 255.0) as u8;
+        // Non root windows need to be drawn in a layer to support transparency
+        if transparent_floating {
+            root_canvas.save_layer(&SaveLayerRec::default());
         }
 
-        paint.set_color(default_background.with_a(a));
-        root_canvas.draw_rect(pixel_region, &paint);
+        // We want each surface to overwrite the one underneath and will use layers to ensure
+        // only lower priority surfaces will get clobbered and not the underlying windows.
+        // But as an optimization we are writing directly to the canvas for top level windows,
+        // so a different blend mode is needed for that.
+        let paint = Paint::default()
+            .set_anti_alias(false)
+            .set_color(Color::from_argb(255, 255, 255, 255))
+            .set_blend_mode(if transparent_floating {
+                BlendMode::SrcOver
+            } else {
+                BlendMode::Src
+            })
+            .to_owned();
 
-        paint.set_color(Color::from_argb(255, 255, 255, 255));
+        let font_height = font_dimensions.height;
 
         // Draw current surface.
         let snapshot = self.current_surface.surface.image_snapshot();
         root_canvas.draw_image_rect(snapshot, None, pixel_region, &paint);
 
-        root_canvas.restore();
-
-        if self.floating_order.is_some() {
+        if need_blur {
+            root_canvas.restore();
+        }
+        if transparent_floating {
             root_canvas.restore();
         }
 
@@ -441,6 +453,9 @@ impl RenderedWindow {
                         ..
                     } = line_fragment;
                     let grid_position = (*window_left, 0);
+                    if let Some(s) = style.as_ref() {
+                        self.has_transparency |= s.blend > 0;
+                    }
                     grid_renderer.draw_background(
                         canvas,
                         grid_position,
@@ -508,6 +523,7 @@ impl RenderedWindow {
             WindowDrawCommand::Clear => {
                 tracy_zone!("clear_cmd", 0);
                 self.top_index = 0;
+                self.has_transparency = false;
                 self.reset_scroll();
             }
             WindowDrawCommand::Show => {
