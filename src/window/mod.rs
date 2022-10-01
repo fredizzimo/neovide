@@ -205,19 +205,17 @@ impl WinitWindowWrapper {
 
     pub fn draw_frame(&mut self, dt: f32) {
         tracy_zone!("draw_frame");
-        if REDRAW_SCHEDULER.should_draw() || SETTINGS.get::<WindowSettings>().no_idle {
-            self.renderer.draw_frame(self.skia_renderer.canvas(), dt);
-            {
-                tracy_gpu_zone!("skia flush");
-                self.skia_renderer.gr_context.flush(None);
-            }
-            {
-                tracy_gpu_zone!("swap buffers");
-                self.windowed_context.swap_buffers().unwrap();
-            }
-            emit_frame_mark();
-            tracy_gpu_collect();
+        self.renderer.draw_frame(self.skia_renderer.canvas(), dt);
+        {
+            tracy_gpu_zone!("skia flush");
+            self.skia_renderer.gr_context.flush(None);
         }
+        {
+            tracy_gpu_zone!("swap buffers");
+            self.windowed_context.swap_buffers().unwrap();
+        }
+        emit_frame_mark();
+        tracy_gpu_collect();
     }
 
     pub fn animate_frame(&mut self, dt: f32) -> bool {
@@ -252,9 +250,7 @@ impl WinitWindowWrapper {
             self.skia_renderer.resize(&self.windowed_context);
         }
 
-        self.font_changed_last_frame = self
-            .renderer
-            .handle_draw_commands();
+        self.font_changed_last_frame = self.renderer.handle_draw_commands();
 
         // Wait until fonts are loaded, so we can set proper window size.
         if !self.renderer.grid_renderer.is_ready {
@@ -492,6 +488,7 @@ pub fn create_window() {
     tracy_create_gpu_context("main_render_context");
 
     let mut previous_frame_start = Instant::now();
+    let mut dt = 0.0;
 
     enum FocusedState {
         Focused,
@@ -501,17 +498,48 @@ pub fn create_window() {
     let mut focused = FocusedState::Focused;
 
     event_loop.run(move |e, _window_target, control_flow| {
-        // Window focus changed
-        if let Event::WindowEvent {
-            event: WindowEvent::Focused(focused_event),
-            ..
-        } = e
-        {
-            focused = if focused_event {
-                FocusedState::Focused
-            } else {
-                FocusedState::UnfocusedNotDrawn
-            };
+        let refresh_rate = match focused {
+            FocusedState::Focused | FocusedState::UnfocusedNotDrawn => {
+                SETTINGS.get::<WindowSettings>().refresh_rate as f32
+            }
+            FocusedState::Unfocused => SETTINGS.get::<WindowSettings>().refresh_rate_idle as f32,
+        }
+        .max(1.0);
+
+        let expected_frame_duration = Duration::from_secs_f32(1.0 / refresh_rate);
+        let mut skipped_rendering = false;
+
+        match e {
+            // Window focus changed
+            Event::WindowEvent {
+                event: WindowEvent::Focused(focused_event),
+                ..
+            } => {
+                focused = if focused_event {
+                    FocusedState::Focused
+                } else {
+                    FocusedState::UnfocusedNotDrawn
+                };
+            }
+            Event::MainEventsCleared => {
+                window_wrapper.prepare_frame();
+                window_wrapper.animate_frame(dt);
+                if REDRAW_SCHEDULER.should_draw() || SETTINGS.get::<WindowSettings>().no_idle {
+                    window_wrapper.draw_frame(dt)
+                } else {
+                    skipped_rendering = true;
+                }
+                dt = previous_frame_start.elapsed().as_secs_f32();
+                previous_frame_start = Instant::now();
+
+                if let FocusedState::UnfocusedNotDrawn = focused {
+                    focused = FocusedState::Unfocused;
+                }
+
+                #[cfg(target_os = "macos")]
+                draw_background(window_wrapper.windowed_context.window());
+            }
+            _ => (),
         }
 
         if !RUNNING_TRACKER.is_running() {
@@ -525,36 +553,14 @@ pub fn create_window() {
             std::process::exit(RUNNING_TRACKER.exit_code());
         }
 
-        let frame_start = Instant::now();
-
         window_wrapper.handle_window_commands();
         window_wrapper.synchronize_settings();
         window_wrapper.handle_event(e);
 
-        let refresh_rate = match focused {
-            FocusedState::Focused | FocusedState::UnfocusedNotDrawn => {
-                SETTINGS.get::<WindowSettings>().refresh_rate as f32
-            }
-            FocusedState::Unfocused => SETTINGS.get::<WindowSettings>().refresh_rate_idle as f32,
+        if !skipped_rendering {
+            *control_flow = ControlFlow::Poll;
+        } else {
+            *control_flow = ControlFlow::WaitUntil(previous_frame_start + expected_frame_duration)
         }
-        .max(1.0);
-
-        let expected_frame_length_seconds = 1.0 / refresh_rate;
-        let frame_duration = Duration::from_secs_f32(expected_frame_length_seconds);
-
-        if frame_start - previous_frame_start > frame_duration {
-            let dt = previous_frame_start.elapsed().as_secs_f32();
-            window_wrapper.prepare_frame();
-            window_wrapper.animate_frame(dt);
-            window_wrapper.draw_frame(dt);
-            if let FocusedState::UnfocusedNotDrawn = focused {
-                focused = FocusedState::Unfocused;
-            }
-            previous_frame_start = frame_start;
-            #[cfg(target_os = "macos")]
-            draw_background(window_wrapper.windowed_context.window());
-        }
-
-        *control_flow = ControlFlow::WaitUntil(previous_frame_start + frame_duration)
     });
 }
