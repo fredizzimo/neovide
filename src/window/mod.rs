@@ -493,15 +493,15 @@ pub fn create_window() {
 
     tracy_create_gpu_context("main_render_context");
 
-    let mut previous_frame_start = Instant::now();
-
     enum FocusedState {
         Focused,
         UnfocusedNotDrawn,
         Unfocused,
     }
+    let max_animation_dt = 1.0 / 120.0;
     let mut focused = FocusedState::Focused;
     let mut should_render = true;
+    let mut prev_frame_start = Instant::now();
 
     event_loop.run(move |e, _window_target, control_flow| {
         match e {
@@ -517,23 +517,29 @@ pub fn create_window() {
                 };
             }
             Event::MainEventsCleared => {
-                let frame_start = Instant::now();
                 // Only render when there are no pending events
                 //let expected_frame_length_seconds = 1.0 / refresh_rate;
                 //let frame_duration = Duration::from_secs_f32(expected_frame_length_seconds);
 
-                let dt = previous_frame_start.elapsed().as_secs_f32();
+                let frame_start = Instant::now();
+                let frame_dt = prev_frame_start.elapsed().as_secs_f64();
+                let mut dt = frame_dt;
                 should_render |= window_wrapper.prepare_frame();
-                window_wrapper.animate_frame(dt);
+                while dt > 0.0 {
+                    let step = dt.min(max_animation_dt);
+
+                    window_wrapper.animate_frame(step as f32);
+                    dt -= step;
+                }
                 // Always render for now
                 #[allow(clippy::overly_complex_bool_expr)]
                 if should_render || true {
-                    window_wrapper.draw_frame(dt);
+                    window_wrapper.draw_frame(frame_dt as f32);
                 }
                 if let FocusedState::UnfocusedNotDrawn = focused {
                     focused = FocusedState::Unfocused;
                 }
-                previous_frame_start = frame_start;
+                prev_frame_start = frame_start;
                 let window = window_wrapper.windowed_context.window();
 
                 #[cfg(target_os = "macos")]
