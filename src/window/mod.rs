@@ -495,8 +495,10 @@ pub fn create_window() {
 
     tracy_create_gpu_context("main_render_context");
 
+    let max_animation_dt = 1.0 / 120.0;
+
     let mut previous_frame_start = Instant::now();
-    let mut dt = 0.0;
+    let mut dt: f32 = 0.0;
     let mut should_render = true;
     let mut num_consecutive_rendered: usize = 0;
 
@@ -532,7 +534,11 @@ pub fn create_window() {
             }
             Event::MainEventsCleared => {
                 should_render |= window_wrapper.prepare_frame();
-                should_render |= window_wrapper.animate_frame(dt);
+                let num_steps = (dt / max_animation_dt).ceil();
+                let step = dt / num_steps;
+                for _ in 0..num_steps as usize {
+                    should_render |= window_wrapper.animate_frame(step);
+                }
                 if should_render || cmd_line_settings.no_idle {
                     window_wrapper.draw_frame(dt);
                     should_render = false;
