@@ -488,6 +488,9 @@ pub fn create_window() {
         Unfocused,
     }
     let mut focused = FocusedState::Focused;
+    let max_animation_dt = 1.0 / 120.0;
+    let mut animation_time = 0.0;
+    let animation_start = Instant::now();
 
     event_loop.run(move |e, _window_target, control_flow| {
         match e {
@@ -508,11 +511,17 @@ pub fn create_window() {
                 //let expected_frame_length_seconds = 1.0 / refresh_rate;
                 //let frame_duration = Duration::from_secs_f32(expected_frame_length_seconds);
 
-                let dt = previous_frame_start.elapsed().as_secs_f32();
-                let time = elapsed_time.elapsed().as_secs_f64();
+                let frame_dt = previous_frame_start.elapsed().as_secs_f64();
+                let mut dt = frame_dt;
                 window_wrapper.prepare_frame();
-                window_wrapper.animate_frame(dt, time);
-                window_wrapper.draw_frame(dt);
+                while dt > 0.0 {
+                    let step = dt.min(max_animation_dt);
+
+                    window_wrapper.animate_frame(step as f32, animation_time);
+                    animation_time += step;
+                    dt -= step;
+                }
+                window_wrapper.draw_frame(frame_dt as f32);
                 if let FocusedState::UnfocusedNotDrawn = focused {
                     focused = FocusedState::Unfocused;
                 }
