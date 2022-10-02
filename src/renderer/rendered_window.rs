@@ -195,7 +195,7 @@ impl RenderedWindow {
         Rect::from_point_and_size(current_pixel_position, image_size)
     }
 
-    pub fn update(&mut self, settings: &RendererSettings, dt: f32) -> bool {
+    pub fn animate(&mut self, settings: &RendererSettings, dt: f32, time: f64) -> bool {
         let mut animating = false;
 
         {
@@ -269,12 +269,7 @@ impl RenderedWindow {
         settings: &RendererSettings,
         default_background: Color,
         font_dimensions: Dimensions,
-        dt: f32,
     ) -> WindowDrawDetails {
-        if self.update(settings, dt) {
-            REDRAW_SCHEDULER.queue_next_frame();
-        }
-
         self.draw_surface(font_dimensions);
 
         let pixel_region = self.pixel_region(font_dimensions);
