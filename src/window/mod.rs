@@ -254,11 +254,13 @@ impl GlutinWindowWrapper {
         // which already resized window.
         let resized_at_startup = self.maximized_at_startup || self.has_been_resized();
 
+        /*
         log::trace!(
             "Settings geometry {:?}",
             PhysicalSize::from(settings.geometry)
         );
         log::trace!("Inner size: {:?}", new_size);
+        */
 
         if self.saved_grid_size.is_none() && !resized_at_startup {
             let window = self.windowed_context.window();
