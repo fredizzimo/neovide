@@ -36,7 +36,7 @@ fn build_nvim_cmd() -> TokioCommand {
         if platform_exists(&path) {
             return build_nvim_cmd_with_args(&path);
         } else {
-            warn!("NEOVIM_BIN is invalid falling back to first bin in PATH");
+            warn!("NEOVIM_BIN is invalid falling back to first bin in PATH {}", path);
         }
     }
     if let Some(path) = platform_which("nvim") {
@@ -69,7 +69,7 @@ fn create_platform_shell_command(command: &str, args: &[&str]) -> Option<StdComm
 }
 
 fn platform_exists(bin: &str) -> bool {
-    if let Some(mut exists_command) = create_platform_shell_command("exists", &["-x", bin]) {
+    if let Some(mut exists_command) = create_platform_shell_command(bin, &["-v"]) {
         if let Ok(output) = exists_command.output() {
             output.status.success()
         } else {
