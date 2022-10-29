@@ -137,9 +137,7 @@ pub struct RenderedWindow {
     grid_destination: Point,
     position_t: f32,
 
-    start_scroll: f32,
-    scroll_destination: f32,
-    scroll_t: f32,
+    scroll_v: f64,
 
     pub padding: WindowPadding,
 }
@@ -177,9 +175,7 @@ impl RenderedWindow {
             grid_destination: grid_position,
             position_t: 2.0, // 2.0 is out of the 0.0 to 1.0 range and stops animation.
 
-            start_scroll: 0.0,
-            scroll_destination: 0.0,
-            scroll_t: 2.0, // 2.0 is out of the 0.0 to 1.0 range and stops animation.
+            scroll_v: 0.0,
             padding,
         }
     }
@@ -217,22 +213,26 @@ impl RenderedWindow {
         }
 
         {
-            if 1.0 - self.scroll_t < std::f32::EPSILON {
-                // We are at destination, move t out of 0-1 range to stop the animation.
-                self.scroll_t = 2.0;
-            } else {
-                animating = true;
-                self.scroll_t = (self.scroll_t + dt / settings.scroll_animation_length).min(1.0);
+            let scroll_destination = self.scrollback_buffer.actual_position as f64;
+            let zeta = 1.0;
+            let omega = 4.0 / (zeta * settings.scroll_animation_length as f64);
+            let k_p = omega * omega;
+            let k_d = -2.0 * zeta * omega;
+            let timestep = 0.01;
+            let mut dt = dt as f64;
+            let current_scroll = &mut self.scrollback_buffer.scroll_position;
+            while dt > 0.0 {
+                let acc = k_p * (scroll_destination - *current_scroll) + k_d * self.scroll_v;
+                self.scroll_v += acc * timestep;
+                *current_scroll += self.scroll_v * timestep;
+                dt -= timestep;
             }
 
-            self.scrollback_buffer.scroll_position = ease(
-                ease_out_expo,
-                self.start_scroll,
-                self.scroll_destination,
-                self.scroll_t,
-            ) as f64;
-            // TODO: Clean up old scrollback
-            // TODO: f64
+            if (*current_scroll - scroll_destination).abs() < 0.01 {
+                self.reset_scroll();
+            } else {
+                animating = true;
+            }
         }
 
         animating
@@ -364,8 +364,7 @@ impl RenderedWindow {
     }
 
     fn reset_scroll(&mut self) {
-        self.start_scroll = 0.0;
-        self.scroll_t = 2.0;
+        self.scroll_v = 0.0;
     }
 
     pub fn handle_window_draw_command(
@@ -624,9 +623,8 @@ impl RenderedWindow {
                         };
                     }
                     */
-                    self.start_scroll = self.scrollback_buffer.scroll_position as f32;
-                    self.scroll_destination = self.scrollback_buffer.actual_position as f32;
-                    self.scroll_t = 0.0;
+                    //self.start_scroll = self.scrollback_buffer.scroll_position as f32;
+                    self.scroll_v = 0.0;
                 }
             }
             _ => {}
