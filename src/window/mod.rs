@@ -481,9 +481,6 @@ pub fn create_window() {
 
     tracy_create_gpu_context("main_render_context");
 
-    let mut previous_frame_start = Instant::now();
-    let mut elapsed_time = Instant::now();
-
     enum FocusedState {
         Focused,
         UnfocusedNotDrawn,
@@ -492,7 +489,8 @@ pub fn create_window() {
     let mut focused = FocusedState::Focused;
     let max_animation_dt = 1.0 / 120.0;
     let mut animation_time = 0.0;
-    let animation_start = Instant::now();
+    let mut frame_dt = 0.0;
+    let mut prev_frame_start = Instant::now();
 
     event_loop.run(move |e, _window_target, control_flow| {
         match e {
@@ -508,12 +506,10 @@ pub fn create_window() {
                 };
             }
             Event::MainEventsCleared => {
-                let frame_start = Instant::now();
                 // Only render when there are no pending events
                 //let expected_frame_length_seconds = 1.0 / refresh_rate;
                 //let frame_duration = Duration::from_secs_f32(expected_frame_length_seconds);
 
-                let frame_dt = previous_frame_start.elapsed().as_secs_f64();
                 let mut dt = frame_dt;
                 window_wrapper.prepare_frame();
                 while dt > 0.0 {
@@ -524,10 +520,12 @@ pub fn create_window() {
                     dt -= step;
                 }
                 window_wrapper.draw_frame(frame_dt as f32);
+                frame_dt = prev_frame_start.elapsed().as_secs_f64();
+                prev_frame_start = Instant::now();
+
                 if let FocusedState::UnfocusedNotDrawn = focused {
                     focused = FocusedState::Unfocused;
                 }
-                previous_frame_start = frame_start;
                 #[cfg(target_os = "macos")]
                 draw_background(&window_wrapper.windowed_context);
                 let window = window_wrapper.windowed_context.window();
