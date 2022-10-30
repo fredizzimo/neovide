@@ -17,8 +17,8 @@ use glutin::{
     ContextBuilder, GlProfile, WindowedContext,
 };
 use log::trace;
+use simple_moving_average::{NoSumSMA, SMA};
 use tokio::sync::mpsc::UnboundedReceiver;
-use simple_moving_average::{SMA, NoSumSMA};
 
 #[cfg(target_os = "macos")]
 use glutin::platform::macos::WindowBuilderExtMacOS;
@@ -202,11 +202,9 @@ impl GlutinWindowWrapper {
 
     pub fn draw_frame(&mut self, dt: f32) {
         tracy_zone!("draw_frame");
-        if REDRAW_SCHEDULER.should_draw() || SETTINGS.get::<WindowSettings>().no_idle {
-            self.renderer.draw_frame(self.skia_renderer.canvas(), dt);
-            self.skia_renderer.gr_context.flush(None);
-            self.windowed_context.swap_buffers().unwrap();
-        }
+        self.renderer.draw_frame(self.skia_renderer.canvas(), dt);
+        self.skia_renderer.gr_context.flush_and_submit();
+        self.windowed_context.swap_buffers().unwrap();
     }
 
     pub fn animate_frame(&mut self, dt: f32, time: f64) -> bool {
@@ -520,7 +518,8 @@ pub fn create_window() {
                     animation_time += step;
                     dt -= step;
                 }
-                window_wrapper.draw_frame(frame_dt_avg.get_most_recent_sample().unwrap_or(0.0) as f32);
+                window_wrapper
+                    .draw_frame(frame_dt_avg.get_most_recent_sample().unwrap_or(0.0) as f32);
                 frame_dt_avg.add_sample(prev_frame_start.elapsed().as_secs_f64());
                 prev_frame_start = Instant::now();
 
