@@ -11,6 +11,7 @@ use std::env;
 use std::time::{Duration, Instant};
 
 use log::trace;
+use simple_moving_average::{NoSumSMA, SMA};
 use tokio::sync::mpsc::UnboundedReceiver;
 use winit::{
     dpi::{PhysicalPosition, PhysicalSize, Position},
@@ -555,7 +556,8 @@ pub fn create_window() {
     let max_animation_dt = 1.0 / 120.0;
 
     let mut previous_frame_start = Instant::now();
-    let mut dt: f32 = 0.0;
+    let mut last_dt: f32 = 0.0;
+    let mut frame_dt_avg = NoSumSMA::<f64, f64, 10>::new();
     let mut should_render = true;
     let mut num_consecutive_rendered: usize = 0;
 
@@ -590,6 +592,12 @@ pub fn create_window() {
                 };
             }
             Event::MainEventsCleared => {
+                let dt = if num_consecutive_rendered > 0 && frame_dt_avg.get_num_samples() > 0 {
+                    frame_dt_avg.get_average() as f32
+                } else {
+                    last_dt
+                }
+                .min(1.0);
                 should_render |= window_wrapper.prepare_frame();
                 let num_steps = (dt / max_animation_dt).ceil();
                 let step = dt / num_steps;
@@ -597,13 +605,17 @@ pub fn create_window() {
                     should_render |= window_wrapper.animate_frame(step);
                 }
                 if should_render || !cmd_line_settings.idle {
-                    window_wrapper.draw_frame(dt);
+                    window_wrapper.draw_frame(last_dt);
+
+                    if num_consecutive_rendered > 2 {
+                        frame_dt_avg.add_sample(previous_frame_start.elapsed().as_secs_f64());
+                    }
                     should_render = false;
                     num_consecutive_rendered += 1;
                 } else {
                     num_consecutive_rendered = 0;
                 }
-                dt = previous_frame_start.elapsed().as_secs_f32();
+                last_dt = previous_frame_start.elapsed().as_secs_f32();
                 previous_frame_start = Instant::now();
                 if let FocusedState::UnfocusedNotDrawn = focused {
                     focused = FocusedState::Unfocused;
