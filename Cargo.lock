@@ -1401,6 +1401,7 @@ dependencies = [
  "serde",
  "serde_json",
  "shlex",
+ "simple_moving_average",
  "skia-safe",
  "swash",
  "time",
@@ -2211,6 +2212,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e51e73328dc4ac0c7ccbda3a494dfa03df1de2f46018127f60c693f2648455b0"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "simple_moving_average"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cdd19d3808aad2604c824399fd270260d634678b010328c9d96851bb0fb63121"
+dependencies = [
+ "num-traits",
 ]
 
 [[package]]

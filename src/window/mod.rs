@@ -18,6 +18,7 @@ use glutin::{
 };
 use log::trace;
 use tokio::sync::mpsc::UnboundedReceiver;
+use simple_moving_average::{SMA, NoSumSMA};
 
 #[cfg(target_os = "macos")]
 use glutin::platform::macos::WindowBuilderExtMacOS;
@@ -489,8 +490,8 @@ pub fn create_window() {
     let mut focused = FocusedState::Focused;
     let max_animation_dt = 1.0 / 120.0;
     let mut animation_time = 0.0;
-    let mut frame_dt = 0.0;
     let mut prev_frame_start = Instant::now();
+    let mut frame_dt_avg = NoSumSMA::<f64, f64, 10>::new();
 
     event_loop.run(move |e, _window_target, control_flow| {
         match e {
@@ -510,7 +511,7 @@ pub fn create_window() {
                 //let expected_frame_length_seconds = 1.0 / refresh_rate;
                 //let frame_duration = Duration::from_secs_f32(expected_frame_length_seconds);
 
-                let mut dt = frame_dt;
+                let mut dt = frame_dt_avg.get_average();
                 window_wrapper.prepare_frame();
                 while dt > 0.0 {
                     let step = dt.min(max_animation_dt);
@@ -519,8 +520,8 @@ pub fn create_window() {
                     animation_time += step;
                     dt -= step;
                 }
-                window_wrapper.draw_frame(frame_dt as f32);
-                frame_dt = prev_frame_start.elapsed().as_secs_f64();
+                window_wrapper.draw_frame(frame_dt_avg.get_most_recent_sample().unwrap_or(0.0) as f32);
+                frame_dt_avg.add_sample(prev_frame_start.elapsed().as_secs_f64());
                 prev_frame_start = Instant::now();
 
                 if let FocusedState::UnfocusedNotDrawn = focused {
