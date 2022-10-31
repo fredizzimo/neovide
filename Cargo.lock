@@ -1327,6 +1327,7 @@ dependencies = [
  "serde",
  "serde_json",
  "shlex",
+ "simple_moving_average",
  "skia-safe",
  "swash",
  "time",
@@ -2112,6 +2113,15 @@ name = "simd-adler32"
 version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "238abfbb77c1915110ad968465608b68e869e0772622c9656714e73e5a1a522f"
+
+[[package]]
+name = "simple_moving_average"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cdd19d3808aad2604c824399fd270260d634678b010328c9d96851bb0fb63121"
+dependencies = [
+ "num-traits",
+]
 
 [[package]]
 name = "siphasher"
