@@ -6,6 +6,8 @@ mod settings;
 #[cfg(target_os = "macos")]
 mod draw_background;
 
+use std::sync::mpsc;
+use std::thread;
 use std::time::{Duration, Instant};
 
 use glutin::{
@@ -415,100 +417,111 @@ pub fn create_window() {
             }
         }
     };
-    let windowed_context = unsafe { windowed_context.make_current().unwrap() };
-
-    let window = windowed_context.window();
-    let initial_size = window.inner_size();
-
-    // Check that window is visible in some monitor, and reposition it if not.
-    let did_reposition = window
-        .current_monitor()
-        .and_then(|current_monitor| {
-            let monitor_position = current_monitor.position();
-            let monitor_size = current_monitor.size();
-            let monitor_width = monitor_size.width as i32;
-            let monitor_height = monitor_size.height as i32;
-
-            let window_position = window.outer_position().ok()?;
-            let window_size = window.outer_size();
-            let window_width = window_size.width as i32;
-            let window_height = window_size.height as i32;
-
-            if window_position.x + window_width < monitor_position.x
-                || window_position.y + window_height < monitor_position.y
-                || window_position.x > monitor_position.x + monitor_width
-                || window_position.y > monitor_position.y + monitor_height
-            {
-                window.set_outer_position(monitor_position);
-            }
-
-            Some(())
-        })
-        .is_some();
-
-    log::trace!("repositioned window: {}", did_reposition);
-
-    let scale_factor = windowed_context.window().scale_factor();
-    let renderer = Renderer::new(scale_factor);
-    let saved_inner_size = window.inner_size();
-
-    let skia_renderer = SkiaRenderer::new(&windowed_context);
-
-    let window_command_receiver = EVENT_AGGREGATOR.register_event::<WindowCommand>();
-
-    log::info!(
-        "window created (scale_factor: {:.4}, font_dimensions: {:?})",
-        scale_factor,
-        renderer.grid_renderer.font_dimensions,
-    );
-
-    let mut window_wrapper = GlutinWindowWrapper {
-        windowed_context,
-        skia_renderer,
-        renderer,
-        keyboard_manager: KeyboardManager::new(),
-        mouse_manager: MouseManager::new(),
-        title: String::from("Neovide"),
-        fullscreen: false,
-        font_changed_last_frame: false,
-        size_at_startup: initial_size,
-        maximized_at_startup: maximized,
-        saved_inner_size,
-        saved_grid_size: None,
-        window_command_receiver,
-    };
-
-    tracy_create_gpu_context("main_render_context");
 
     enum FocusedState {
         Focused,
         UnfocusedNotDrawn,
         Unfocused,
     }
-    let mut focused = FocusedState::Focused;
-    let max_animation_dt = 1.0 / 120.0;
-    let mut animation_time = 0.0;
-    let mut prev_frame_start = Instant::now();
-    let mut frame_dt_avg = NoSumSMA::<f64, f64, 10>::new();
+    let (txtemp, rx) = mpsc::channel::<Event<()>>();
+    let mut tx = Some(txtemp);
+    let mut render_thread_handle = Some(thread::spawn(move || {
+        let windowed_context = unsafe { windowed_context.make_current().unwrap() };
 
-    event_loop.run(move |e, _window_target, control_flow| {
-        match e {
-            // Window focus changed
-            Event::WindowEvent {
-                event: WindowEvent::Focused(focused_event),
-                ..
-            } => {
-                focused = if focused_event {
-                    FocusedState::Focused
-                } else {
-                    FocusedState::UnfocusedNotDrawn
-                };
+        let window = windowed_context.window();
+        let initial_size = window.inner_size();
+
+        // Check that window is visible in some monitor, and reposition it if not.
+        let did_reposition = window
+            .current_monitor()
+            .and_then(|current_monitor| {
+                let monitor_position = current_monitor.position();
+                let monitor_size = current_monitor.size();
+                let monitor_width = monitor_size.width as i32;
+                let monitor_height = monitor_size.height as i32;
+
+                let window_position = window.outer_position().ok()?;
+                let window_size = window.outer_size();
+                let window_width = window_size.width as i32;
+                let window_height = window_size.height as i32;
+
+                if window_position.x + window_width < monitor_position.x
+                    || window_position.y + window_height < monitor_position.y
+                    || window_position.x > monitor_position.x + monitor_width
+                    || window_position.y > monitor_position.y + monitor_height
+                {
+                    window.set_outer_position(monitor_position);
+                }
+
+                Some(())
+            })
+            .is_some();
+
+        log::trace!("repositioned window: {}", did_reposition);
+
+        let scale_factor = windowed_context.window().scale_factor();
+        let renderer = Renderer::new(scale_factor);
+        let saved_inner_size = window.inner_size();
+
+        let window_command_receiver = EVENT_AGGREGATOR.register_event::<WindowCommand>();
+
+        log::info!(
+            "window created (scale_factor: {:.4}, font_dimensions: {:?})",
+            scale_factor,
+            renderer.grid_renderer.font_dimensions,
+        );
+
+        let skia_renderer = SkiaRenderer::new(&windowed_context);
+
+        let mut window_wrapper = GlutinWindowWrapper {
+            windowed_context,
+            skia_renderer,
+            renderer,
+            keyboard_manager: KeyboardManager::new(),
+            mouse_manager: MouseManager::new(),
+            title: String::from("Neovide"),
+            fullscreen: false,
+            font_changed_last_frame: false,
+            size_at_startup: initial_size,
+            maximized_at_startup: maximized,
+            saved_inner_size,
+            saved_grid_size: None,
+            window_command_receiver,
+        };
+
+        tracy_create_gpu_context("main render context");
+
+        let mut focused = FocusedState::Focused;
+        let max_animation_dt = 1.0 / 120.0;
+        let mut animation_time = 0.0;
+        let mut prev_frame_start = Instant::now();
+        let mut frame_dt_avg = NoSumSMA::<f64, f64, 10>::new();
+        loop {
+            tracy_zone!("render loop", 0);
+            let e = rx.try_recv();
+
+            match e {
+                // Window focus changed
+                Ok(Event::WindowEvent {
+                    event: WindowEvent::Focused(focused_event),
+                    ..
+                }) => {
+                    focused = if focused_event {
+                        FocusedState::Focused
+                    } else {
+                        FocusedState::UnfocusedNotDrawn
+                    };
+                }
+                Err(mpsc::TryRecvError::Disconnected) => {
+                    break;
+                }
+                _ => {}
             }
-            Event::MainEventsCleared => {
-                // Only render when there are no pending events
-                //let expected_frame_length_seconds = 1.0 / refresh_rate;
-                //let frame_duration = Duration::from_secs_f32(expected_frame_length_seconds);
-
+            if let Ok(e) = e {
+                window_wrapper.handle_event(e);
+                window_wrapper.handle_window_commands();
+                window_wrapper.synchronize_settings();
+            } else {
                 let mut dt = frame_dt_avg.get_average();
                 window_wrapper.prepare_frame();
                 while dt > 0.0 {
@@ -528,27 +541,32 @@ pub fn create_window() {
                 }
                 #[cfg(target_os = "macos")]
                 draw_background(&window_wrapper.windowed_context);
-                let window = window_wrapper.windowed_context.window();
-                window.request_redraw();
             }
-            _ => (),
+        }
+        let window = window_wrapper.windowed_context.window();
+        save_window_geometry(
+            window.is_maximized(),
+            window_wrapper.saved_grid_size,
+            window.outer_position().ok(),
+        );
+        std::process::exit(RUNNING_TRACKER.exit_code());
+    }));
+
+    event_loop.run(move |e, _window_target, control_flow| {
+        if let Some(event) = e.to_static() {
+            if let Some(tx) = &tx {
+                tx.send(event);
+            }
         }
 
         if !RUNNING_TRACKER.is_running() {
-            let window = window_wrapper.windowed_context.window();
-            save_window_geometry(
-                window.is_maximized(),
-                window_wrapper.saved_grid_size,
-                window.outer_position().ok(),
-            );
-
-            std::process::exit(RUNNING_TRACKER.exit_code());
+            let tx = tx.take().unwrap();
+            drop(tx);
+            let handle = render_thread_handle.take().unwrap();
+            handle.join().unwrap();
         }
-
-        window_wrapper.handle_window_commands();
-        window_wrapper.synchronize_settings();
-        window_wrapper.handle_event(e);
-
-        *control_flow = ControlFlow::Poll;
+        *control_flow = ControlFlow::WaitUntil(
+            std::time::Instant::now() + std::time::Duration::from_millis(100),
+        );
     });
 }
