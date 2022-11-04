@@ -24,6 +24,7 @@ use crate::{
     event_aggregator::EVENT_AGGREGATOR,
     profiling::tracy_zone,
     settings::*,
+    window::UserEvent,
     WindowSettings,
 };
 
@@ -34,7 +35,7 @@ pub use rendered_window::{
     LineFragment, RenderedWindow, WindowDrawCommand, WindowDrawDetails, WindowPadding,
 };
 
-pub use opengl::{build_context, Context as WindowedContext};
+pub use opengl::{build_context, build_window, Context as WindowedContext};
 pub use vsync::*;
 
 #[derive(SettingGroup, Clone)]
@@ -134,7 +135,7 @@ impl Renderer {
         }
     }
 
-    pub fn handle_event(&mut self, event: &Event<()>) {
+    pub fn handle_event(&mut self, event: &Event<UserEvent>) {
         self.cursor_renderer.handle_event(event);
     }
 
