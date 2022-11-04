@@ -8,6 +8,8 @@ mod draw_background;
 
 #[cfg(target_os = "linux")]
 use std::env;
+use std::sync::mpsc::{self, RecvTimeoutError, TryRecvError};
+use std::thread;
 use std::time::{Duration, Instant};
 
 use log::trace;
@@ -16,7 +18,7 @@ use tokio::sync::mpsc::UnboundedReceiver;
 use winit::{
     dpi::{PhysicalPosition, PhysicalSize, Position},
     event::{Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::{ControlFlow, EventLoopBuilder},
     window::{self, Fullscreen, Icon, Theme},
 };
 
@@ -48,7 +50,7 @@ use crate::{
     },
     renderer::Renderer,
     renderer::WindowPadding,
-    renderer::{build_context, VSync, WindowedContext},
+    renderer::{build_context, build_window, VSync, WindowedContext},
     running_tracker::*,
     settings::{
         load_last_window_settings, save_window_size, PersistentWindowSettings,
@@ -67,6 +69,11 @@ pub enum WindowCommand {
     TitleChanged(String),
     SetMouseEnabled(bool),
     ListAvailableFonts,
+}
+
+#[derive(Clone, Debug)]
+pub enum UserEvent {
+    ScaleFactorChanged(f64),
 }
 
 pub struct WinitWindowWrapper {
@@ -166,7 +173,7 @@ impl WinitWindowWrapper {
         EVENT_AGGREGATOR.send(UiCommand::Parallel(ParallelCommand::FocusGained));
     }
 
-    pub fn handle_event(&mut self, event: Event<()>) -> bool {
+    pub fn handle_event(&mut self, event: Event<UserEvent>) -> bool {
         tracy_zone!("handle_event", 0);
         let mut should_render = false;
         self.keyboard_manager.handle_event(&event);
@@ -190,10 +197,7 @@ impl WinitWindowWrapper {
             } => {
                 self.handle_quit();
             }
-            Event::WindowEvent {
-                event: WindowEvent::ScaleFactorChanged { scale_factor, .. },
-                ..
-            } => {
+            Event::UserEvent(UserEvent::ScaleFactorChanged(scale_factor)) => {
                 self.handle_scale_factor_update(scale_factor);
             }
             Event::WindowEvent {
@@ -406,7 +410,7 @@ pub fn create_window() {
         Icon::from_rgba(rgba, width, height).expect("Failed to create icon object")
     };
 
-    let event_loop = EventLoop::new();
+    let event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
 
     let cmd_line_settings = SETTINGS.get::<CmdLineSettings>();
 
@@ -473,132 +477,158 @@ pub fn create_window() {
     #[cfg(target_os = "macos")]
     let winit_window_builder = winit_window_builder.with_accepts_first_mouse(false);
 
-    let windowed_context = build_context(&cmd_line_settings, winit_window_builder, &event_loop);
+    let (window, config) = build_window(winit_window_builder, &event_loop);
 
-    let window = windowed_context.window();
-    let initial_size = window.inner_size();
+    let (txtemp, rx) = mpsc::channel::<Event<UserEvent>>();
+    let mut tx = Some(txtemp);
+    let mut render_thread_handle = Some(thread::spawn(move || {
+        let windowed_context = build_context(window, config, &cmd_line_settings);
+        let window = windowed_context.window();
+        let initial_size = window.inner_size();
 
-    // Check that window is visible in some monitor, and reposition it if not.
-    let did_reposition = window
-        .current_monitor()
-        .and_then(|current_monitor| {
-            let monitor_position = current_monitor.position();
-            let monitor_size = current_monitor.size();
-            let monitor_width = monitor_size.width as i32;
-            let monitor_height = monitor_size.height as i32;
+        // Check that window is visible in some monitor, and reposition it if not.
+        let did_reposition = window
+            .current_monitor()
+            .and_then(|current_monitor| {
+                let monitor_position = current_monitor.position();
+                let monitor_size = current_monitor.size();
+                let monitor_width = monitor_size.width as i32;
+                let monitor_height = monitor_size.height as i32;
 
-            let window_position = previous_position
-                .filter(|_| !maximized)
-                .or_else(|| window.outer_position().ok())?;
+                let window_position = previous_position
+                    .filter(|_| !maximized)
+                    .or_else(|| window.outer_position().ok())?;
 
-            let window_size = window.outer_size();
-            let window_width = window_size.width as i32;
-            let window_height = window_size.height as i32;
+                let window_size = window.outer_size();
+                let window_width = window_size.width as i32;
+                let window_height = window_size.height as i32;
 
-            if window_position.x + window_width < monitor_position.x
-                || window_position.y + window_height < monitor_position.y
-                || window_position.x > monitor_position.x + monitor_width
-                || window_position.y > monitor_position.y + monitor_height
-            {
-                window.set_outer_position(monitor_position);
-            }
+                if window_position.x + window_width < monitor_position.x
+                    || window_position.y + window_height < monitor_position.y
+                    || window_position.x > monitor_position.x + monitor_width
+                    || window_position.y > monitor_position.y + monitor_height
+                {
+                    window.set_outer_position(monitor_position);
+                }
 
-            Some(())
-        })
-        .is_some();
+                Some(())
+            })
+            .is_some();
 
-    log::trace!("repositioned window: {}", did_reposition);
+        log::trace!("repositioned window: {}", did_reposition);
 
-    let scale_factor = windowed_context.window().scale_factor();
-    let renderer = Renderer::new(scale_factor);
-    let saved_inner_size = window.inner_size();
+        let scale_factor = windowed_context.window().scale_factor();
+        let renderer = Renderer::new(scale_factor);
+        let saved_inner_size = window.inner_size();
 
-    let skia_renderer = SkiaRenderer::new(&windowed_context);
+        let skia_renderer = SkiaRenderer::new(&windowed_context);
 
-    let window_command_receiver = EVENT_AGGREGATOR.register_event::<WindowCommand>();
+        let window_command_receiver = EVENT_AGGREGATOR.register_event::<WindowCommand>();
 
-    log::info!(
-        "window created (scale_factor: {:.4}, font_dimensions: {:?})",
-        scale_factor,
-        renderer.grid_renderer.font_dimensions,
-    );
+        log::info!(
+            "window created (scale_factor: {:.4}, font_dimensions: {:?})",
+            scale_factor,
+            renderer.grid_renderer.font_dimensions,
+        );
 
-    let ime_enabled = { SETTINGS.get::<KeyboardSettings>().ime };
+        let ime_enabled = { SETTINGS.get::<KeyboardSettings>().ime };
 
-    match SETTINGS.get::<WindowSettings>().theme.as_str() {
-        "light" => set_background("light"),
-        "dark" => set_background("dark"),
-        "auto" => match window.theme() {
-            Some(Theme::Light) => set_background("light"),
-            Some(Theme::Dark) => set_background("dark"),
-            None => {}
-        },
-        _ => {}
-    }
-
-    let mut window_wrapper = WinitWindowWrapper {
-        windowed_context,
-        skia_renderer,
-        renderer,
-        keyboard_manager: KeyboardManager::new(),
-        mouse_manager: MouseManager::new(),
-        title: String::from("Neovide"),
-        fullscreen: false,
-        font_changed_last_frame: false,
-        size_at_startup: initial_size,
-        maximized_at_startup: maximized,
-        saved_inner_size,
-        saved_grid_size: None,
-        window_command_receiver,
-        ime_enabled,
-    };
-
-    window_wrapper.set_ime(ime_enabled);
-
-    tracy_create_gpu_context("main_render_context");
-
-    let max_animation_dt = 1.0 / 120.0;
-
-    let mut previous_frame_start = Instant::now();
-    let mut last_dt: f32 = 0.0;
-    let mut frame_dt_avg = NoSumSMA::<f64, f64, 10>::new();
-    let mut should_render = true;
-    let mut num_consecutive_rendered: usize = 0;
-
-    enum FocusedState {
-        Focused,
-        UnfocusedNotDrawn,
-        Unfocused,
-    }
-    let mut focused = FocusedState::Focused;
-
-    let mut vsync = VSync::new();
-
-    event_loop.run(move |e, _window_target, control_flow| {
-        tracy_zone!("loop");
-        let refresh_rate = match focused {
-            FocusedState::Focused | FocusedState::UnfocusedNotDrawn => {
-                SETTINGS.get::<WindowSettings>().refresh_rate as f32
-            }
-            FocusedState::Unfocused => SETTINGS.get::<WindowSettings>().refresh_rate_idle as f32,
+        match SETTINGS.get::<WindowSettings>().theme.as_str() {
+            "light" => set_background("light"),
+            "dark" => set_background("dark"),
+            "auto" => match window.theme() {
+                Some(Theme::Light) => set_background("light"),
+                Some(Theme::Dark) => set_background("dark"),
+                None => {}
+            },
+            _ => {}
         }
-        .max(1.0);
 
-        let expected_frame_duration = Duration::from_secs_f32(1.0 / refresh_rate);
+        let mut window_wrapper = WinitWindowWrapper {
+            windowed_context,
+            skia_renderer,
+            renderer,
+            keyboard_manager: KeyboardManager::new(),
+            mouse_manager: MouseManager::new(),
+            title: String::from("Neovide"),
+            fullscreen: false,
+            font_changed_last_frame: false,
+            size_at_startup: initial_size,
+            maximized_at_startup: maximized,
+            saved_inner_size,
+            saved_grid_size: None,
+            window_command_receiver,
+            ime_enabled,
+        };
 
-        match e {
-            // Window focus changed
-            Event::WindowEvent {
-                event: WindowEvent::Focused(focused_event),
-                ..
-            } => {
-                focused = if focused_event {
-                    FocusedState::Focused
-                } else {
-                    FocusedState::UnfocusedNotDrawn
-                };
+        window_wrapper.set_ime(ime_enabled);
+
+        tracy_create_gpu_context("main_render_context");
+
+        let max_animation_dt = 1.0 / 120.0;
+
+        let mut previous_frame_start = Instant::now();
+        let mut last_dt: f32 = 0.0;
+        let mut frame_dt_avg = NoSumSMA::<f64, f64, 10>::new();
+        let mut should_render = true;
+        let mut num_consecutive_rendered: usize = 0;
+
+        enum FocusedState {
+            Focused,
+            UnfocusedNotDrawn,
+            Unfocused,
+        }
+        let mut focused = FocusedState::Focused;
+
+        let mut vsync = VSync::new();
+
+        #[allow(unused_assignments)]
+        loop {
+            tracy_zone!("render loop", 0);
+
+            let refresh_rate = match focused {
+                FocusedState::Focused | FocusedState::UnfocusedNotDrawn => {
+                    SETTINGS.get::<WindowSettings>().refresh_rate as f32
+                }
+                FocusedState::Unfocused => {
+                    SETTINGS.get::<WindowSettings>().refresh_rate_idle as f32
+                }
             }
-            Event::MainEventsCleared => {
+            .max(1.0);
+            let expected_frame_duration = Duration::from_secs_f32(1.0 / refresh_rate);
+
+            let e = if num_consecutive_rendered > 0 {
+                rx.try_recv()
+                    .map_err(|e| matches!(e, TryRecvError::Disconnected))
+            } else {
+                let deadline = previous_frame_start + expected_frame_duration;
+                let duration = deadline.saturating_duration_since(Instant::now());
+                rx.recv_timeout(duration)
+                    .map_err(|e| matches!(e, RecvTimeoutError::Disconnected))
+            };
+
+            match e {
+                // Window focus changed
+                Ok(Event::WindowEvent {
+                    event: WindowEvent::Focused(focused_event),
+                    ..
+                }) => {
+                    focused = if focused_event {
+                        FocusedState::Focused
+                    } else {
+                        FocusedState::UnfocusedNotDrawn
+                    };
+                }
+                Err(true) => {
+                    break;
+                }
+                _ => {}
+            }
+            if let Ok(e) = e {
+                window_wrapper.handle_window_commands();
+                window_wrapper.synchronize_settings();
+                should_render |= window_wrapper.handle_event(e);
+            } else {
                 let dt = if num_consecutive_rendered > 0 && frame_dt_avg.get_num_samples() > 0 {
                     frame_dt_avg.get_average() as f32
                 } else {
@@ -632,28 +662,44 @@ pub fn create_window() {
                 #[cfg(target_os = "macos")]
                 draw_background(window_wrapper.windowed_context.window());
             }
-            _ => (),
+        }
+        let window = window_wrapper.windowed_context.window();
+        save_window_size(
+            window.is_maximized(),
+            window.inner_size(),
+            window.outer_position().ok(),
+        );
+        std::process::exit(RUNNING_TRACKER.exit_code());
+    }));
+
+    event_loop.run(move |e, _window_target, control_flow| {
+        let e = match e {
+            Event::WindowEvent {
+                event: WindowEvent::ScaleFactorChanged { scale_factor, .. },
+                ..
+            } => {
+                // It's really unfortunate that we have to do this, but
+                // https://github.com/rust-windowing/winit/issues/1387
+                Event::UserEvent(UserEvent::ScaleFactorChanged(scale_factor))
+            }
+            _ => {
+                // With the current Winit version, all events, except ScaleFactorChanged are static
+                e.to_static().expect("Unexpected event received")
+            }
+        };
+        if let Some(tx) = &tx {
+            tx.send(e).unwrap();
         }
 
         if !RUNNING_TRACKER.is_running() {
-            let window = window_wrapper.windowed_context.window();
-            save_window_size(
-                window.is_maximized(),
-                window.inner_size(),
-                window.outer_position().ok(),
-            );
-
-            std::process::exit(RUNNING_TRACKER.exit_code());
+            let tx = tx.take().unwrap();
+            drop(tx);
+            let handle = render_thread_handle.take().unwrap();
+            handle.join().unwrap();
         }
-
-        window_wrapper.handle_window_commands();
-        window_wrapper.synchronize_settings();
-        should_render |= window_wrapper.handle_event(e);
-
-        if num_consecutive_rendered > 0 {
-            *control_flow = ControlFlow::Poll;
-        } else {
-            *control_flow = ControlFlow::WaitUntil(previous_frame_start + expected_frame_duration)
-        }
+        // We need to wake up regularly to check the running tracker, so that we can exit
+        *control_flow = ControlFlow::WaitUntil(
+            std::time::Instant::now() + std::time::Duration::from_millis(100),
+        );
     });
 }
