@@ -31,6 +31,9 @@ use draw_background::draw_background;
 #[cfg(target_os = "linux")]
 use glutin::platform::unix::WindowBuilderExtUnix;
 
+#[cfg(target_os = "windows")]
+use windows::Win32::Graphics::Dxgi::{CreateDXGIFactory1, IDXGIFactory1, IDXGIOutput};
+
 use crate::profiling::{
     emit_frame_mark, tracy_create_gpu_context, tracy_gpu_collect, tracy_gpu_zone, tracy_zone,
 };
@@ -83,6 +86,8 @@ pub struct GlutinWindowWrapper {
     size_at_startup: PhysicalSize<u32>,
     maximized_at_startup: bool,
     window_command_receiver: UnboundedReceiver<WindowCommand>,
+    #[cfg(target_os = "windows")]
+    dxgi_output: IDXGIOutput,
 }
 
 impl GlutinWindowWrapper {
@@ -205,8 +210,24 @@ impl GlutinWindowWrapper {
     pub fn draw_frame(&mut self, dt: f32) {
         tracy_zone!("draw_frame");
         self.renderer.draw_frame(self.skia_renderer.canvas(), dt);
-        self.skia_renderer.gr_context.flush_and_submit();
-        self.windowed_context.swap_buffers().unwrap();
+        {
+            tracy_gpu_zone!("skia flush");
+            self.skia_renderer.gr_context.flush_and_submit();
+        }
+        #[cfg(target_os = "windows")]
+        unsafe {
+            tracy_gpu_zone!("WaitForVBlank");
+            self.dxgi_output.WaitForVBlank();
+        }
+
+        {
+            // NOTE: a gpu zone here can force a sync with the GPU and block
+            // so use a CPU zone instead
+            tracy_zone!("swap buffers");
+            self.windowed_context.swap_buffers().unwrap();
+        }
+        tracy_gpu_collect();
+        emit_frame_mark();
     }
 
     pub fn animate_frame(&mut self, dt: f32, time: f64) -> bool {
@@ -487,6 +508,13 @@ pub fn create_window() {
             saved_inner_size,
             saved_grid_size: None,
             window_command_receiver,
+            #[cfg(target_os = "windows")]
+            dxgi_output: {
+                let dxgi_factory = unsafe { CreateDXGIFactory1::<IDXGIFactory1>() }.unwrap();
+                let primary_adapter = unsafe { dxgi_factory.EnumAdapters1(0) }.unwrap();
+                let primary_output = unsafe { primary_adapter.EnumOutputs(0) }.unwrap();
+                primary_output
+            },
         };
 
         tracy_create_gpu_context("main render context");
