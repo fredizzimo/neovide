@@ -27,8 +27,15 @@ impl GridLine {
 pub struct CharacterGrid {
     pub width: usize,
     pub height: usize,
+    pub scroll_offset: f64,
 
     lines: Vec<GridLine>,
+    top_index: isize,
+}
+
+fn create_lines(width: usize, height: usize) -> Vec<GridLine> {
+    // NOTE: Double the height for a smooth scrolling buffer
+    vec![GridLine::new(width); height * 2]
 }
 
 impl CharacterGrid {
@@ -36,12 +43,14 @@ impl CharacterGrid {
         CharacterGrid {
             width,
             height,
-            lines: vec![GridLine::new(width); height],
+            scroll_offset: 0.0,
+            top_index: 0,
+            lines: create_lines(width, height),
         }
     }
 
     pub fn resize(&mut self, (width, height): (usize, usize)) {
-        let mut new_lines = vec![GridLine::new(width); height];
+        let mut new_lines = create_lines(width, height);
 
         for x in 0..self.width.min(width) {
             for y in 0..self.height.min(height) {
@@ -54,22 +63,28 @@ impl CharacterGrid {
         self.width = width;
         self.height = height;
         self.lines = new_lines;
+        self.scroll_offset = 0.0;
+        self.top_index = 0;
     }
 
     pub fn clear(&mut self) {
         self.set_all_characters(default_cell!());
+        self.scroll_offset = 0.0;
+        self.top_index = 0;
     }
 
     pub fn get_cell(&self, x: usize, y: usize) -> Option<&GridCell> {
+        let index = self.get_row_array_index(y as isize);
         self.lines
-            .get(y)
+            .get(index)
             .map(|line| line.characters.get(x))
             .flatten()
     }
 
     pub fn get_cell_mut(&mut self, x: usize, y: usize) -> Option<&mut GridCell> {
+        let index = self.get_row_array_index(y as isize);
         self.lines
-            .get_mut(y)
+            .get_mut(index)
             .map(|line| line.characters.get_mut(x))
             .flatten()
     }
@@ -84,10 +99,16 @@ impl CharacterGrid {
 
     pub fn row(&self, row_index: usize) -> Option<&[GridCell]> {
         if row_index < self.height {
-            Some(&self.lines[row_index].characters[..])
+            Some(&self.lines[self.get_row_array_index(row_index as isize)].characters[..])
         } else {
             None
         }
+    }
+
+    pub fn scrolled_row(&self, row_index: usize) -> &[GridCell] {
+        let scroll_index = row_index as isize + self.scroll_offset.floor() as isize;
+        let row_index = self.get_row_array_index(scroll_index);
+        &self.lines[row_index].characters[..]
     }
 
     pub fn scroll_region(
@@ -99,41 +120,64 @@ impl CharacterGrid {
         rows: isize,
         cols: isize,
     ) {
-        let mut top_to_bottom;
-        let mut bottom_to_top;
-        let y_iter: &mut dyn Iterator<Item = usize> = if rows > 0 {
-            top_to_bottom = (top as isize + rows) as usize..bottom;
-            &mut top_to_bottom
+        if top == 0 && bottom == self.height && left == 0 && right == self.width && cols == 0 {
+            // Pure up/down scrolling is optimized, and furthermore does not destroy the region
+            // that has been scrolled out, which can be used for implementing smooth scrolling
+            self.top_index += rows;
+            let minmax = (self.lines.len() - self.height) as isize;
+            if rows.abs() > minmax {
+                // The scroll offset has to be reset when scrolling too far
+                self.scroll_offset = 0.0;
+            } else {
+                // And even when scrolling in steps, we can't let it drift too far, since the
+                // buffer size is limited
+                self.scroll_offset -= rows as f64;
+                self.scroll_offset = self.scroll_offset.clamp(-minmax as f64, minmax as f64);
+            }
         } else {
-            bottom_to_top = (top..(bottom as isize + rows) as usize).rev();
-            &mut bottom_to_top
-        };
+            let mut top_to_bottom;
+            let mut bottom_to_top;
+            let y_iter: &mut dyn Iterator<Item = usize> = if rows > 0 {
+                top_to_bottom = (top as isize + rows) as usize..bottom;
+                &mut top_to_bottom
+            } else {
+                bottom_to_top = (top..(bottom as isize + rows) as usize).rev();
+                &mut bottom_to_top
+            };
 
-        for y in y_iter {
-            let dest_y = y as isize - rows;
-            let mut cols_left;
-            let mut cols_right;
-            if dest_y >= 0 && dest_y < self.height as isize {
-                let x_iter: &mut dyn Iterator<Item = usize> = if cols > 0 {
-                    cols_left = (left as isize + cols) as usize..right;
-                    &mut cols_left
-                } else {
-                    cols_right = (left..(right as isize + cols) as usize).rev();
-                    &mut cols_right
-                };
+            for y in y_iter {
+                let dest_y = y as isize - rows;
+                let mut cols_left;
+                let mut cols_right;
+                if dest_y >= 0 && dest_y < self.height as isize {
+                    let x_iter: &mut dyn Iterator<Item = usize> = if cols > 0 {
+                        cols_left = (left as isize + cols) as usize..right;
+                        &mut cols_left
+                    } else {
+                        cols_right = (left..(right as isize + cols) as usize).rev();
+                        &mut cols_right
+                    };
 
-                for x in x_iter {
-                    let dest_x = ((x as isize) - cols) as usize;
-                    let cell_data = self.get_cell(x, y).cloned();
+                    for x in x_iter {
+                        let dest_x = ((x as isize) - cols) as usize;
+                        let cell_data = self.get_cell(x, y).cloned();
 
-                    if let Some(cell_data) = cell_data {
-                        if let Some(dest_cell) = self.get_cell_mut(dest_x, dest_y as usize) {
-                            *dest_cell = cell_data;
+                        if let Some(cell_data) = cell_data {
+                            if let Some(dest_cell) = self.get_cell_mut(dest_x, dest_y as usize) {
+                                *dest_cell = cell_data;
+                            }
                         }
                     }
                 }
             }
+
+            self.scroll_offset = 0.0;
         }
+    }
+
+    fn get_row_array_index(&self, index: isize) -> usize {
+        let rows = self.lines.len() as isize;
+        return (self.top_index + index).rem_euclid(rows) as usize;
     }
 }
 
@@ -189,6 +233,15 @@ mod tests {
         assert_eq!(grid.get_cell(x, y), cell);
     }
 
+    fn assert_scrolled_row_equal_to(grid: &CharacterGrid, row: usize, expected: &str) {
+        let values: Vec<GridCell> = expected
+            .chars()
+            .map(|chr| (chr.to_string(), None))
+            .collect();
+        let row = grid.scrolled_row(row);
+        assert_eq!(row, values);
+    }
+
     fn create_initialized_grid(lines: &Vec<&str>) -> CharacterGrid {
         let num_lines = lines.len();
         assert_ne!(num_lines, 0);
@@ -202,6 +255,13 @@ mod tests {
             }
         }
         grid
+    }
+
+    fn set_grid_line_to_chars(grid: &mut CharacterGrid, row: usize, value: &str) {
+        assert_eq!(value.len(), grid.width);
+        for (col_nr, chr) in value.chars().enumerate() {
+            *grid.get_cell_mut(col_nr, row).unwrap() = (chr.to_string(), None);
+        }
     }
 
     #[test]
@@ -339,6 +399,13 @@ mod tests {
         assert_grid_cell_equal_to_char(&grid, 0, 0, "i");
         assert_grid_cell_equal_to_char(&grid, 3, 0, "l");
         assert_grid_cell_equal_to_char(&grid, 0, 1, "m");
+
+        assert_eq!(grid.scroll_offset, -2.0);
+        // The scrolled rows should display the old view
+        assert_scrolled_row_equal_to(&grid, 0, "abcd");
+        assert_scrolled_row_equal_to(&grid, 1, "efgh");
+        assert_scrolled_row_equal_to(&grid, 2, "ijkl");
+        assert_scrolled_row_equal_to(&grid, 3, "mnop");
     }
 
     #[test]
@@ -346,9 +413,16 @@ mod tests {
         let mut grid = create_initialized_grid(&["abcd", "efgh", "ijkl", "mnop"].to_vec());
 
         grid.scroll_region(0, 4, 0, 4, -2, 0);
+        assert_grid_cell_equal_to_char(&grid, 0, 2, "a");
         assert_grid_cell_equal_to_char(&grid, 0, 3, "e");
         assert_grid_cell_equal_to_char(&grid, 3, 3, "h");
-        assert_grid_cell_equal_to_char(&grid, 0, 2, "a");
+
+        assert_eq!(grid.scroll_offset, 2.0);
+        // The scrolled rows should display the old view
+        assert_scrolled_row_equal_to(&grid, 0, "abcd");
+        assert_scrolled_row_equal_to(&grid, 1, "efgh");
+        assert_scrolled_row_equal_to(&grid, 2, "ijkl");
+        assert_scrolled_row_equal_to(&grid, 3, "mnop");
     }
 
     #[test]
@@ -364,6 +438,9 @@ mod tests {
 
         // The last line is not touched either
         assert_grid_cell_equal_to_char(&grid, 0, 3, "m");
+
+        // Partial scrolling resets the offset
+        assert_eq!(grid.scroll_offset, 0.0);
     }
 
     #[test]
@@ -379,6 +456,9 @@ mod tests {
 
         // The last line is not touched either
         assert_grid_cell_equal_to_char(&grid, 0, 3, "m");
+
+        // Partial scrolling resets the offset
+        assert_eq!(grid.scroll_offset, 0.0);
     }
 
     #[test]
@@ -388,6 +468,9 @@ mod tests {
         grid.scroll_region(0, 4, 0, 4, 0, 1);
         assert_grid_cell_equal_to_char(&grid, 0, 0, "b");
         assert_grid_cell_equal_to_char(&grid, 2, 2, "l");
+
+        // Left scrolling resets the offset
+        assert_eq!(grid.scroll_offset, 0.0);
     }
 
     #[test]
@@ -397,6 +480,9 @@ mod tests {
         grid.scroll_region(0, 4, 0, 4, 0, -3);
         assert_grid_cell_equal_to_char(&grid, 3, 0, "a");
         assert_grid_cell_equal_to_char(&grid, 3, 3, "m");
+
+        // Right scrolling resets the offset
+        assert_eq!(grid.scroll_offset, 0.0);
     }
 
     #[test]
@@ -419,5 +505,287 @@ mod tests {
 
         // The last row is preserved
         assert_grid_cell_equal_to_char(&grid, 0, 3, "m");
+
+        // Partial scrolling resets the offset
+        assert_eq!(grid.scroll_offset, 0.0);
+    }
+
+    #[test]
+    fn smooth_scrolling_down_works_as_it_should() {
+        let mut grid = create_initialized_grid(&["1", "2", "3", "4"].to_vec());
+        // Scroll down one line
+        grid.scroll_region(0, 4, 0, 1, 1, 0);
+        set_grid_line_to_chars(&mut grid, 3, "5");
+
+        assert_eq!(grid.top_index, 1);
+        assert_eq!(grid.scroll_offset, -1.0);
+        // The scrolled rows should display the old view
+        assert_scrolled_row_equal_to(&grid, 0, "1");
+        assert_scrolled_row_equal_to(&grid, 1, "2");
+        assert_scrolled_row_equal_to(&grid, 2, "3");
+        assert_scrolled_row_equal_to(&grid, 3, "4");
+
+        grid.scroll_offset = -0.5;
+        assert_scrolled_row_equal_to(&grid, 0, "1");
+        assert_scrolled_row_equal_to(&grid, 1, "2");
+        assert_scrolled_row_equal_to(&grid, 2, "3");
+        assert_scrolled_row_equal_to(&grid, 3, "4");
+        assert_scrolled_row_equal_to(&grid, 4, "5");
+
+        grid.scroll_offset = 0.0;
+        assert_scrolled_row_equal_to(&grid, 0, "2");
+        assert_scrolled_row_equal_to(&grid, 1, "3");
+        assert_scrolled_row_equal_to(&grid, 2, "4");
+        assert_scrolled_row_equal_to(&grid, 3, "5");
+
+        // Scroll one more line
+        grid.scroll_region(0, 4, 0, 1, 1, 0);
+        set_grid_line_to_chars(&mut grid, 3, "6");
+        assert_eq!(grid.top_index, 2);
+        assert_eq!(grid.scroll_offset, -1.0);
+
+        // And again two more, before the smooth scrolling catches up
+        grid.scroll_region(0, 4, 0, 1, 2, 0);
+        set_grid_line_to_chars(&mut grid, 2, "7");
+        set_grid_line_to_chars(&mut grid, 3, "8");
+        assert_eq!(grid.top_index, 4);
+        assert_eq!(grid.scroll_offset, -3.0);
+
+        assert_scrolled_row_equal_to(&grid, 0, "2");
+        assert_scrolled_row_equal_to(&grid, 1, "3");
+        assert_scrolled_row_equal_to(&grid, 2, "4");
+        assert_scrolled_row_equal_to(&grid, 3, "5");
+
+        // Smooth scroll one line
+        grid.scroll_offset = -2.0;
+        assert_scrolled_row_equal_to(&grid, 0, "3");
+        assert_scrolled_row_equal_to(&grid, 1, "4");
+        assert_scrolled_row_equal_to(&grid, 2, "5");
+        assert_scrolled_row_equal_to(&grid, 3, "6");
+
+        // Smooth scroll one line
+        grid.scroll_offset = -1.0;
+        assert_scrolled_row_equal_to(&grid, 0, "4");
+        assert_scrolled_row_equal_to(&grid, 1, "5");
+        assert_scrolled_row_equal_to(&grid, 2, "6");
+        assert_scrolled_row_equal_to(&grid, 3, "7");
+
+        // Smooth scroll one line
+        grid.scroll_offset = 0.0;
+        assert_scrolled_row_equal_to(&grid, 0, "5");
+        assert_scrolled_row_equal_to(&grid, 1, "6");
+        assert_scrolled_row_equal_to(&grid, 2, "7");
+        assert_scrolled_row_equal_to(&grid, 3, "8");
+    }
+
+    #[test]
+    fn smooth_scrolling_up_works_as_it_should() {
+        let mut grid = create_initialized_grid(&["1", "2", "3", "4"].to_vec());
+        // Scroll down one line
+        grid.scroll_region(0, 4, 0, 1, -1, 0);
+        set_grid_line_to_chars(&mut grid, 0, "5");
+
+        assert_eq!(grid.top_index, -1);
+        assert_eq!(grid.scroll_offset, 1.0);
+        // The scrolled rows should display the old view
+        assert_scrolled_row_equal_to(&grid, 0, "1");
+        assert_scrolled_row_equal_to(&grid, 1, "2");
+        assert_scrolled_row_equal_to(&grid, 2, "3");
+        assert_scrolled_row_equal_to(&grid, 3, "4");
+
+        grid.scroll_offset = 0.5;
+        assert_scrolled_row_equal_to(&grid, 0, "5");
+        assert_scrolled_row_equal_to(&grid, 1, "1");
+        assert_scrolled_row_equal_to(&grid, 2, "2");
+        assert_scrolled_row_equal_to(&grid, 3, "3");
+        assert_scrolled_row_equal_to(&grid, 4, "4");
+
+        grid.scroll_offset = 0.0;
+        assert_scrolled_row_equal_to(&grid, 0, "5");
+        assert_scrolled_row_equal_to(&grid, 1, "1");
+        assert_scrolled_row_equal_to(&grid, 2, "2");
+        assert_scrolled_row_equal_to(&grid, 3, "3");
+    }
+
+    #[test]
+    fn smooth_scrolling_down_then_up_works_as_it_should() {
+        let mut grid = create_initialized_grid(&["1", "2", "3", "4"].to_vec());
+        // Scroll down one line
+        grid.scroll_region(0, 4, 0, 1, 1, 0);
+        set_grid_line_to_chars(&mut grid, 3, "5");
+
+        grid.scroll_offset = -0.5;
+        assert_scrolled_row_equal_to(&grid, 0, "1");
+        assert_scrolled_row_equal_to(&grid, 1, "2");
+        assert_scrolled_row_equal_to(&grid, 2, "3");
+        assert_scrolled_row_equal_to(&grid, 3, "4");
+        assert_scrolled_row_equal_to(&grid, 4, "5");
+
+        // Scroll up two lines
+        grid.scroll_region(0, 4, 0, 1, -2, 0);
+        set_grid_line_to_chars(&mut grid, 0, "0");
+        set_grid_line_to_chars(&mut grid, 1, "1");
+        assert_eq!(grid.scroll_offset, 1.5);
+
+        // The smooth scrolling view should not change automatically
+        assert_scrolled_row_equal_to(&grid, 0, "1");
+        assert_scrolled_row_equal_to(&grid, 1, "2");
+        assert_scrolled_row_equal_to(&grid, 2, "3");
+        assert_scrolled_row_equal_to(&grid, 3, "4");
+        assert_scrolled_row_equal_to(&grid, 4, "5");
+
+        grid.scroll_offset = 0.5;
+        // Start scrolling the topmost actual line into view
+        assert_scrolled_row_equal_to(&grid, 0, "0");
+        assert_scrolled_row_equal_to(&grid, 1, "1");
+        assert_scrolled_row_equal_to(&grid, 2, "2");
+        assert_scrolled_row_equal_to(&grid, 3, "3");
+        assert_scrolled_row_equal_to(&grid, 4, "4");
+    }
+
+    #[test]
+    fn smooth_scrolling_one_screen_down_works() {
+        let mut grid = create_initialized_grid(&["1", "2", "3", "4"].to_vec());
+        // Scroll down one screen
+        grid.scroll_region(0, 4, 0, 1, 4, 0);
+        set_grid_line_to_chars(&mut grid, 0, "5");
+        set_grid_line_to_chars(&mut grid, 1, "6");
+        set_grid_line_to_chars(&mut grid, 2, "7");
+        set_grid_line_to_chars(&mut grid, 3, "8");
+
+        assert_eq!(grid.scroll_offset, -4.0);
+
+        assert_scrolled_row_equal_to(&grid, 0, "1");
+        assert_scrolled_row_equal_to(&grid, 1, "2");
+        assert_scrolled_row_equal_to(&grid, 2, "3");
+        assert_scrolled_row_equal_to(&grid, 3, "4");
+
+        grid.scroll_offset = 0.0;
+        assert_scrolled_row_equal_to(&grid, 0, "5");
+        assert_scrolled_row_equal_to(&grid, 1, "6");
+        assert_scrolled_row_equal_to(&grid, 2, "7");
+        assert_scrolled_row_equal_to(&grid, 3, "8");
+    }
+
+    #[test]
+    fn smooth_scrolling_more_than_one_screen_down_works_makes_a_small_jump() {
+        let mut grid = create_initialized_grid(&["1", "2", "3", "4"].to_vec());
+        // Scroll down one screen
+        grid.scroll_region(0, 4, 0, 1, 4, 0);
+        set_grid_line_to_chars(&mut grid, 0, "5");
+        set_grid_line_to_chars(&mut grid, 1, "6");
+        set_grid_line_to_chars(&mut grid, 2, "7");
+        set_grid_line_to_chars(&mut grid, 3, "8");
+
+        assert_eq!(grid.scroll_offset, -4.0);
+
+        // And another line, before the smooth scrolling has caught up
+        grid.scroll_region(0, 4, 0, 1, 1, 0);
+        set_grid_line_to_chars(&mut grid, 3, "9");
+
+        // There's now a one row jump
+        assert_eq!(grid.scroll_offset, -4.0);
+        assert_scrolled_row_equal_to(&grid, 0, "2");
+        assert_scrolled_row_equal_to(&grid, 1, "3");
+        assert_scrolled_row_equal_to(&grid, 2, "4");
+        assert_scrolled_row_equal_to(&grid, 3, "5");
+
+        grid.scroll_offset = 0.0;
+        assert_scrolled_row_equal_to(&grid, 0, "6");
+        assert_scrolled_row_equal_to(&grid, 1, "7");
+        assert_scrolled_row_equal_to(&grid, 2, "8");
+        assert_scrolled_row_equal_to(&grid, 3, "9");
+    }
+
+    #[test]
+    fn scrolling_down_more_than_one_screen_at_onece_jumps_to_the_destination() {
+        let mut grid = create_initialized_grid(&["1", "2", "3", "4"].to_vec());
+        // Scroll down more than one screen
+        grid.scroll_region(0, 4, 0, 1, 5, 0);
+        set_grid_line_to_chars(&mut grid, 0, "6");
+        set_grid_line_to_chars(&mut grid, 1, "7");
+        set_grid_line_to_chars(&mut grid, 2, "8");
+        set_grid_line_to_chars(&mut grid, 3, "9");
+
+        // The scrolling has to jump to the final destination, since there's missing data
+        // (row 5)
+        assert_eq!(grid.scroll_offset, 0.0);
+        assert_scrolled_row_equal_to(&grid, 0, "6");
+        assert_scrolled_row_equal_to(&grid, 1, "7");
+        assert_scrolled_row_equal_to(&grid, 2, "8");
+        assert_scrolled_row_equal_to(&grid, 3, "9");
+    }
+
+    #[test]
+    fn smooth_scrolling_one_screen_up_works() {
+        let mut grid = create_initialized_grid(&["5", "6", "7", "8"].to_vec());
+        // Scroll up one screen
+        grid.scroll_region(0, 4, 0, 1, -4, 0);
+        set_grid_line_to_chars(&mut grid, 0, "1");
+        set_grid_line_to_chars(&mut grid, 1, "2");
+        set_grid_line_to_chars(&mut grid, 2, "3");
+        set_grid_line_to_chars(&mut grid, 3, "4");
+
+        assert_eq!(grid.scroll_offset, 4.0);
+
+        assert_scrolled_row_equal_to(&grid, 0, "5");
+        assert_scrolled_row_equal_to(&grid, 1, "6");
+        assert_scrolled_row_equal_to(&grid, 2, "7");
+        assert_scrolled_row_equal_to(&grid, 3, "8");
+
+        grid.scroll_offset = 0.0;
+        assert_scrolled_row_equal_to(&grid, 0, "1");
+        assert_scrolled_row_equal_to(&grid, 1, "2");
+        assert_scrolled_row_equal_to(&grid, 2, "3");
+        assert_scrolled_row_equal_to(&grid, 3, "4");
+    }
+
+    #[test]
+    fn smooth_scrolling_more_than_one_screen_up_works_makes_a_small_jump() {
+        let mut grid = create_initialized_grid(&["5", "6", "7", "8"].to_vec());
+        // Scroll up one screen
+        grid.scroll_region(0, 4, 0, 1, -4, 0);
+        set_grid_line_to_chars(&mut grid, 0, "1");
+        set_grid_line_to_chars(&mut grid, 1, "2");
+        set_grid_line_to_chars(&mut grid, 2, "3");
+        set_grid_line_to_chars(&mut grid, 3, "4");
+
+        assert_eq!(grid.scroll_offset, 4.0);
+
+        // And another line, before the smooth scrolling has caught up
+        grid.scroll_region(0, 4, 0, 1, -1, 0);
+        set_grid_line_to_chars(&mut grid, 0, "0");
+
+        // There's now a one row jump
+        assert_eq!(grid.scroll_offset, 4.0);
+        assert_scrolled_row_equal_to(&grid, 0, "4");
+        assert_scrolled_row_equal_to(&grid, 1, "5");
+        assert_scrolled_row_equal_to(&grid, 2, "6");
+        assert_scrolled_row_equal_to(&grid, 3, "7");
+
+        grid.scroll_offset = 0.0;
+        assert_scrolled_row_equal_to(&grid, 0, "0");
+        assert_scrolled_row_equal_to(&grid, 1, "1");
+        assert_scrolled_row_equal_to(&grid, 2, "2");
+        assert_scrolled_row_equal_to(&grid, 3, "3");
+    }
+
+    #[test]
+    fn scrolling_up_more_than_one_screen_at_onece_jumps_to_the_destination() {
+        let mut grid = create_initialized_grid(&["6", "7", "8", "9"].to_vec());
+        // Scroll up more than one screen
+        grid.scroll_region(0, 4, 0, 1, -5, 0);
+        set_grid_line_to_chars(&mut grid, 0, "1");
+        set_grid_line_to_chars(&mut grid, 1, "2");
+        set_grid_line_to_chars(&mut grid, 2, "3");
+        set_grid_line_to_chars(&mut grid, 3, "4");
+
+        // The scrolling has to jump to the final destination, since there's missing data
+        // (row 5)
+        assert_eq!(grid.scroll_offset, 0.0);
+        assert_scrolled_row_equal_to(&grid, 0, "1");
+        assert_scrolled_row_equal_to(&grid, 1, "2");
+        assert_scrolled_row_equal_to(&grid, 2, "3");
+        assert_scrolled_row_equal_to(&grid, 3, "4");
     }
 }
