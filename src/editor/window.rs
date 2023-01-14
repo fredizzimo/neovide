@@ -188,7 +188,6 @@ impl Window {
         let line_fragment = LineFragment {
             text,
             window_left: start as u64,
-            window_top: row_index as u64,
             width: width as u64,
             style: style.clone(),
         };
@@ -207,7 +206,10 @@ impl Window {
             current_start = next_start;
             line_fragments.push(line_fragment);
         }
-        self.send_command(WindowDrawCommand::DrawLine(line_fragments));
+        self.send_command(WindowDrawCommand::DrawLine {
+            row,
+            line_fragments,
+        });
     }
 
     pub fn draw_grid_line(
@@ -275,6 +277,9 @@ impl Window {
             rows,
             cols,
         });
+
+        // HACK: should only redraw the lines that are modified
+        self.redraw();
     }
 
     pub fn clear(&mut self) {

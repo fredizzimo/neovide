@@ -4,8 +4,8 @@ use skia_safe::{
     canvas::{SaveLayerRec, SrcRectConstraint},
     gpu::SurfaceOrigin,
     image_filters::blur,
-    BlendMode, Budgeted, Canvas, Color, Image, ImageInfo, Paint, Point, Rect, SamplingOptions,
-    Surface, SurfaceProps, SurfacePropsFlags,
+    BlendMode, Budgeted, Canvas, Color, Image, ImageInfo, Matrix, Paint, Picture, PictureRecorder,
+    Point, Rect, SamplingOptions, Surface, SurfaceProps, SurfacePropsFlags,
 };
 
 use crate::{
@@ -20,7 +20,6 @@ use crate::{
 pub struct LineFragment {
     pub text: String,
     pub window_left: u64,
-    pub window_top: u64,
     pub width: u64,
     pub style: Option<Arc<Style>>,
 }
@@ -32,7 +31,10 @@ pub enum WindowDrawCommand {
         grid_size: (u64, u64),
         floating_order: Option<u64>,
     },
-    DrawLine(Vec<LineFragment>),
+    DrawLine {
+        row: usize,
+        line_fragments: Vec<LineFragment>,
+    },
     Scroll {
         top: u64,
         bottom: u64,
@@ -99,11 +101,6 @@ fn build_window_surface_with_grid_size(
     surface
 }
 
-pub struct LocatedSnapshot {
-    image: Image,
-    top_line: u64,
-}
-
 pub struct LocatedSurface {
     surface: Surface,
     pub top_line: u64,
@@ -120,32 +117,19 @@ impl LocatedSurface {
 
         LocatedSurface { surface, top_line }
     }
-
-    fn snapshot(&mut self) -> LocatedSnapshot {
-        let image = self.surface.image_snapshot();
-        LocatedSnapshot {
-            image,
-            top_line: self.top_line,
-        }
-    }
-}
-
-#[derive(Copy, Clone)]
-struct PositionOverride {
-    top_line: u64,
-    current_scroll: f32,
 }
 
 pub struct RenderedWindow {
-    snapshots: VecDeque<LocatedSnapshot>,
     pub current_surface: LocatedSurface,
-    position_override: Option<PositionOverride>,
 
     pub id: u64,
     pub hidden: bool,
     pub floating_order: Option<u64>,
 
     pub grid_size: Dimensions,
+
+    lines: Vec<Option<Picture>>,
+    top_index: isize,
 
     grid_start_position: Point,
     pub grid_current_position: Point,
@@ -179,14 +163,15 @@ impl RenderedWindow {
         let current_surface = LocatedSurface::new(parent_canvas, grid_renderer, grid_size, 0);
 
         RenderedWindow {
-            snapshots: VecDeque::new(),
             current_surface,
-            position_override: None,
             id,
             hidden: false,
             floating_order: None,
 
             grid_size,
+
+            lines: vec![None; (grid_size.height * 2) as usize],
+            top_index: 0,
 
             grid_start_position: grid_position,
             grid_current_position: grid_position,
@@ -237,7 +222,6 @@ impl RenderedWindow {
             if 1.0 - self.scroll_t < std::f32::EPSILON {
                 // We are at destination, move t out of 0-1 range to stop the animation.
                 self.scroll_t = 2.0;
-                self.snapshots.clear();
             } else {
                 animating = true;
                 self.scroll_t = (self.scroll_t + dt / settings.scroll_animation_length).min(1.0);
@@ -254,6 +238,20 @@ impl RenderedWindow {
         animating
     }
 
+    fn draw_surface(&mut self, font_dimensions: Dimensions) {
+        let canvas = self.current_surface.surface.canvas();
+        let mut matrix = Matrix::new_identity();
+
+        for i in 0..self.grid_size.height {
+            matrix.set_translate((0.0, (i * font_dimensions.height) as f32));
+            let line_index =
+                (self.top_index + i as isize).rem_euclid(self.lines.len() as isize) as usize;
+            if let Some(picture) = &self.lines[line_index] {
+                canvas.draw_picture(picture, Some(&matrix), None);
+            }
+        }
+    }
+
     pub fn draw(
         &mut self,
         root_canvas: &mut Canvas,
@@ -265,6 +263,8 @@ impl RenderedWindow {
         if self.update(settings, dt) {
             REDRAW_SCHEDULER.queue_next_frame();
         }
+
+        self.draw_surface(font_dimensions);
 
         let pixel_region = self.pixel_region(font_dimensions);
 
@@ -311,36 +311,9 @@ impl RenderedWindow {
 
         paint.set_color(Color::from_argb(255, 255, 255, 255));
 
-        let font_height = font_dimensions.height;
-
-        // Draw scrolling snapshots.
-        for snapshot in self.snapshots.iter_mut().rev() {
-            let scroll_offset = (snapshot.top_line * font_height) as f32
-                - (self.current_scroll * font_height as f32);
-            let image = &mut snapshot.image;
-            root_canvas.draw_image_rect(
-                image,
-                None,
-                pixel_region.with_offset((0.0, scroll_offset as f32)),
-                &paint,
-            );
-        }
-
-        let (top_line, current_scroll) = self
-            .position_override
-            .as_ref()
-            .map(|&pos| (pos.top_line, pos.current_scroll))
-            .unwrap_or((self.current_surface.top_line, self.current_scroll));
-        let scroll_offset = (top_line * font_height) as f32 - (current_scroll * font_height as f32);
-
         // Draw current surface.
         let snapshot = self.current_surface.surface.image_snapshot();
-        root_canvas.draw_image_rect(
-            snapshot,
-            None,
-            pixel_region.with_offset((0.0, scroll_offset as f32)),
-            &paint,
-        );
+        root_canvas.draw_image_rect(snapshot, None, pixel_region, &paint);
 
         root_canvas.restore();
 
@@ -404,16 +377,22 @@ impl RenderedWindow {
                         grid_renderer,
                         new_grid_size,
                     );
+                    /*
                     self.current_surface.surface.draw(
                         new_surface.canvas(),
                         (0.0, 0.0),
                         SamplingOptions::default(),
                         None,
                     );
+                    */
 
                     self.current_surface.surface = new_surface;
                     self.grid_size = new_grid_size;
                 }
+
+                // TODO: Only resizing should invalidate the lines
+                self.lines = vec![None; (new_grid_size.height * 2) as usize];
+                self.top_index = 0;
 
                 self.floating_order = floating_order;
 
@@ -425,20 +404,28 @@ impl RenderedWindow {
                     self.grid_destination = new_destination;
                 }
             }
-            WindowDrawCommand::DrawLine(line_fragments) => {
+            WindowDrawCommand::DrawLine {
+                row,
+                line_fragments,
+            } => {
                 tracy_zone!("draw_line_cmd", 0);
-                let canvas = self.current_surface.surface.canvas();
+                let font_dimensions = grid_renderer.font_dimensions;
+                let mut recorder = PictureRecorder::new();
 
-                canvas.save();
+                let mut grid_rect = Rect::from_wh(
+                    (self.grid_size.width * font_dimensions.width) as f32,
+                    font_dimensions.height as f32,
+                );
+                let canvas = recorder.begin_recording(&mut grid_rect, None);
+
                 for line_fragment in line_fragments.iter() {
                     let LineFragment {
                         window_left,
-                        window_top,
                         width,
                         style,
                         ..
                     } = line_fragment;
-                    let grid_position = (*window_left, *window_top);
+                    let grid_position = (*window_left, 0);
                     grid_renderer.draw_background(
                         canvas,
                         grid_position,
@@ -452,18 +439,16 @@ impl RenderedWindow {
                     let LineFragment {
                         text,
                         window_left,
-                        window_top,
                         width,
                         style,
                     } = line_fragment;
-                    let grid_position = (window_left, window_top);
+                    let grid_position = (window_left, 0);
                     grid_renderer.draw_foreground(canvas, text, grid_position, width, &style);
                 }
-                canvas.restore();
 
-                if self.position_override.is_some() {
-                    self.position_override = None;
-                }
+                let line_index =
+                    (self.top_index + row as isize).rem_euclid(self.lines.len() as isize) as usize;
+                self.lines[line_index] = recorder.finish_recording_as_picture(None);
             }
             WindowDrawCommand::Scroll {
                 top,
@@ -484,37 +469,10 @@ impl RenderedWindow {
                     (right * font_width) as f32,
                     (bottom * font_height) as f32,
                 );
-
-                let mut translated_region = scrolled_region;
-                translated_region.offset((
-                    -cols as f32 * font_width as f32,
-                    -rows as f32 * font_height as f32,
-                ));
-
-                let snapshot = self.current_surface.surface.image_snapshot();
-                let canvas = self.current_surface.surface.canvas();
-
-                canvas.save();
-
-                canvas.clip_rect(scrolled_region, None, Some(false));
-                canvas.draw_image_rect(
-                    snapshot,
-                    Some((&scrolled_region, SrcRectConstraint::Fast)),
-                    translated_region,
-                    &grid_renderer.paint,
-                );
-
-                canvas.restore();
             }
             WindowDrawCommand::Clear => {
                 tracy_zone!("clear_cmd", 0);
-                self.current_surface.surface = build_window_surface_with_grid_size(
-                    self.current_surface.surface.canvas(),
-                    grid_renderer,
-                    self.grid_size,
-                );
-
-                self.snapshots.clear();
+                self.top_index = 0;
             }
             WindowDrawCommand::Show => {
                 tracy_zone!("show_cmd", 0);
@@ -529,31 +487,7 @@ impl RenderedWindow {
                 tracy_zone!("hide_cmd", 0);
                 self.hidden = true;
             }
-            WindowDrawCommand::Viewport { top_line, .. } => {
-                tracy_zone!("viewport_cmd", 0);
-                if self.current_surface.top_line != top_line as u64 {
-                    let new_snapshot = self.current_surface.snapshot();
-                    self.snapshots.push_back(new_snapshot);
-
-                    if self.snapshots.len() > 5 {
-                        self.snapshots.pop_front();
-                    }
-
-                    if self.position_override.is_none() {
-                        self.position_override = Some(PositionOverride {
-                            top_line: self.current_surface.top_line,
-                            current_scroll: self.current_scroll,
-                        });
-                    }
-
-                    self.current_surface.top_line = top_line as u64;
-
-                    // Set new target viewport position and initialize animation timer.
-                    self.start_scroll = self.current_scroll;
-                    self.scroll_destination = top_line as f32;
-                    self.scroll_t = 0.0;
-                }
-            }
+            WindowDrawCommand::Viewport { top_line, .. } => {}
             _ => {}
         };
     }
