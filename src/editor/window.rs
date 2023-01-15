@@ -279,7 +279,11 @@ impl Window {
         });
 
         // HACK: should only redraw the lines that are modified
-        self.redraw();
+        // Draw the lines from the bottom up so that underlines don't get overwritten by the line
+        // below.
+        for row in (0..self.grid.height).rev() {
+            self.redraw_line(row);
+        }
     }
 
     pub fn clear(&mut self) {

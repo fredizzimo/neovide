@@ -129,7 +129,7 @@ pub struct RenderedWindow {
     pub grid_size: Dimensions,
 
     lines: Vec<Option<Picture>>,
-    top_index: isize,
+    pub top_index: isize,
 
     grid_start_position: Point,
     pub grid_current_position: Point,
@@ -138,7 +138,6 @@ pub struct RenderedWindow {
 
     start_scroll: f32,
     pub current_scroll: f32,
-    scroll_destination: f32,
     scroll_t: f32,
 
     pub padding: WindowPadding,
@@ -180,7 +179,6 @@ impl RenderedWindow {
 
             start_scroll: 0.0,
             current_scroll: 0.0,
-            scroll_destination: 0.0,
             scroll_t: 2.0, // 2.0 is out of the 0.0 to 1.0 range and stops animation.
             padding,
         }
@@ -227,12 +225,7 @@ impl RenderedWindow {
                 self.scroll_t = (self.scroll_t + dt / settings.scroll_animation_length).min(1.0);
             }
 
-            self.current_scroll = ease(
-                ease_out_expo,
-                self.start_scroll,
-                self.scroll_destination,
-                self.scroll_t,
-            );
+            self.current_scroll = ease(ease_out_expo, self.start_scroll, 0.0, self.scroll_t);
         }
 
         animating
@@ -242,10 +235,16 @@ impl RenderedWindow {
         let canvas = self.current_surface.surface.canvas();
         let mut matrix = Matrix::new_identity();
 
-        for i in 0..self.grid_size.height {
-            matrix.set_translate((0.0, (i * font_dimensions.height) as f32));
-            let line_index =
-                (self.top_index + i as isize).rem_euclid(self.lines.len() as isize) as usize;
+        let scroll_offset_lines = self.current_scroll.floor();
+        let scroll_offset = scroll_offset_lines - self.current_scroll;
+
+        for i in 0..self.grid_size.height + 1 {
+            matrix.set_translate((
+                0.0,
+                (scroll_offset + i as f32) * font_dimensions.height as f32,
+            ));
+            let line_index = (self.top_index + scroll_offset_lines as isize + i as isize)
+                .rem_euclid(self.lines.len() as isize) as usize;
             if let Some(picture) = &self.lines[line_index] {
                 canvas.draw_picture(picture, Some(&matrix), None);
             }
@@ -330,6 +329,11 @@ impl RenderedWindow {
         }
     }
 
+    fn reset_scroll(&mut self) {
+        self.start_scroll = 0.0;
+        self.scroll_t = 2.0;
+    }
+
     pub fn handle_window_draw_command(
         &mut self,
         grid_renderer: &mut GridRenderer,
@@ -403,6 +407,7 @@ impl RenderedWindow {
                     self.grid_start_position = new_destination;
                     self.grid_destination = new_destination;
                 }
+                self.reset_scroll();
             }
             WindowDrawCommand::DrawLine {
                 row,
@@ -469,10 +474,32 @@ impl RenderedWindow {
                     (right * font_width) as f32,
                     (bottom * font_height) as f32,
                 );
+                if top == 0
+                    && bottom == self.grid_size.height
+                    && left == 0
+                    && right == self.grid_size.width
+                    && cols == 0
+                {
+                    let mut scroll_offset = self.current_scroll;
+                    self.top_index += rows as isize;
+                    let minmax = self.lines.len() - self.grid_size.height as usize;
+                    if rows.abs() as usize > minmax {
+                        // The scroll offset has to be reset when scrolling too far
+                        scroll_offset = 0.0;
+                    } else {
+                        scroll_offset -= rows as f32;
+                        // And even when scrolling in steps, we can't let it drift too far, since the
+                        // buffer size is limited
+                        scroll_offset = scroll_offset.clamp(-(minmax as f32), minmax as f32);
+                    }
+                    self.start_scroll = scroll_offset;
+                    self.scroll_t = 0.0;
+                }
             }
             WindowDrawCommand::Clear => {
                 tracy_zone!("clear_cmd", 0);
                 self.top_index = 0;
+                self.reset_scroll();
             }
             WindowDrawCommand::Show => {
                 tracy_zone!("show_cmd", 0);
@@ -481,6 +508,7 @@ impl RenderedWindow {
                     self.position_t = 2.0; // We don't want to animate since the window is becoming visible,
                                            // so we set t to 2.0 to stop animations.
                     self.grid_start_position = self.grid_destination;
+                    self.reset_scroll();
                 }
             }
             WindowDrawCommand::Hide => {
