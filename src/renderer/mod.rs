@@ -6,6 +6,8 @@ mod opengl;
 pub mod profiler;
 mod rendered_window;
 
+pub use opengl::{build_context, Context as WindowedContext, SkiaRenderer};
+
 use std::{
     cmp::Ordering,
     collections::{hash_map::Entry, HashMap},
@@ -33,8 +35,6 @@ pub use grid_renderer::GridRenderer;
 pub use rendered_window::{
     LineFragment, RenderedWindow, WindowDrawCommand, WindowDrawDetails, WindowPadding,
 };
-
-pub use opengl::{build_context, Context as WindowedContext};
 
 #[derive(SettingGroup, Clone)]
 pub struct RendererSettings {

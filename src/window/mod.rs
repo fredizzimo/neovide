@@ -1,6 +1,5 @@
 mod keyboard_manager;
 mod mouse_manager;
-mod renderer;
 mod settings;
 
 #[cfg(target_os = "macos")]
@@ -36,7 +35,6 @@ use crate::profiling::{
 use image::{load_from_memory, GenericImageView, Pixel};
 use keyboard_manager::KeyboardManager;
 use mouse_manager::MouseManager;
-use renderer::SkiaRenderer;
 
 use crate::{
     bridge::{ParallelCommand, UiCommand},
@@ -45,9 +43,7 @@ use crate::{
     editor::EditorCommand,
     event_aggregator::EVENT_AGGREGATOR,
     frame::Frame,
-    renderer::Renderer,
-    renderer::WindowPadding,
-    renderer::{build_context, WindowedContext},
+    renderer::{build_context, Renderer, SkiaRenderer, WindowPadding, WindowedContext},
     running_tracker::*,
     settings::{
         load_last_window_settings, save_window_geometry, PersistentWindowSettings, SETTINGS,
