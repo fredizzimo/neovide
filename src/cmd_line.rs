@@ -102,6 +102,10 @@ pub struct CmdLineSettings {
         default_value = "neovide"
     )]
     pub x11_wm_class_instance: String,
+
+    /// Force opengl on Windows
+    #[arg(long = "opengl", env = "NEOVIDE_OPENGL", action = ArgAction::SetTrue, value_parser = FalseyValueParser::new())]
+    pub opengl: bool,
 }
 
 impl Default for CmdLineSettings {

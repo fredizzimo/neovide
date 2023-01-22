@@ -219,7 +219,9 @@ impl WinitWindowWrapper {
             self.skia_renderer.flush_and_submit();
         }
         let new_dt = {
-            tracy_gpu_zone!("swap buffers");
+            // NOTE: a gpu zone here can force a sync with the GPU and block
+            // so use a CPU zone instead
+            tracy_zone!("swap buffers");
             self.skia_renderer.swap_buffers()
         };
         tracy_gpu_collect();
@@ -421,7 +423,7 @@ pub fn create_window() {
     let (txtemp, rx) = mpsc::channel::<Event<UserEvent>>();
     let mut tx = Some(txtemp);
     let mut render_thread_handle = Some(thread::spawn(move || {
-        let (context, window) = unsafe {
+        let (context, window) = {
             let windowed_context = windowed_context.make_current().unwrap();
             windowed_context.split()
         };

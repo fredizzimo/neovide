@@ -18,6 +18,8 @@ use winit::{
 };
 
 pub type Context = RawContext<glutin::PossiblyCurrent>;
+pub type PossiblyCurrentWindowedContext = WindowedContext<glutin::PossiblyCurrent>;
+pub type NotCurrentWindowedContext = WindowedContext<glutin::NotCurrent>;
 
 pub fn build_context<TE>(
     cmd_line_settings: &CmdLineSettings,

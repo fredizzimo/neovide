@@ -2,11 +2,12 @@ pub mod animation_utils;
 pub mod cursor_renderer;
 pub mod fonts;
 pub mod grid_renderer;
-mod opengl;
+pub mod opengl;
 pub mod profiler;
 mod rendered_window;
 
-pub use opengl::{build_context, Context};
+#[cfg(target_os = "windows")]
+pub mod d3d;
 
 use std::{
     cmp::Ordering,
@@ -17,10 +18,15 @@ use std::{
 use log::error;
 use skia_safe::Canvas;
 use tokio::sync::mpsc::UnboundedReceiver;
-use winit::{event::Event, window::Window};
+use winit::{
+    event::Event,
+    event_loop::EventLoop,
+    window::{Window, WindowBuilder},
+};
 
 use crate::{
     bridge::EditorMode,
+    cmd_line::CmdLineSettings,
     editor::{Cursor, Style},
     event_aggregator::EVENT_AGGREGATOR,
     profiling::tracy_zone,
@@ -383,6 +389,94 @@ fn floating_sort(window_a: &&mut RenderedWindow, window_b: &&mut RenderedWindow)
     ord
 }
 
+pub enum Context {
+    #[cfg(target_os = "windows")]
+    D3DContext(d3d::Context),
+    OpenGlContext(opengl::Context),
+}
+
+pub enum NotCurrentWindowedContext {
+    #[cfg(target_os = "windows")]
+    D3DWindowedContext(d3d::WindowedContext),
+    OpenGlWindowedContext(opengl::NotCurrentWindowedContext),
+}
+
+impl NotCurrentWindowedContext {
+    pub fn make_current(self) -> Result<WindowedContext, ()> {
+        match self {
+            #[cfg(target_os = "windows")]
+            NotCurrentWindowedContext::D3DWindowedContext(context) => {
+                Ok(WindowedContext::D3DWindowedContext(context))
+            }
+            NotCurrentWindowedContext::OpenGlWindowedContext(context) => {
+                if let Ok(new_context) = unsafe { context.make_current() } {
+                    Ok(WindowedContext::OpenGlWindowedContext(new_context))
+                } else {
+                    Err(())
+                }
+            }
+        }
+    }
+}
+
+pub enum WindowedContext {
+    #[cfg(target_os = "windows")]
+    D3DWindowedContext(d3d::WindowedContext),
+    OpenGlWindowedContext(opengl::PossiblyCurrentWindowedContext),
+}
+
+impl WindowedContext {
+    pub fn split(self) -> (Context, Window) {
+        match self {
+            #[cfg(target_os = "windows")]
+            WindowedContext::D3DWindowedContext(context) => {
+                let (context, window) = context.split();
+                (Context::D3DContext(context), window)
+            }
+            WindowedContext::OpenGlWindowedContext(context) => {
+                let (context, window) = unsafe { context.split() };
+                (Context::OpenGlContext(context), window)
+            }
+        }
+    }
+}
+
+unsafe impl Send for WindowedContext {}
+
+#[cfg(target_os = "windows")]
+pub fn build_context<TE>(
+    cmd_line_settings: &CmdLineSettings,
+    winit_window_builder: WindowBuilder,
+    event_loop: &EventLoop<TE>,
+) -> NotCurrentWindowedContext {
+    if cmd_line_settings.opengl {
+        NotCurrentWindowedContext::OpenGlWindowedContext(opengl::build_context(
+            cmd_line_settings,
+            winit_window_builder,
+            event_loop,
+        ))
+    } else {
+        NotCurrentWindowedContext::D3DWindowedContext(d3d::build_context(
+            cmd_line_settings,
+            winit_window_builder,
+            event_loop,
+        ))
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn build_context<TE>(
+    cmd_line_settings: &CmdLineSettings,
+    winit_window_builder: WindowBuilder,
+    event_loop: &EventLoop<TE>,
+) -> NotCurrentWindowedContext {
+    NotCurrentWindowedContext::OpenGlWindowedContext(opengl::build_context(
+        cmd_line_settings,
+        winit_window_builder,
+        event_loop,
+    ))
+}
+
 pub trait SkiaRenderer {
     fn canvas(&mut self) -> &mut Canvas;
     fn resize(&mut self, window: &Window);
@@ -394,5 +488,11 @@ pub trait SkiaRenderer {
 }
 
 pub fn create_skia_renderer(context: Context, window: &Window) -> Box<dyn SkiaRenderer> {
-    Box::new(opengl::SkiaRendererOpenGL::new(context, window))
+    match context {
+        #[cfg(target_os = "windows")]
+        Context::D3DContext(context) => Box::new(d3d::SkiaRendererD3D::new(context, window)),
+        Context::OpenGlContext(context) => {
+            Box::new(opengl::SkiaRendererOpenGL::new(context, window))
+        }
+    }
 }
