@@ -151,6 +151,6 @@ impl SkiaRenderer for SkiaRendererOpenGL {
 
     #[cfg(feature = "gpu_profiling")]
     fn tracy_create_gpu_context(&self, name: &str) -> Box<dyn GpuCtx> {
-        crate::profiling::create_gpu_context(name)
+        crate::profiling::create_opengl_gpu_context(name)
     }
 }

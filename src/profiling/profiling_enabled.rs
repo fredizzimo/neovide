@@ -66,7 +66,7 @@ pub const fn _create_location_data(
 }
 
 #[allow(dead_code)]
-fn is_connected() -> bool {
+pub fn is_connected() -> bool {
     unsafe { ___tracy_connected() > 0 }
 }
 
@@ -82,24 +82,27 @@ fn gpu_enabled() -> bool {
 
 pub struct _Zone {
     context: ___tracy_c_zone_context,
-    gpu: bool,
+    gpu_id: i64,
 }
 
 impl _Zone {
     pub fn new(loc_data: &___tracy_source_location_data, gpu: bool) -> Self {
         let context = unsafe { ___tracy_emit_zone_begin(loc_data, 1) };
-        let gpu = gpu && gpu_enabled();
-        if gpu {
-            gpu_begin(loc_data);
-        }
-        _Zone { context, gpu }
+        let gpu_id = {
+            if gpu && gpu_enabled() {
+                gpu_begin(loc_data)
+            } else {
+                -1
+            }
+        };
+        _Zone { context, gpu_id }
     }
 }
 
 impl Drop for _Zone {
     fn drop(&mut self) {
-        if self.gpu && gpu_enabled() {
-            gpu_end();
+        if self.gpu_id >= 0 && gpu_enabled() {
+            gpu_end(self.gpu_id);
         }
         unsafe {
             ___tracy_emit_zone_end(self.context);
@@ -107,10 +110,21 @@ impl Drop for _Zone {
     }
 }
 
+// Don't change order, only add new entries at the end, this is also used on trace dumps!
+#[allow(dead_code)]
+pub enum GpuContextType {
+    Invalid,
+    OpenGl,
+    Vulkan,
+    OpenCL,
+    Direct3D12,
+    Direct3D11,
+}
+
 pub trait GpuCtx {
     fn gpu_collect(&mut self);
-    fn gpu_begin(&mut self, loc_data: &___tracy_source_location_data);
-    fn gpu_end(&mut self);
+    fn gpu_begin(&mut self, loc_data: &___tracy_source_location_data) -> i64;
+    fn gpu_end(&mut self, query_id: i64);
 }
 
 thread_local! {
@@ -146,21 +160,21 @@ pub fn tracy_gpu_collect() {
     });
 }
 
-fn gpu_begin(loc_data: &___tracy_source_location_data) {
+fn gpu_begin(loc_data: &___tracy_source_location_data) -> i64 {
     GPUCTX.with(|ctx| {
         ctx.get()
             .expect("Profiling context not initialized for current thread")
             .borrow_mut()
-            .gpu_begin(loc_data);
-    });
+            .gpu_begin(loc_data)
+    })
 }
 
-fn gpu_end() {
+fn gpu_end(query_id: i64) {
     GPUCTX.with(|ctx| {
         ctx.get()
             .expect("Profiling context not initialized for current thread")
             .borrow_mut()
-            .gpu_end();
+            .gpu_end(query_id);
     });
 }
 

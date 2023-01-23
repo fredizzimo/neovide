@@ -52,12 +52,14 @@ use winit::{
 };
 
 use crate::cmd_line::CmdLineSettings;
+#[cfg(feature = "gpu_profiling")]
+use crate::profiling::GpuCtx;
 use crate::profiling::{emit_frame_mark, tracy_gpu_zone, tracy_zone};
 use crate::renderer::SkiaRenderer;
 
 const D3D_FEATUREL_LEVEL: D3D_FEATURE_LEVEL = D3D_FEATURE_LEVEL_11_0;
 
-fn call_com_fn<T0, T1, F>(fun: F) -> Result<ComPtr<T1>, ()>
+pub fn call_com_fn<T0, T1, F>(fun: F) -> Result<ComPtr<T1>, ()>
 where
     T1: Interface,
     F: FnOnce(&mut *mut T0, REFIID) -> HRESULT,
@@ -265,8 +267,8 @@ pub fn build_context<TE>(
 #[allow(dead_code)]
 pub struct Context {
     adapter: ComPtr<IDXGIAdapter1>,
-    device: ComPtr<ID3D12Device>,
-    command_queue: ComPtr<ID3D12CommandQueue>,
+    pub device: ComPtr<ID3D12Device>,
+    pub command_queue: ComPtr<ID3D12CommandQueue>,
     swap_chain: ComPtr<IDXGISwapChain3>,
     swap_chain_desc: DXGI_SWAP_CHAIN_DESC1,
     swap_chain_waitable: HANDLE,
@@ -494,5 +496,10 @@ impl SkiaRenderer for SkiaRendererD3D {
 
     fn flush_and_submit(&mut self) {
         self.context.gr_context.flush_and_submit();
+    }
+
+    #[cfg(feature = "gpu_profiling")]
+    fn tracy_create_gpu_context(&self, name: &str) -> Box<dyn GpuCtx> {
+        crate::profiling::create_d3d_gpu_context(name, self)
     }
 }

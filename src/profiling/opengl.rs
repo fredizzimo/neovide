@@ -14,7 +14,7 @@ use tracy_client_sys::{
     ___tracy_gpu_zone_begin_data, ___tracy_gpu_zone_end_data, ___tracy_source_location_data,
 };
 
-use crate::profiling::{tracy_zone, GpuCtx};
+use crate::profiling::{tracy_zone, GpuContextType, GpuCtx};
 
 static CONTEXT_ID: AtomicU8 = AtomicU8::new(0);
 
@@ -34,17 +34,7 @@ impl GpuCtxOpenGL {
     }
 }
 
-pub fn create_gpu_context(name: &str) -> Box<dyn GpuCtx> {
-    // Don't change order, only add new entries at the end, this is also used on trace dumps!
-    #[allow(dead_code)]
-    enum GpuContextType {
-        Invalid,
-        OpenGl,
-        Vulkan,
-        OpenCL,
-        Direct3D12,
-        Direct3D11,
-    }
+pub fn create_opengl_gpu_context(name: &str) -> Box<dyn GpuCtx> {
     let query_size = 64 * 1024;
 
     let mut ctx = Box::new(GpuCtxOpenGL {
@@ -117,7 +107,7 @@ impl GpuCtx for GpuCtxOpenGL {
         }
     }
 
-    fn gpu_begin(&mut self, loc_data: &___tracy_source_location_data) {
+    fn gpu_begin(&mut self, loc_data: &___tracy_source_location_data) -> i64 {
         let query = self.next_query_id();
 
         let gpu_data = ___tracy_gpu_zone_begin_data {
@@ -129,9 +119,11 @@ impl GpuCtx for GpuCtxOpenGL {
             QueryCounter(self.query[query], TIMESTAMP);
             ___tracy_emit_gpu_zone_begin_serial(gpu_data);
         }
+        // Any positive id is fine here, since the opengl implementation does not use it
+        1
     }
 
-    fn gpu_end(&mut self) {
+    fn gpu_end(&mut self, _query_id: i64) {
         let query = self.next_query_id();
         let gpu_data = ___tracy_gpu_zone_end_data {
             queryId: query as u16,
