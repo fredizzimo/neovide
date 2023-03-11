@@ -253,19 +253,20 @@ impl RenderedWindow {
         canvas.clear(default_background);
 
         let scroll_offset = self.scrollback_buffer.get_scroll_delta().fract();
+        let scroll_offset_pixels = (scroll_offset * font_dimensions.height as f32).round() as usize;
         let mut has_transparency = false;
 
         let mut background_paint = Paint::default();
         background_paint.set_blend_mode(BlendMode::Src);
         background_paint.set_alpha(default_background.a());
 
-        let lines: Vec<(Matrix, &Line)> = (0..self.grid_size.height + 1)
+        let lines: Vec<(Matrix, &Line)> = (0..self.grid_size.height as usize + 1)
             .filter_map(|i| {
                 if let Some(line) = self.scrollback_buffer.get_visible_line(i as usize) {
                     let mut m = Matrix::new_identity();
                     m.set_translate((
                         0.0,
-                        (scroll_offset + i as f32) * font_dimensions.height as f32,
+                        (scroll_offset_pixels + (i * font_dimensions.height as usize )) as f32,
                     ));
                     Some((m, line))
                 } else {
