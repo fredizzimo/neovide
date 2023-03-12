@@ -44,7 +44,6 @@ use crate::{
     editor::EditorCommand,
     event_aggregator::EVENT_AGGREGATOR,
     frame::Frame,
-    redraw_scheduler::REDRAW_SCHEDULER,
     renderer::Renderer,
     renderer::WindowPadding,
     renderer::{build_context, WindowedContext},
@@ -149,11 +148,11 @@ impl WinitWindowWrapper {
 
     pub fn handle_focus_gained(&mut self) {
         EVENT_AGGREGATOR.send(UiCommand::Parallel(ParallelCommand::FocusGained));
-        REDRAW_SCHEDULER.queue_next_frame();
     }
 
-    pub fn handle_event(&mut self, event: Event<UserEvent>) {
+    pub fn handle_event(&mut self, event: Event<UserEvent>) -> bool {
         tracy_zone!("handle_event", 0);
+        let mut should_render = false;
         self.keyboard_manager.handle_event(&event);
         self.mouse_manager.handle_event(
             &event,
@@ -191,32 +190,32 @@ impl WinitWindowWrapper {
             } => {
                 if focus {
                     self.handle_focus_gained();
+                    should_render = true;
                 } else {
                     self.handle_focus_lost();
                 }
             }
             Event::RedrawRequested(..) | Event::WindowEvent { .. } => {
-                REDRAW_SCHEDULER.queue_next_frame()
+                should_render = true;
             }
             _ => {}
         }
+        should_render
     }
 
     pub fn draw_frame(&mut self, dt: f32) {
         tracy_zone!("draw_frame");
-        if REDRAW_SCHEDULER.should_draw() || SETTINGS.get::<WindowSettings>().no_idle {
-            self.renderer.draw_frame(self.skia_renderer.canvas(), dt);
-            {
-                tracy_gpu_zone!("skia flush");
-                self.skia_renderer.gr_context.flush(None);
-            }
-            {
-                tracy_gpu_zone!("swap buffers");
-                self.windowed_context.swap_buffers().unwrap();
-            }
-            emit_frame_mark();
-            tracy_gpu_collect();
+        self.renderer.draw_frame(self.skia_renderer.canvas(), dt);
+        {
+            tracy_gpu_zone!("skia flush");
+            self.skia_renderer.gr_context.flush(None);
         }
+        {
+            tracy_gpu_zone!("swap buffers");
+            self.windowed_context.swap_buffers().unwrap();
+        }
+        emit_frame_mark();
+        tracy_gpu_collect();
     }
 
     pub fn animate_frame(&mut self, dt: f32) -> bool {
@@ -224,8 +223,9 @@ impl WinitWindowWrapper {
         self.renderer.animate_frame(dt)
     }
 
-    pub fn prepare_frame(&mut self) {
+    pub fn prepare_frame(&mut self) -> bool {
         tracy_zone!("prepare_frame", 0);
+        let mut should_render = false;
 
         let window = self.windowed_context.window();
         let new_size = window.inner_size();
@@ -249,6 +249,7 @@ impl WinitWindowWrapper {
 
             self.handle_new_grid_size(new_size);
             self.skia_renderer.resize(&self.windowed_context);
+            should_render = true;
         }
 
         self.font_changed_last_frame = self
@@ -257,7 +258,7 @@ impl WinitWindowWrapper {
 
         // Wait until fonts are loaded, so we can set proper window size.
         if !self.renderer.grid_renderer.is_ready {
-            return;
+            return false;
         }
 
         let settings = SETTINGS.get::<CmdLineSettings>();
@@ -285,6 +286,7 @@ impl WinitWindowWrapper {
             // But only when not resized yet. With maximized or resized window we should redraw grid.
             self.font_changed_last_frame = false;
         }
+        should_render
     }
 
     fn handle_new_grid_size(&mut self, new_size: PhysicalSize<u32>) {
@@ -480,9 +482,11 @@ pub fn create_window() {
         let mut focused = FocusedState::Focused;
         let mut prev_frame_start = Instant::now();
 
+        #[allow(unused_assignments)]
         loop {
             tracy_zone!("render loop", 0);
             let e = rx.try_recv();
+            let mut should_render = false;
 
             match e {
                 // Window focus changed
@@ -502,15 +506,19 @@ pub fn create_window() {
                 _ => {}
             }
             if let Ok(e) = e {
-                window_wrapper.handle_event(e);
+                should_render |= window_wrapper.handle_event(e);
                 window_wrapper.handle_window_commands();
                 window_wrapper.synchronize_settings();
             } else {
                 let frame_start = Instant::now();
                 let dt = prev_frame_start.elapsed().as_secs_f32();
-                window_wrapper.prepare_frame();
+                should_render |= window_wrapper.prepare_frame();
                 window_wrapper.animate_frame(dt);
-                window_wrapper.draw_frame(dt);
+                // Always render for now
+                #[allow(clippy::overly_complex_bool_expr)]
+                if should_render || true {
+                    window_wrapper.draw_frame(dt);
+                }
                 if let FocusedState::UnfocusedNotDrawn = focused {
                     focused = FocusedState::Unfocused;
                 }
