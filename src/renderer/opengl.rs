@@ -2,14 +2,17 @@ use crate::cmd_line::CmdLineSettings;
 use std::convert::TryInto;
 
 use gl::types::*;
-use glutin::{ContextBuilder, GlProfile, NotCurrent, WindowedContext};
+use glutin::{ContextBuilder, GlProfile, NotCurrent, RawContext, WindowedContext};
 use skia_safe::{
     gpu::{gl::FramebufferInfo, BackendRenderTarget, DirectContext, SurfaceOrigin},
     Canvas, ColorType, Surface,
 };
-use winit::{event_loop::EventLoop, window::WindowBuilder};
+use winit::{
+    event_loop::EventLoop,
+    window::{Window, WindowBuilder},
+};
 
-pub type Context = WindowedContext<glutin::PossiblyCurrent>;
+pub type Context = RawContext<glutin::PossiblyCurrent>;
 
 pub fn build_context<TE>(
     cmd_line_settings: &CmdLineSettings,
@@ -44,12 +47,13 @@ pub fn build_context<TE>(
 }
 
 fn create_surface(
-    windowed_context: &Context,
+    context: &Context,
+    window: &Window,
     gr_context: &mut DirectContext,
     fb_info: FramebufferInfo,
 ) -> Surface {
-    let pixel_format = windowed_context.get_pixel_format();
-    let size = windowed_context.window().inner_size();
+    let pixel_format = context.get_pixel_format();
+    let size = window.inner_size();
     let size = (
         size.width.try_into().expect("Could not convert width"),
         size.height.try_into().expect("Could not convert height"),
@@ -65,7 +69,7 @@ fn create_surface(
             .expect("Could not convert stencil"),
         fb_info,
     );
-    windowed_context.resize(size.into());
+    context.resize(size.into());
     Surface::from_backend_render_target(
         gr_context,
         &backend_render_target,
@@ -81,17 +85,18 @@ pub struct SkiaRenderer {
     pub gr_context: DirectContext,
     fb_info: FramebufferInfo,
     surface: Surface,
+    context: Context,
 }
 
 impl SkiaRenderer {
-    pub fn new(windowed_context: &Context) -> SkiaRenderer {
-        gl::load_with(|s| windowed_context.get_proc_address(s));
+    pub fn new(context: Context, window: &Window) -> SkiaRenderer {
+        gl::load_with(|s| context.get_proc_address(s));
 
         let interface = skia_safe::gpu::gl::Interface::new_load_with(|name| {
             if name == "eglGetCurrentDisplay" {
                 return std::ptr::null();
             }
-            windowed_context.get_proc_address(name)
+            context.get_proc_address(name)
         })
         .expect("Could not create interface");
 
@@ -106,20 +111,31 @@ impl SkiaRenderer {
                 format: skia_safe::gpu::gl::Format::RGBA8.into(),
             }
         };
-        let surface = create_surface(windowed_context, &mut gr_context, fb_info);
+        let surface = create_surface(&context, window, &mut gr_context, fb_info);
 
         SkiaRenderer {
             gr_context,
             fb_info,
             surface,
+            context,
         }
+    }
+
+    pub fn swap_buffers(&self) -> f64 {
+        // TODO: Deal with errors
+        self.context.swap_buffers().unwrap();
+        1.0 / 60.0
     }
 
     pub fn canvas(&mut self) -> &mut Canvas {
         self.surface.canvas()
     }
 
-    pub fn resize(&mut self, windowed_context: &Context) {
-        self.surface = create_surface(windowed_context, &mut self.gr_context, self.fb_info);
+    pub fn resize(&mut self, window: &Window) {
+        self.surface = create_surface(&self.context, window, &mut self.gr_context, self.fb_info);
+    }
+
+    pub fn flush_and_submit(&mut self) {
+        self.gr_context.flush_and_submit();
     }
 }

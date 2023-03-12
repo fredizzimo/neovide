@@ -260,7 +260,7 @@ impl Renderer {
         animating
     }
 
-    pub fn handle_draw_commands(&mut self, root_canvas: &mut Canvas) -> bool {
+    pub fn handle_draw_commands(&mut self, skia_renderer: &mut SkiaRenderer) -> bool {
         let mut draw_commands = Vec::new();
         while let Ok(draw_command) = self.batched_draw_command_receiver.try_recv() {
             draw_commands.extend(draw_command);
@@ -272,7 +272,7 @@ impl Renderer {
             if let DrawCommand::FontChanged(_) | DrawCommand::LineSpaceChanged(_) = draw_command {
                 font_changed = true;
             }
-            self.handle_draw_command(root_canvas, draw_command);
+            self.handle_draw_command(skia_renderer, draw_command);
         }
 
         let user_scale_factor = SETTINGS.get::<WindowSettings>().scale_factor.into();
@@ -292,7 +292,7 @@ impl Renderer {
             .handle_scale_factor_update(self.os_scale_factor * self.user_scale_factor);
     }
 
-    fn handle_draw_command(&mut self, root_canvas: &mut Canvas, draw_command: DrawCommand) {
+    fn handle_draw_command(&mut self, skia_renderer: &mut SkiaRenderer, draw_command: DrawCommand) {
         match draw_command {
             DrawCommand::Window {
                 grid_id,
@@ -315,7 +315,7 @@ impl Renderer {
                         } = command
                         {
                             let new_window = RenderedWindow::new(
-                                root_canvas,
+                                skia_renderer.canvas(),
                                 &self.grid_renderer,
                                 grid_id,
                                 (grid_left as f32, grid_top as f32).into(),

@@ -20,6 +20,8 @@ use gl::{
     QUERY_RESULT_AVAILABLE, TIMESTAMP,
 };
 
+use crate::renderer::SkiaRenderer;
+
 pub struct _LocationData {
     pub data: ___tracy_source_location_data,
 }
@@ -182,7 +184,7 @@ pub fn emit_frame_mark() {
     }
 }
 
-pub fn tracy_create_gpu_context(name: &str) {
+pub fn tracy_create_gpu_context(name: &str, _skia_renderer: &SkiaRenderer) {
     // Don't change order, only add new entries at the end, this is also used on trace dumps!
     #[allow(dead_code)]
     enum GpuContextType {

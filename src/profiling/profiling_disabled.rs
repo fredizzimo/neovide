@@ -1,3 +1,5 @@
+use crate::renderer::SkiaRenderer;
+
 #[inline(always)]
 pub fn startup_profiler() {}
 
@@ -5,7 +7,7 @@ pub fn startup_profiler() {}
 pub fn emit_frame_mark() {}
 
 #[inline(always)]
-pub fn tracy_create_gpu_context(_name: &str) {}
+pub fn tracy_create_gpu_context(_name: &str, _skia_renderer: &SkiaRenderer) {}
 
 #[inline(always)]
 pub fn tracy_gpu_collect() {}
