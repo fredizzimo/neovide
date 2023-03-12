@@ -45,7 +45,6 @@ use crate::{
     profiling::{
         emit_frame_mark, tracy_create_gpu_context, tracy_gpu_collect, tracy_gpu_zone, tracy_zone,
     },
-    redraw_scheduler::REDRAW_SCHEDULER,
     renderer::Renderer,
     renderer::WindowPadding,
     renderer::{build_context, WindowedContext},
@@ -146,11 +145,11 @@ impl WinitWindowWrapper {
 
     pub fn handle_focus_gained(&mut self) {
         EVENT_AGGREGATOR.send(UiCommand::Parallel(ParallelCommand::FocusGained));
-        REDRAW_SCHEDULER.queue_next_frame();
     }
 
-    pub fn handle_event(&mut self, event: Event<()>) {
+    pub fn handle_event(&mut self, event: Event<()>) -> bool {
         tracy_zone!("handle_event", 0);
+        let mut should_render = false;
         self.keyboard_manager.handle_event(&event);
         self.mouse_manager.handle_event(
             &event,
@@ -191,15 +190,15 @@ impl WinitWindowWrapper {
             } => {
                 if focus {
                     self.handle_focus_gained();
+                    should_render = true;
                 } else {
                     self.handle_focus_lost();
                 }
             }
-            Event::RedrawRequested(..) | Event::WindowEvent { .. } => {
-                REDRAW_SCHEDULER.queue_next_frame()
-            }
+            Event::RedrawRequested(..) | Event::WindowEvent { .. } => {}
             _ => {}
         }
+        should_render
     }
 
     pub fn draw_frame(&mut self, dt: f32) {
@@ -222,8 +221,9 @@ impl WinitWindowWrapper {
         self.renderer.animate_frame(dt)
     }
 
-    pub fn prepare_frame(&mut self) {
+    pub fn prepare_frame(&mut self) -> bool {
         tracy_zone!("prepare_frame", 0);
+        let mut should_render = false;
 
         let window = self.windowed_context.window();
 
@@ -247,13 +247,17 @@ impl WinitWindowWrapper {
 
             self.handle_new_grid_size(new_size);
             self.skia_renderer.resize(&self.windowed_context);
+            should_render = true;
         }
 
-        self.font_changed_last_frame = self.renderer.handle_draw_commands();
+        let handle_draw_commands_result = self.renderer.handle_draw_commands();
+
+        self.font_changed_last_frame |= handle_draw_commands_result.0;
+        should_render |= handle_draw_commands_result.1;
 
         // Wait until fonts are loaded, so we can set proper window size.
         if !self.renderer.grid_renderer.is_ready {
-            return;
+            return false;
         }
 
         // Resize at startup happens when window is maximized or when using tiling WM
@@ -264,7 +268,9 @@ impl WinitWindowWrapper {
 
         if self.saved_grid_size.is_none() && !resized_at_startup {
             self.init_window_size();
+            should_render |= true;
         }
+        should_render
     }
 
     fn init_window_size(&self) {
@@ -488,6 +494,8 @@ pub fn create_window() {
 
     let mut previous_frame_start = Instant::now();
     let mut dt = 0.0;
+    let mut should_render = true;
+    let mut num_consecutive_rendered: usize = 0;
 
     enum FocusedState {
         Focused,
@@ -506,7 +514,6 @@ pub fn create_window() {
         .max(1.0);
 
         let expected_frame_duration = Duration::from_secs_f32(1.0 / refresh_rate);
-        let mut skipped_rendering = false;
 
         match e {
             // Window focus changed
@@ -521,16 +528,17 @@ pub fn create_window() {
                 };
             }
             Event::MainEventsCleared => {
-                window_wrapper.prepare_frame();
-                window_wrapper.animate_frame(dt);
-                if REDRAW_SCHEDULER.should_draw() || !SETTINGS.get::<WindowSettings>().idle {
-                    window_wrapper.draw_frame(dt)
+                should_render |= window_wrapper.prepare_frame();
+                should_render |= window_wrapper.animate_frame(dt);
+                if should_render || !cmd_line_settings.idle {
+                    window_wrapper.draw_frame(dt);
+                    should_render = false;
+                    num_consecutive_rendered += 1;
                 } else {
-                    skipped_rendering = true;
+                    num_consecutive_rendered = 0;
                 }
                 dt = previous_frame_start.elapsed().as_secs_f32();
                 previous_frame_start = Instant::now();
-
                 if let FocusedState::UnfocusedNotDrawn = focused {
                     focused = FocusedState::Unfocused;
                 }
@@ -554,9 +562,9 @@ pub fn create_window() {
 
         window_wrapper.handle_window_commands();
         window_wrapper.synchronize_settings();
-        window_wrapper.handle_event(e);
+        should_render |= window_wrapper.handle_event(e);
 
-        if !skipped_rendering {
+        if num_consecutive_rendered > 0 {
             *control_flow = ControlFlow::Poll;
         } else {
             *control_flow = ControlFlow::WaitUntil(previous_frame_start + expected_frame_duration)
