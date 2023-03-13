@@ -1,6 +1,7 @@
 use crate::cmd_line::CmdLineSettings;
 use std::convert::TryInto;
 
+use crate::profiling::emit_frame_mark;
 use gl::types::*;
 use glutin::{ContextBuilder, GlProfile, NotCurrent, RawContext, WindowedContext};
 use skia_safe::{
@@ -124,6 +125,7 @@ impl SkiaRenderer {
     pub fn swap_buffers(&self) -> f64 {
         // TODO: Deal with errors
         self.context.swap_buffers().unwrap();
+        emit_frame_mark();
         1.0 / 60.0
     }
 

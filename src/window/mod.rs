@@ -7,7 +7,6 @@ mod draw_background;
 
 use std::sync::mpsc;
 use std::thread;
-use std::time::Instant;
 
 use log::trace;
 use simple_moving_average::{NoSumSMA, SMA};
@@ -28,9 +27,7 @@ use draw_background::draw_background;
 #[cfg(target_os = "linux")]
 use winit::platform::unix::WindowBuilderExtUnix;
 
-use crate::profiling::{
-    emit_frame_mark, tracy_create_gpu_context, tracy_gpu_collect, tracy_gpu_zone, tracy_zone,
-};
+use crate::profiling::{tracy_create_gpu_context, tracy_gpu_collect, tracy_gpu_zone, tracy_zone};
 
 use image::{load_from_memory, GenericImageView, Pixel};
 use keyboard_manager::KeyboardManager;
@@ -200,7 +197,7 @@ impl WinitWindowWrapper {
         should_render
     }
 
-    pub fn draw_frame(&mut self, dt: f32) {
+    pub fn draw_frame(&mut self, dt: f32) -> f64 {
         tracy_zone!("draw_frame");
 
         {
@@ -221,12 +218,12 @@ impl WinitWindowWrapper {
             tracy_gpu_zone!("skia flush");
             self.skia_renderer.flush_and_submit();
         }
-        {
+        let new_dt = {
             tracy_gpu_zone!("swap buffers");
-            self.skia_renderer.swap_buffers();
-        }
-        emit_frame_mark();
+            self.skia_renderer.swap_buffers()
+        };
         tracy_gpu_collect();
+        new_dt
     }
 
     pub fn animate_frame(&mut self, dt: f32) -> bool {
@@ -493,7 +490,6 @@ pub fn create_window() {
 
         let max_animation_dt = 1.0 / 120.0;
         let mut focused = FocusedState::Focused;
-        let mut prev_frame_start = Instant::now();
         let mut frame_dt_avg = NoSumSMA::<f64, f64, 10>::new();
 
         #[allow(unused_assignments)]
@@ -535,11 +531,10 @@ pub fn create_window() {
                 // Always render for now
                 #[allow(clippy::overly_complex_bool_expr)]
                 if should_render || true {
-                    window_wrapper
+                    let new_dt = window_wrapper
                         .draw_frame(frame_dt_avg.get_most_recent_sample().unwrap_or(0.0) as f32);
-                    frame_dt_avg.add_sample(prev_frame_start.elapsed().as_secs_f64());
-                    prev_frame_start = Instant::now();
-                }
+                    frame_dt_avg.add_sample(new_dt);
+                };
 
                 if let FocusedState::UnfocusedNotDrawn = focused {
                     focused = FocusedState::Unfocused;
