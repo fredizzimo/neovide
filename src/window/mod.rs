@@ -40,7 +40,7 @@ use crate::{
     editor::EditorCommand,
     event_aggregator::EVENT_AGGREGATOR,
     frame::Frame,
-    renderer::{build_context, Renderer, SkiaRenderer, WindowPadding},
+    renderer::{build_context, create_skia_renderer, Renderer, SkiaRenderer, WindowPadding},
     running_tracker::*,
     settings::{
         load_last_window_settings, save_window_geometry, PersistentWindowSettings, SETTINGS,
@@ -67,7 +67,7 @@ pub enum UserEvent {
 
 pub struct WinitWindowWrapper {
     window: Window,
-    skia_renderer: SkiaRenderer,
+    skia_renderer: Box<dyn SkiaRenderer>,
     renderer: Renderer,
     keyboard_manager: KeyboardManager,
     mouse_manager: MouseManager,
@@ -260,7 +260,7 @@ impl WinitWindowWrapper {
             should_render = true;
         }
 
-        self.font_changed_last_frame = self.renderer.handle_draw_commands(&mut self.skia_renderer);
+        self.font_changed_last_frame = self.renderer.handle_draw_commands(&mut *self.skia_renderer);
 
         // Wait until fonts are loaded, so we can set proper window size.
         if !self.renderer.grid_renderer.is_ready {
@@ -421,7 +421,7 @@ pub fn create_window() {
     let (txtemp, rx) = mpsc::channel::<Event<UserEvent>>();
     let mut tx = Some(txtemp);
     let mut render_thread_handle = Some(thread::spawn(move || {
-        let (windowed_context, window) = unsafe {
+        let (context, window) = unsafe {
             let windowed_context = windowed_context.make_current().unwrap();
             windowed_context.split()
         };
@@ -468,7 +468,8 @@ pub fn create_window() {
             renderer.grid_renderer.font_dimensions,
         );
 
-        let skia_renderer = SkiaRenderer::new(windowed_context, &window);
+        let skia_renderer = create_skia_renderer(context, &window);
+        tracy_create_gpu_context("main render context", skia_renderer.as_ref());
 
         let mut window_wrapper = WinitWindowWrapper {
             window,
@@ -485,8 +486,6 @@ pub fn create_window() {
             saved_grid_size: None,
             window_command_receiver,
         };
-
-        tracy_create_gpu_context("main render context", &window_wrapper.skia_renderer);
 
         let max_animation_dt = 1.0 / 120.0;
         let mut focused = FocusedState::Focused;

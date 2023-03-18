@@ -1,4 +1,7 @@
+use std::cell::RefCell;
 use std::ptr::null;
+
+use once_cell::unsync::OnceCell;
 
 use tracy_client_sys::{
     ___tracy_c_zone_context, ___tracy_connected, ___tracy_emit_frame_mark,
@@ -6,9 +9,7 @@ use tracy_client_sys::{
     ___tracy_startup_profiler,
 };
 
-pub use crate::profiling::opengl::{
-    gpu_begin, gpu_end, tracy_create_gpu_context, tracy_gpu_collect,
-};
+use crate::renderer::SkiaRenderer;
 
 pub struct _LocationData {
     pub data: ___tracy_source_location_data,
@@ -106,10 +107,61 @@ impl Drop for _Zone {
     }
 }
 
+pub trait GpuCtx {
+    fn gpu_collect(&mut self);
+    fn gpu_begin(&mut self, loc_data: &___tracy_source_location_data);
+    fn gpu_end(&mut self);
+}
+
+thread_local! {
+    static GPUCTX: OnceCell<RefCell<Box<dyn GpuCtx>>> = OnceCell::new();
+}
+
 pub fn startup_profiler() {
     unsafe {
         ___tracy_startup_profiler();
     }
+}
+
+#[cfg(not(feature = "gpu_profiling"))]
+pub fn tracy_create_gpu_context(_name: &str, _skia_renderer: &dyn SkiaRenderer) {}
+
+#[cfg(feature = "gpu_profiling")]
+pub fn tracy_create_gpu_context(name: &str, skia_renderer: &dyn SkiaRenderer) {
+    let context = skia_renderer.tracy_create_gpu_context(name);
+    GPUCTX.with(|ctx| {
+        ctx.set(RefCell::new(context)).unwrap_or_else(|_| {
+            panic!("tracy_create_gpu_context can only be called once per thread")
+        });
+    });
+}
+
+pub fn tracy_gpu_collect() {
+    tracy_zone!("collect gpu info");
+    GPUCTX.with(|ctx| {
+        ctx.get()
+            .expect("Profiling context not initialized for current thread")
+            .borrow_mut()
+            .gpu_collect();
+    });
+}
+
+fn gpu_begin(loc_data: &___tracy_source_location_data) {
+    GPUCTX.with(|ctx| {
+        ctx.get()
+            .expect("Profiling context not initialized for current thread")
+            .borrow_mut()
+            .gpu_begin(loc_data);
+    });
+}
+
+fn gpu_end() {
+    GPUCTX.with(|ctx| {
+        ctx.get()
+            .expect("Profiling context not initialized for current thread")
+            .borrow_mut()
+            .gpu_end();
+    });
 }
 
 #[inline(always)]

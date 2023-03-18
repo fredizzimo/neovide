@@ -2,8 +2,12 @@ use crate::cmd_line::CmdLineSettings;
 use std::convert::TryInto;
 
 use crate::profiling::emit_frame_mark;
+#[cfg(feature = "gpu_profiling")]
+use crate::profiling::GpuCtx;
+use crate::renderer::SkiaRenderer;
+
 use gl::types::*;
-use glutin::{ContextBuilder, GlProfile, NotCurrent, RawContext, WindowedContext};
+use glutin::{ContextBuilder, GlProfile, RawContext, WindowedContext};
 use skia_safe::{
     gpu::{gl::FramebufferInfo, BackendRenderTarget, DirectContext, SurfaceOrigin},
     Canvas, ColorType, Surface,
@@ -19,7 +23,7 @@ pub fn build_context<TE>(
     cmd_line_settings: &CmdLineSettings,
     winit_window_builder: WindowBuilder,
     event_loop: &EventLoop<TE>,
-) -> WindowedContext<NotCurrent> {
+) -> WindowedContext<glutin::NotCurrent> {
     let builder = ContextBuilder::new()
         .with_pixel_format(24, 8)
         .with_stencil_buffer(8)
@@ -82,15 +86,15 @@ fn create_surface(
     .expect("Could not create skia surface")
 }
 
-pub struct SkiaRenderer {
+pub struct SkiaRendererOpenGL {
     pub gr_context: DirectContext,
     fb_info: FramebufferInfo,
     surface: Surface,
     context: Context,
 }
 
-impl SkiaRenderer {
-    pub fn new(context: Context, window: &Window) -> SkiaRenderer {
+impl SkiaRendererOpenGL {
+    pub fn new(context: Context, window: &Window) -> SkiaRendererOpenGL {
         gl::load_with(|s| context.get_proc_address(s));
 
         let interface = skia_safe::gpu::gl::Interface::new_load_with(|name| {
@@ -114,30 +118,37 @@ impl SkiaRenderer {
         };
         let surface = create_surface(&context, window, &mut gr_context, fb_info);
 
-        SkiaRenderer {
+        SkiaRendererOpenGL {
             gr_context,
             fb_info,
             surface,
             context,
         }
     }
+}
 
-    pub fn swap_buffers(&self) -> f64 {
+impl SkiaRenderer for SkiaRendererOpenGL {
+    fn swap_buffers(&mut self) -> f64 {
         // TODO: Deal with errors
         self.context.swap_buffers().unwrap();
         emit_frame_mark();
         1.0 / 60.0
     }
 
-    pub fn canvas(&mut self) -> &mut Canvas {
+    fn canvas(&mut self) -> &mut Canvas {
         self.surface.canvas()
     }
 
-    pub fn resize(&mut self, window: &Window) {
+    fn resize(&mut self, window: &Window) {
         self.surface = create_surface(&self.context, window, &mut self.gr_context, self.fb_info);
     }
 
-    pub fn flush_and_submit(&mut self) {
+    fn flush_and_submit(&mut self) {
         self.gr_context.flush_and_submit();
+    }
+
+    #[cfg(feature = "gpu_profiling")]
+    fn tracy_create_gpu_context(&self, name: &str) -> Box<dyn GpuCtx> {
+        crate::profiling::create_gpu_context(name)
     }
 }

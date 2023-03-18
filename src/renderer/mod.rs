@@ -6,7 +6,7 @@ mod opengl;
 pub mod profiler;
 mod rendered_window;
 
-pub use opengl::{build_context, Context as WindowedContext, SkiaRenderer};
+pub use opengl::{build_context, Context};
 
 use std::{
     cmp::Ordering,
@@ -17,7 +17,7 @@ use std::{
 use log::error;
 use skia_safe::Canvas;
 use tokio::sync::mpsc::UnboundedReceiver;
-use winit::event::Event;
+use winit::{event::Event, window::Window};
 
 use crate::{
     bridge::EditorMode,
@@ -28,6 +28,9 @@ use crate::{
     window::UserEvent,
     WindowSettings,
 };
+
+#[cfg(feature = "gpu_profiling")]
+use crate::profiling::GpuCtx;
 
 use cursor_renderer::CursorRenderer;
 pub use fonts::caching_shaper::CachingShaper;
@@ -260,7 +263,7 @@ impl Renderer {
         animating
     }
 
-    pub fn handle_draw_commands(&mut self, skia_renderer: &mut SkiaRenderer) -> bool {
+    pub fn handle_draw_commands(&mut self, skia_renderer: &mut dyn SkiaRenderer) -> bool {
         let mut draw_commands = Vec::new();
         while let Ok(draw_command) = self.batched_draw_command_receiver.try_recv() {
             draw_commands.extend(draw_command);
@@ -292,7 +295,11 @@ impl Renderer {
             .handle_scale_factor_update(self.os_scale_factor * self.user_scale_factor);
     }
 
-    fn handle_draw_command(&mut self, skia_renderer: &mut SkiaRenderer, draw_command: DrawCommand) {
+    fn handle_draw_command(
+        &mut self,
+        skia_renderer: &mut dyn SkiaRenderer,
+        draw_command: DrawCommand,
+    ) {
         match draw_command {
             DrawCommand::Window {
                 grid_id,
@@ -374,4 +381,18 @@ fn floating_sort(window_a: &&mut RenderedWindow, window_b: &&mut RenderedWindow)
         }
     }
     ord
+}
+
+pub trait SkiaRenderer {
+    fn canvas(&mut self) -> &mut Canvas;
+    fn resize(&mut self, window: &Window);
+    fn swap_buffers(&mut self) -> f64;
+    fn flush_and_submit(&mut self);
+
+    #[cfg(feature = "gpu_profiling")]
+    fn tracy_create_gpu_context(&self, name: &str) -> Box<dyn GpuCtx>;
+}
+
+pub fn create_skia_renderer(context: Context, window: &Window) -> Box<dyn SkiaRenderer> {
+    Box::new(opengl::SkiaRendererOpenGL::new(context, window))
 }
