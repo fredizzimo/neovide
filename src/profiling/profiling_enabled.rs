@@ -150,6 +150,10 @@ pub fn tracy_create_gpu_context(name: &str, skia_renderer: &dyn SkiaRenderer) {
     });
 }
 
+#[cfg(not(feature = "gpu_profiling"))]
+pub fn tracy_gpu_collect() {}
+
+#[cfg(feature = "gpu_profiling")]
 pub fn tracy_gpu_collect() {
     tracy_zone!("collect gpu info");
     GPUCTX.with(|ctx| {
