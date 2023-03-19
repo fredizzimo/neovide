@@ -147,6 +147,8 @@ pub struct RenderedWindow {
     scroll_v: f32,
 
     pub padding: WindowPadding,
+
+    has_transparency: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -186,6 +188,8 @@ impl RenderedWindow {
             current_scroll: 0.0,
             scroll_v: 0.0,
             padding,
+
+            has_transparency: false,
         }
     }
 
@@ -241,7 +245,7 @@ impl RenderedWindow {
         animating
     }
 
-    pub fn draw_surface(&mut self, font_dimensions: Dimensions, default_background: Color) -> bool {
+    pub fn draw_surface(&mut self, font_dimensions: Dimensions, default_background: Color) {
         let image_size: (i32, i32) = (self.grid_size * font_dimensions).into();
         let pixel_region = Rect::from_size(image_size);
         let canvas = self.current_surface.surface.canvas();
@@ -288,7 +292,7 @@ impl RenderedWindow {
                 canvas.draw_picture(foreground_picture, Some(matrix), Some(&foreground_paint));
             }
         }
-        has_transparency
+        self.has_transparency = has_transparency;
     }
 
     pub fn draw(
@@ -298,10 +302,8 @@ impl RenderedWindow {
         default_background: Color,
         font_dimensions: Dimensions,
     ) -> WindowDrawDetails {
-        let has_transparency = self.draw_surface(font_dimensions, default_background);
-
         let pixel_region = self.pixel_region(font_dimensions);
-        let transparent_floating = self.floating_order.is_some() && has_transparency;
+        let transparent_floating = self.floating_order.is_some() && self.has_transparency;
 
         root_canvas.save();
         root_canvas.clip_rect(pixel_region, None, Some(false));
