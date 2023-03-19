@@ -76,15 +76,12 @@ winres = "0.1.12"
 [target.'cfg(windows)'.dependencies.skia-safe]
 # NOTE: Including textlayout for pre-built binaries
 features = ["d3d", "gl", "textlayout"]
-version = "0.60.0"
+version = "0.52.0"
 
 [target.'cfg(linux)'.dependencies.skia-safe]
 features = ["gl", "egl"]
-version = "0.60.0"
+version = "0.52.0"
 
-[target.'cfg(not(linux))'.dependencies.skia-safe]
-features = ["gl"]
-version = "0.60.0"
 
 [profile.release]
 lto = true
@@ -109,3 +106,6 @@ long_description = """
 This is a simple graphical user interface for Neovim. Where possible there are some graphical improvements, but it should act functionally like the terminal UI.
 """
 osx_minimum_system_version = "10.11"
+
+[patch.crates-io]
+skia-safe = { path="../rust-skia/skia-safe" }
