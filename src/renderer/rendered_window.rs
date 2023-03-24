@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+/*
 use skia_safe::{
     canvas::SaveLayerRec,
     gpu::{Budgeted, SurfaceOrigin},
@@ -7,6 +8,8 @@ use skia_safe::{
     BlendMode, Canvas, Color, ImageInfo, Matrix, Paint, Picture, PictureRecorder, Point, Rect,
     Surface, SurfaceProps, SurfacePropsFlags,
 };
+*/
+use euclid::default::{Point2D, Rect, Size2D};
 
 use crate::{
     dimensions::Dimensions,
@@ -64,8 +67,8 @@ pub struct WindowPadding {
 
 #[derive(Clone)]
 struct Line {
-    background_picture: Option<Picture>,
-    foreground_picture: Option<Picture>,
+    //background_picture: Option<Picture>,
+    //foreground_picture: Option<Picture>,
     has_transparency: bool,
 }
 
@@ -83,9 +86,9 @@ pub struct RenderedWindow {
     actual_top_index: isize,
     scrollback_top_index: isize,
 
-    grid_start_position: Point,
-    pub grid_current_position: Point,
-    grid_destination: Point,
+    grid_start_position: Point2D<f32>,
+    pub grid_current_position: Point2D<f32>,
+    grid_destination: Point2D<f32>,
     position_t: f32,
 
     pub current_scroll: f32,
@@ -102,16 +105,15 @@ pub struct RenderedWindow {
 #[derive(Clone, Debug)]
 pub struct WindowDrawDetails {
     pub id: u64,
-    pub region: Rect,
+    pub region: Rect<f32>,
     pub floating_order: Option<u64>,
 }
 
 impl RenderedWindow {
     pub fn new(
-        parent_canvas: &mut Canvas,
         grid_renderer: &GridRenderer,
         id: u64,
-        grid_position: Point,
+        grid_position: Point2D<f32>,
         grid_size: Dimensions,
         padding: WindowPadding,
     ) -> RenderedWindow {
@@ -142,15 +144,15 @@ impl RenderedWindow {
         }
     }
 
-    pub fn pixel_region(&self, font_dimensions: Dimensions) -> Rect {
-        let current_pixel_position = Point::new(
+    pub fn pixel_region(&self, font_dimensions: Dimensions) -> Rect<f32> {
+        let current_pixel_position = Point2D::new(
             self.grid_current_position.x * font_dimensions.width as f32,
             self.grid_current_position.y * font_dimensions.height as f32,
         );
 
-        let image_size: (i32, i32) = (self.grid_size * font_dimensions).into();
+        let image_size = self.grid_size * font_dimensions;
 
-        Rect::from_point_and_size(current_pixel_position, image_size)
+        Rect::new(current_pixel_position, image_size.into())
     }
 
     pub fn animate(&mut self, settings: &RendererSettings, dt: f32) -> bool {
@@ -193,7 +195,7 @@ impl RenderedWindow {
 
         animating
     }
-
+    /*
     pub fn draw_surface(
         &mut self,
         canvas: &mut Canvas,
@@ -338,6 +340,7 @@ impl RenderedWindow {
             floating_order: self.floating_order,
         }
     }
+    */
 
     fn reset_scroll(&mut self) {
         self.current_scroll = 0.0;
@@ -367,7 +370,7 @@ impl RenderedWindow {
 
                 let grid_left = grid_left.max(0.0);
                 let grid_top = grid_top.max(0.0);
-                let new_destination: Point =
+                let new_destination: Point2D<f32> =
                     (grid_left as f32 + left_offset, grid_top as f32 + top_offset).into();
                 let new_grid_size: Dimensions = grid_size.into();
 
@@ -412,6 +415,7 @@ impl RenderedWindow {
             } => {
                 tracy_zone!("draw_line_cmd", 0);
                 let font_dimensions = grid_renderer.font_dimensions;
+                /*
                 let mut recorder = PictureRecorder::new();
 
                 let grid_rect = Rect::from_wh(
@@ -479,6 +483,7 @@ impl RenderedWindow {
                         as usize;
                     self.scrollback_lines[scrollback_index] = self.actual_lines[line_index].clone();
                 }
+                */
             }
             WindowDrawCommand::Scroll {
                 top,

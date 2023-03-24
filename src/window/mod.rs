@@ -1,6 +1,6 @@
 mod keyboard_manager;
 mod mouse_manager;
-mod renderer;
+//mod renderer;
 mod settings;
 
 #[cfg(target_os = "macos")]
@@ -42,7 +42,7 @@ use crate::{
 use image::{load_from_memory, GenericImageView, Pixel};
 use keyboard_manager::KeyboardManager;
 use mouse_manager::MouseManager;
-use renderer::SkiaRenderer;
+//use renderer::SkiaRenderer;
 
 use crate::{
     bridge::{ParallelCommand, UiCommand},
@@ -53,7 +53,7 @@ use crate::{
     frame::Frame,
     renderer::Renderer,
     renderer::WindowPadding,
-    renderer::{build_context, VSync, WindowedContext},
+    //renderer::{build_context, VSync, WindowedContext},
     running_tracker::*,
     settings::{
         load_last_window_settings, save_window_size, PersistentWindowSettings,
@@ -75,8 +75,8 @@ pub enum WindowCommand {
 }
 
 pub struct WinitWindowWrapper {
-    windowed_context: WindowedContext,
-    skia_renderer: SkiaRenderer,
+    //windowed_context: WindowedContext,
+    //skia_renderer: SkiaRenderer,
     renderer: Renderer,
     keyboard_manager: KeyboardManager,
     mouse_manager: MouseManager,
@@ -92,15 +92,17 @@ pub struct WinitWindowWrapper {
 
 impl WinitWindowWrapper {
     pub fn toggle_fullscreen(&mut self) {
+        /*
         let window = self.windowed_context.window();
         if self.fullscreen {
-            window.set_fullscreen(None);
+        window.set_fullscreen(None);
         } else {
-            let handle = window.current_monitor();
-            window.set_fullscreen(Some(Fullscreen::Borderless(handle)));
+        let handle = window.current_monitor();
+        window.set_fullscreen(Some(Fullscreen::Borderless(handle)));
         }
 
         self.fullscreen = !self.fullscreen;
+        */
     }
 
     pub fn synchronize_settings(&mut self) {
@@ -127,7 +129,7 @@ impl WinitWindowWrapper {
 
     pub fn handle_title_changed(&mut self, new_title: String) {
         self.title = new_title;
-        self.windowed_context.window().set_title(&self.title);
+        //self.windowed_context.window().set_title(&self.title);
     }
 
     pub fn send_font_names(&self) {
@@ -157,12 +159,14 @@ impl WinitWindowWrapper {
         tracy_zone!("handle_event", 0);
         let mut should_render = false;
         self.keyboard_manager.handle_event(&event);
+        /*
         self.mouse_manager.handle_event(
             &event,
             &self.keyboard_manager,
             &self.renderer,
             self.windowed_context.window(),
         );
+        */
         self.renderer.handle_event(&event);
         match event {
             Event::LoopDestroyed => {
@@ -209,7 +213,7 @@ impl WinitWindowWrapper {
 
     pub fn draw_frame(&mut self, vsync: &mut VSync, dt: f32) {
         tracy_zone!("draw_frame");
-
+        /*
         {
             tracy_gpu_zone!("skia flush");
             //self.skia_renderer.gr_context.flush_submit_and_sync_cpu();
@@ -245,6 +249,7 @@ impl WinitWindowWrapper {
         }
         emit_frame_mark();
         tracy_gpu_collect();
+        */
     }
 
     pub fn animate_frame(&mut self, dt: f32) -> bool {
@@ -256,7 +261,8 @@ impl WinitWindowWrapper {
         tracy_zone!("prepare_frame", 0);
         let mut should_render = false;
 
-        let window = self.windowed_context.window();
+        //let window = self.windowed_context.window();
+        //let new_size = window.inner_size();
 
         let window_settings = SETTINGS.get::<WindowSettings>();
         let window_padding = WindowPadding {
@@ -271,6 +277,7 @@ impl WinitWindowWrapper {
             self.renderer.window_padding = window_padding;
         }
 
+        /*
         let new_size = window.inner_size();
         if self.saved_inner_size != new_size || self.font_changed_last_frame || padding_changed {
             self.font_changed_last_frame = false;
@@ -280,10 +287,11 @@ impl WinitWindowWrapper {
             self.skia_renderer.resize(&mut self.windowed_context);
             should_render = true;
         }
+        */
 
         let handle_draw_commands_result = self
             .renderer
-            .handle_draw_commands(self.skia_renderer.canvas());
+            .handle_draw_commands();
 
         self.font_changed_last_frame |= handle_draw_commands_result.0;
         should_render |= handle_draw_commands_result.1;
@@ -297,7 +305,7 @@ impl WinitWindowWrapper {
         // which already resized window.
         let resized_at_startup = self.maximized_at_startup || self.has_been_resized();
 
-        log::trace!("Inner size: {:?}", new_size);
+        //log::trace!("Inner size: {:?}", new_size);
 
         if self.saved_grid_size.is_none() && !resized_at_startup {
             self.init_window_size();
@@ -307,6 +315,7 @@ impl WinitWindowWrapper {
     }
 
     fn init_window_size(&self) {
+        /*
         let settings = SETTINGS.get::<CmdLineSettings>();
         log::trace!("Settings geometry {:?}", settings.geometry,);
         log::trace!("Settings size {:?}", settings.size);
@@ -336,6 +345,7 @@ impl WinitWindowWrapper {
         window.set_inner_size(inner_size);
         // next frame will detect change in window.inner_size() and hence will
         // handle_new_grid_size automatically
+        */
     }
 
     fn handle_new_grid_size(&mut self, new_size: PhysicalSize<u32>) {
@@ -375,7 +385,8 @@ impl WinitWindowWrapper {
     }
 
     fn has_been_resized(&self) -> bool {
-        self.windowed_context.window().inner_size() != self.size_at_startup
+        //self.windowed_context.window().inner_size() != self.size_at_startup
+        false
     }
 }
 
@@ -457,8 +468,9 @@ pub fn create_window() {
     #[cfg(target_os = "macos")]
     let winit_window_builder = winit_window_builder.with_accepts_first_mouse(false);
 
-    let mut windowed_context = build_context(&cmd_line_settings, winit_window_builder, &event_loop);
+    //let mut windowed_context = build_context(&cmd_line_settings, winit_window_builder, &event_loop);
 
+    /*
     let window = windowed_context.window();
     let initial_size = window.inner_size();
 
@@ -657,4 +669,5 @@ pub fn create_window() {
             *control_flow = ControlFlow::WaitUntil(frame_start + excpected_frame_duration);
         }
     });
+    */
 }
