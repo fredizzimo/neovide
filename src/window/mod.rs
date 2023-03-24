@@ -16,9 +16,9 @@ use spin_sleep::native_sleep;
 use tokio::sync::mpsc::UnboundedReceiver;
 use winit::{
     dpi::PhysicalSize,
-    event::{Event, WindowEvent},
+    event::{self, Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
-    window::{self, Fullscreen, Icon},
+    window::{self, Fullscreen, Icon, Window},
 };
 
 #[cfg(target_os = "macos")]
@@ -77,6 +77,7 @@ pub enum WindowCommand {
 pub struct WinitWindowWrapper {
     //windowed_context: WindowedContext,
     //skia_renderer: SkiaRenderer,
+    window: Window,
     renderer: Renderer,
     keyboard_manager: KeyboardManager,
     mouse_manager: MouseManager,
@@ -92,17 +93,15 @@ pub struct WinitWindowWrapper {
 
 impl WinitWindowWrapper {
     pub fn toggle_fullscreen(&mut self) {
-        /*
-        let window = self.windowed_context.window();
+        let window = &self.window;
         if self.fullscreen {
-        window.set_fullscreen(None);
+            window.set_fullscreen(None);
         } else {
-        let handle = window.current_monitor();
-        window.set_fullscreen(Some(Fullscreen::Borderless(handle)));
+            let handle = window.current_monitor();
+            window.set_fullscreen(Some(Fullscreen::Borderless(handle)));
         }
 
         self.fullscreen = !self.fullscreen;
-        */
     }
 
     pub fn synchronize_settings(&mut self) {
@@ -129,7 +128,7 @@ impl WinitWindowWrapper {
 
     pub fn handle_title_changed(&mut self, new_title: String) {
         self.title = new_title;
-        //self.windowed_context.window().set_title(&self.title);
+        self.window.set_title(&self.title);
     }
 
     pub fn send_font_names(&self) {
@@ -159,14 +158,12 @@ impl WinitWindowWrapper {
         tracy_zone!("handle_event", 0);
         let mut should_render = false;
         self.keyboard_manager.handle_event(&event);
-        /*
         self.mouse_manager.handle_event(
             &event,
             &self.keyboard_manager,
             &self.renderer,
-            self.windowed_context.window(),
+            &self.window,
         );
-        */
         self.renderer.handle_event(&event);
         match event {
             Event::LoopDestroyed => {
@@ -261,8 +258,8 @@ impl WinitWindowWrapper {
         tracy_zone!("prepare_frame", 0);
         let mut should_render = false;
 
-        //let window = self.windowed_context.window();
-        //let new_size = window.inner_size();
+        let window = &self.window;
+        let new_size = window.inner_size();
 
         let window_settings = SETTINGS.get::<WindowSettings>();
         let window_padding = WindowPadding {
@@ -277,7 +274,6 @@ impl WinitWindowWrapper {
             self.renderer.window_padding = window_padding;
         }
 
-        /*
         let new_size = window.inner_size();
         if self.saved_inner_size != new_size || self.font_changed_last_frame || padding_changed {
             self.font_changed_last_frame = false;
@@ -287,7 +283,6 @@ impl WinitWindowWrapper {
             self.skia_renderer.resize(&mut self.windowed_context);
             should_render = true;
         }
-        */
 
         let handle_draw_commands_result = self
             .renderer
@@ -305,7 +300,7 @@ impl WinitWindowWrapper {
         // which already resized window.
         let resized_at_startup = self.maximized_at_startup || self.has_been_resized();
 
-        //log::trace!("Inner size: {:?}", new_size);
+        log::trace!("Inner size: {:?}", new_size);
 
         if self.saved_grid_size.is_none() && !resized_at_startup {
             self.init_window_size();
@@ -314,13 +309,12 @@ impl WinitWindowWrapper {
         should_render
     }
 
-    fn init_window_size(&self) {
-        /*
+    fn init_window_size(&mut self) {
         let settings = SETTINGS.get::<CmdLineSettings>();
         log::trace!("Settings geometry {:?}", settings.geometry,);
         log::trace!("Settings size {:?}", settings.size);
 
-        let window = self.windowed_context.window();
+        let window = &mut self.window;
         let inner_size = if let Some(size) = settings.size {
             // --size
             size.into()
@@ -345,7 +339,6 @@ impl WinitWindowWrapper {
         window.set_inner_size(inner_size);
         // next frame will detect change in window.inner_size() and hence will
         // handle_new_grid_size automatically
-        */
     }
 
     fn handle_new_grid_size(&mut self, new_size: PhysicalSize<u32>) {
@@ -385,8 +378,7 @@ impl WinitWindowWrapper {
     }
 
     fn has_been_resized(&self) -> bool {
-        //self.windowed_context.window().inner_size() != self.size_at_startup
-        false
+        self.window.inner_size() != self.size_at_startup
     }
 }
 
@@ -468,10 +460,8 @@ pub fn create_window() {
     #[cfg(target_os = "macos")]
     let winit_window_builder = winit_window_builder.with_accepts_first_mouse(false);
 
-    //let mut windowed_context = build_context(&cmd_line_settings, winit_window_builder, &event_loop);
+    let window = winit_window_builder.build(&event_loop).unwrap();
 
-    /*
-    let window = windowed_context.window();
     let initial_size = window.inner_size();
 
     // Check that window is visible in some monitor, and reposition it if not.
@@ -505,11 +495,9 @@ pub fn create_window() {
 
     log::trace!("repositioned window: {}", did_reposition);
 
-    let scale_factor = windowed_context.window().scale_factor();
+    let scale_factor = window.scale_factor();
     let renderer = Renderer::new(scale_factor);
     let saved_inner_size = window.inner_size();
-
-    let skia_renderer = SkiaRenderer::new(&mut windowed_context);
 
     let window_command_receiver = EVENT_AGGREGATOR.register_event::<WindowCommand>();
 
@@ -520,8 +508,7 @@ pub fn create_window() {
     );
 
     let mut window_wrapper = WinitWindowWrapper {
-        windowed_context,
-        skia_renderer,
+        window,
         renderer,
         keyboard_manager: KeyboardManager::new(),
         mouse_manager: MouseManager::new(),
@@ -632,7 +619,7 @@ pub fn create_window() {
                 if let FocusedState::UnfocusedNotDrawn = focused {
                     focused = FocusedState::Unfocused;
                 }
-                let window = window_wrapper.windowed_context.window();
+                let window = &window_wrapper.window;
 
                 #[cfg(target_os = "macos")]
                 draw_background(window);
@@ -644,7 +631,7 @@ pub fn create_window() {
         }
 
         if !RUNNING_TRACKER.is_running() {
-            let window = window_wrapper.windowed_context.window();
+            let window = &window_wrapper.window;
             save_window_size(
                 window.is_maximized(),
                 window.inner_size(),
@@ -669,5 +656,4 @@ pub fn create_window() {
             *control_flow = ControlFlow::WaitUntil(frame_start + excpected_frame_duration);
         }
     });
-    */
 }
