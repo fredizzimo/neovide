@@ -9,15 +9,16 @@ use skia_safe::{
     Surface, SurfaceProps, SurfacePropsFlags,
 };
 */
+use csscolorparser::Color;
 use euclid::default::{Point2D, Rect, Size2D};
 
 use crate::{
     dimensions::Dimensions,
     editor::Style,
     profiling::tracy_zone,
-    renderer::{animation_utils::*, GridRenderer, RendererSettings, clamp_render_buffer_size},
-    settings::SETTINGS,
-    window::WindowSettings,
+    renderer::{
+        animation_utils::*, BackgroundFragment, GridRenderer, RendererSettings, WGpuRenderer, clamp_render_buffer_size}
+    },
 };
 use winit::dpi::PhysicalSize;
 
@@ -67,6 +68,7 @@ pub struct WindowPadding {
 
 #[derive(Clone)]
 struct Line {
+    background: Vec<BackgroundFragment>,
     //background_picture: Option<Picture>,
     //foreground_picture: Option<Picture>,
     has_transparency: bool,
@@ -97,6 +99,7 @@ pub struct RenderedWindow {
 
     pub padding: WindowPadding,
 
+    background_buffer: Option<Buffer>,
     has_transparency: bool,
 
     frame: usize,
@@ -139,18 +142,19 @@ impl RenderedWindow {
             scroll_v: 0.0,
             scroll_delta: 0,
             padding,
+            background_buffer: None,
             has_transparency: false,
             frame: 0,
         }
     }
 
-    pub fn pixel_region(&self, font_dimensions: Dimensions) -> Rect<f32> {
+    pub fn pixel_region(&self, font_dimensions: &Dimensions) -> Rect<f32> {
         let current_pixel_position = Point2D::new(
             self.grid_current_position.x * font_dimensions.width as f32,
             self.grid_current_position.y * font_dimensions.height as f32,
         );
 
-        let image_size = self.grid_size * font_dimensions;
+        let image_size = self.grid_size * *font_dimensions;
 
         Rect::new(current_pixel_position, image_size.into())
     }
@@ -195,94 +199,72 @@ impl RenderedWindow {
 
         animating
     }
-    /*
-    pub fn draw_surface(
+
+    fn draw_surface(
         &mut self,
-        canvas: &mut Canvas,
-        pixel_region: &Rect,
-        font_dimensions: Dimensions,
-        default_background: Color,
-    ) {
-        let image_size: (i32, i32) = (self.grid_size * font_dimensions).into();
+        renderer: &mut WGpuRenderer,
+        font_dimensions: &Dimensions,
+        default_background: &Color,
+    ) -> bool {
+        let image_size: (i32, i32) = (self.grid_size * *font_dimensions).into();
         //let pixel_region = Rect::from_size(image_size);
-        /*
-        let color = if (self.frame % 2) == 0{
-            Color::from_argb(default_background.a(), 0, 255, 255)
-        } else {
-            Color::from_argb(default_background.a(), 255, 0, 0)
-        };
-        */
-        let color = default_background;
-        self.frame += 1;
-        canvas.clear(color);
 
         let scroll_offset_lines = self.current_scroll.floor();
         let scroll_offset = scroll_offset_lines - self.current_scroll;
         let scroll_offset_pixels = (scroll_offset * font_dimensions.height as f32).round() as isize;
         let mut has_transparency = false;
 
-        let lines: Vec<(Matrix, &Line)> = (0..self.grid_size.height as isize + 1)
+        let lines: Vec<(f32, &Line)> = (0..self.grid_size.height as isize + 1)
             .filter_map(|i| {
                 let line_index = (self.scrollback_top_index + scroll_offset_lines as isize + i)
                     .rem_euclid(self.scrollback_lines.len() as isize)
                     as usize;
                 if let Some(line) = &self.scrollback_lines[line_index] {
-                    let mut m = Matrix::new_identity();
-                    m.set_translate((
-                        pixel_region.left(),
-                        pixel_region.top()
-                            + (scroll_offset_pixels + (i * font_dimensions.height as isize)) as f32,
-                    ));
-                    Some((m, line))
+                    let y = (scroll_offset_pixels + (i * font_dimensions.height as isize)) as f32;
+                    Some((y, line))
                 } else {
                     None
                 }
             })
             .collect();
 
-        for (matrix, line) in &lines {
-            if let Some(background_picture) = &line.background_picture {
-                has_transparency |= line.has_transparency;
-                canvas.draw_picture(background_picture, Some(matrix), None);
-            }
-        }
+        let background_fragments: Vec<BackgroundFragment> = lines
+            .iter()
+            .flat_map(|(y, line)| {
+                line.background.iter().map(|fragment| BackgroundFragment {
+                    position: [fragment.position[0], *y],
+                    ..*fragment
+                })
+            })
+            .collect();
 
+        let buffer = self.background_buffer.take();
+        self.background_buffer = Some(renderer.draw_background(background_fragments, buffer));
+
+        /*
+        let mut foreground_paint = Paint::default();
+        foreground_paint.set_blend_mode(BlendMode::SrcOver);
         for (matrix, line) in &lines {
             if let Some(foreground_picture) = &line.foreground_picture {
                 canvas.draw_picture(foreground_picture, Some(matrix), None);
             }
         }
-        self.has_transparency = has_transparency;
-    }
-
-    fn has_transparency(&self) -> bool {
-        let mut has_transparency = false;
-
-        let scroll_offset_lines = self.current_scroll.floor();
-        (0..self.grid_size.height as isize + 1).any(|i| {
-            let line_index = (self.scrollback_top_index + scroll_offset_lines as isize + i)
-                .rem_euclid(self.scrollback_lines.len() as isize)
-                as usize;
-            if let Some(line) = &self.scrollback_lines[line_index] {
-                line.has_transparency
-            } else {
-                false
-            }
-        })
+        */
+        has_transparency
     }
 
     pub fn draw(
         &mut self,
-        root_canvas: &mut Canvas,
+        renderer: &mut WGpuRenderer,
         settings: &RendererSettings,
-        default_background: Color,
-        font_dimensions: Dimensions,
+        default_background: &Color,
+        font_dimensions: &Dimensions,
     ) -> WindowDrawDetails {
-        let mut root_canvas = root_canvas;
-        let has_transparency = default_background.a() != 255 || self.has_transparency();
+        let has_transparency = self.draw_surface(renderer, font_dimensions, default_background);
 
         let pixel_region = self.pixel_region(font_dimensions);
         let transparent_floating = self.floating_order.is_some() && has_transparency;
+        /*
 
         root_canvas.save();
         root_canvas.clip_rect(pixel_region, None, Some(false));
@@ -333,6 +315,7 @@ impl RenderedWindow {
         root_canvas.restore();
 
         root_canvas.restore();
+        */
 
         WindowDrawDetails {
             id: self.id,
@@ -340,7 +323,6 @@ impl RenderedWindow {
             floating_order: self.floating_order,
         }
     }
-    */
 
     fn reset_scroll(&mut self) {
         self.current_scroll = 0.0;
@@ -415,14 +397,13 @@ impl RenderedWindow {
             } => {
                 tracy_zone!("draw_line_cmd", 0);
                 let font_dimensions = grid_renderer.font_dimensions;
-                /*
-                let mut recorder = PictureRecorder::new();
 
+                /*
                 let grid_rect = Rect::from_wh(
                     (self.grid_size.width * font_dimensions.width) as f32,
                     font_dimensions.height as f32,
                 );
-                let canvas = recorder.begin_recording(grid_rect, None);
+                */
 
                 let line_index = (self.actual_top_index + row as isize)
                     .rem_euclid(self.actual_lines.len() as isize)
@@ -431,26 +412,24 @@ impl RenderedWindow {
                 let mut has_transparency = false;
                 let mut custom_background = false;
 
-                let transparency = { SETTINGS.get::<WindowSettings>().transparency };
-
-                for line_fragment in line_fragments.iter() {
-                    let LineFragment {
-                        window_left,
-                        width,
-                        style,
-                        ..
-                    } = line_fragment;
-                    let grid_position = (*window_left, 0);
-                    let (custom, transparent) = grid_renderer.draw_background(
-                        canvas,
-                        grid_position,
-                        *width,
-                        style,
-                        transparency,
-                    );
-                    custom_background |= custom;
-                    has_transparency |= transparent;
-                }
+                let background = line_fragments
+                    .iter()
+                    .map(|line_fragment| {
+                        let LineFragment {
+                            window_left,
+                            width,
+                            style,
+                            ..
+                        } = line_fragment;
+                        let grid_position = (*window_left, 0);
+                        let background_fragment =
+                            grid_renderer.draw_background(grid_position, *width, style);
+                        let transparent = background_fragment.color[3] < 1.0;
+                        has_transparency |= transparent;
+                        background_fragment
+                    })
+                    .collect();
+                /*
                 let background_picture = custom_background
                     .then_some(recorder.finish_recording_as_picture(None).unwrap());
 
@@ -470,10 +449,10 @@ impl RenderedWindow {
                 }
                 let foreground_picture =
                     foreground_drawn.then_some(recorder.finish_recording_as_picture(None).unwrap());
+                */
 
                 self.actual_lines[line_index] = Some(Line {
-                    background_picture,
-                    foreground_picture,
+                    background,
                     has_transparency,
                 });
                 // Also update the scrollback buffer if there's no scroll in progress
@@ -483,7 +462,6 @@ impl RenderedWindow {
                         as usize;
                     self.scrollback_lines[scrollback_index] = self.actual_lines[line_index].clone();
                 }
-                */
             }
             WindowDrawCommand::Scroll {
                 top,
