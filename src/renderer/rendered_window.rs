@@ -17,7 +17,8 @@ use crate::{
     editor::Style,
     profiling::tracy_zone,
     renderer::{
-        animation_utils::*, BackgroundFragment, GridRenderer, RendererSettings, WGpuRenderer,
+        animation_utils::*, BackgroundFragment, GridRenderer, MainRenderPass, RendererSettings,
+        WGpuRenderer,
     },
 };
 
@@ -247,7 +248,7 @@ impl RenderedWindow {
 
     fn draw_surface(
         &mut self,
-        renderer: &mut WGpuRenderer,
+        render_pass: &mut MainRenderPass,
         font_dimensions: &Dimensions,
         default_background: &Color,
     ) -> bool {
@@ -288,7 +289,7 @@ impl RenderedWindow {
             .collect();
 
         let buffer = self.background_buffer.take();
-        self.background_buffer = Some(renderer.draw_background(background_fragments, buffer));
+        self.background_buffer = Some(render_pass.draw_background(background_fragments, buffer));
 
         /*
         let mut foreground_paint = Paint::default();
@@ -304,12 +305,12 @@ impl RenderedWindow {
 
     pub fn draw(
         &mut self,
-        renderer: &mut WGpuRenderer,
+        render_pass: &mut MainRenderPass,
         settings: &RendererSettings,
         default_background: &Color,
         font_dimensions: &Dimensions,
     ) -> WindowDrawDetails {
-        let has_transparency = self.draw_surface(renderer, font_dimensions, default_background);
+        let has_transparency = self.draw_surface(render_pass, font_dimensions, default_background);
 
         let pixel_region = self.pixel_region(font_dimensions);
         let transparent_floating = self.floating_order.is_some() && has_transparency;
