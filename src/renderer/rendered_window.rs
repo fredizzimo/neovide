@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::ops::Range;
 
 /*
 use skia_safe::{
@@ -100,7 +101,7 @@ pub struct RenderedWindow {
 
     pub padding: WindowPadding,
 
-    background_buffer: Option<Buffer>,
+    background_range: Range<u64>,
     has_transparency: bool,
 
     frame: usize,
@@ -143,8 +144,8 @@ impl RenderedWindow {
             scroll_v: 0.0,
             scroll_delta: 0,
             padding,
-            background_buffer: None,
             has_transparency: false,
+            background_range: 0..0,
             frame: 0,
         }
     }
@@ -201,12 +202,12 @@ impl RenderedWindow {
         animating
     }
 
-    fn draw_surface(
+    pub fn draw_surface(
         &mut self,
-        render_pass: &mut MainRenderPass,
         font_dimensions: &Dimensions,
         default_background: &Color,
-    ) -> bool {
+        background_fragments: &mut Vec<BackgroundFragment>,
+    ) {
         let image_size: (i32, i32) = (self.grid_size * *font_dimensions).into();
         //let pixel_region = Rect::from_size(image_size);
 
@@ -214,6 +215,10 @@ impl RenderedWindow {
         let scroll_offset = scroll_offset_lines - self.current_scroll;
         let scroll_offset_pixels = (scroll_offset * font_dimensions.height as f32).round() as isize;
         let mut has_transparency = false;
+
+
+        // HACK the position
+        let pixel_region = self.pixel_region(font_dimensions);
 
         let lines: Vec<(f32, &Line)> = (0..self.grid_size.height as isize + 1)
             .filter_map(|i| {
@@ -229,18 +234,18 @@ impl RenderedWindow {
             })
             .collect();
 
-        let background_fragments: Vec<BackgroundFragment> = lines
+        let new_fragments = lines
             .iter()
             .flat_map(|(y, line)| {
                 line.background.iter().map(|fragment| BackgroundFragment {
-                    position: [fragment.position[0], *y],
+                    position: [fragment.position[0] + pixel_region.min_x(), *y + pixel_region.min_y()],
                     ..*fragment
                 })
-            })
-            .collect();
+            });
+        let start_index = background_fragments.len();
+        background_fragments.extend(new_fragments);
+        self.background_range = start_index as u64..background_fragments.len() as u64;
 
-        let buffer = self.background_buffer.take();
-        self.background_buffer = Some(render_pass.draw_background(background_fragments, buffer));
 
         /*
         let mut foreground_paint = Paint::default();
@@ -251,7 +256,7 @@ impl RenderedWindow {
             }
         }
         */
-        has_transparency
+        self.has_transparency = has_transparency;
     }
 
     pub fn draw(
@@ -261,10 +266,11 @@ impl RenderedWindow {
         default_background: &Color,
         font_dimensions: &Dimensions,
     ) -> WindowDrawDetails {
-        let has_transparency = self.draw_surface(render_pass, font_dimensions, default_background);
+        let has_transparency = self.has_transparency;
 
         let pixel_region = self.pixel_region(font_dimensions);
         let transparent_floating = self.floating_order.is_some() && has_transparency;
+        render_pass.draw_background(&self.background_range);
         /*
 
         root_canvas.save();
