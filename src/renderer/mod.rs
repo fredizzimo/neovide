@@ -173,10 +173,12 @@ impl Renderer {
         let mut windows = self.get_sorted_windows();
 
         let mut background_fragments = Vec::default();
+        let mut glyph_fragments = Vec::default();
         for window in windows.iter_mut() {
-            window.draw_surface(&font_dimensions, &default_background, &mut background_fragments);
+            window.draw_surface(&font_dimensions, &default_background, &mut background_fragments, &mut glyph_fragments);
         }
         renderer.update_background_fragments(background_fragments);
+        renderer.update_glyph_fragments(glyph_fragments);
 
         let transparency = { SETTINGS.get::<WindowSettings>().transparency };
 

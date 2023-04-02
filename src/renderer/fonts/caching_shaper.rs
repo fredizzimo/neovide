@@ -4,10 +4,12 @@ use log::{debug, error, trace, warn};
 use lru::LruCache;
 use skia_safe::{
     graphics::{font_cache_limit, font_cache_used, set_font_cache_limit},
-    TextBlob, TextBlobBuilder,
 };
 use swash::{
-    shape::ShapeContext,
+    shape::{
+        ShapeContext,
+    },
+    GlyphId,
     text::{
         cluster::{CharCluster, Parser, Status, Token},
         Script,
@@ -15,6 +17,7 @@ use swash::{
     Metrics,
 };
 use unicode_segmentation::UnicodeSegmentation;
+use euclid::default::Point2D;
 
 use crate::profiling::tracy_zone;
 use crate::renderer::fonts::{font_loader::*, font_options::*};
@@ -26,10 +29,15 @@ struct ShapeKey {
     pub italic: bool,
 }
 
+pub struct ShapeResult {
+    pub glyph_id: GlyphId,
+    pub position: Point2D<f32>,
+}
+
 pub struct CachingShaper {
     options: FontOptions,
     font_loader: FontLoader,
-    blob_cache: LruCache<ShapeKey, Vec<TextBlob>>,
+    blob_cache: LruCache<ShapeKey, Vec<ShapeResult>>,
     shape_context: ShapeContext,
     scale_factor: f32,
     fudge_factor: f32,
@@ -341,11 +349,11 @@ impl CachingShaper {
         }
     }
 
-    pub fn shape(&mut self, text: String, bold: bool, italic: bool) -> Vec<TextBlob> {
+    pub fn shape(&mut self, text: String, bold: bool, italic: bool) -> Vec<ShapeResult> {
         let current_size = self.current_size();
         let (glyph_width, ..) = self.font_base_dimensions();
 
-        let mut resulting_blobs = Vec::new();
+        let mut result = Vec::new();
 
         trace!("Shaping text: {}", text);
 
@@ -362,37 +370,23 @@ impl CachingShaper {
                 shaper.add_cluster(&cluster);
             }
 
-            let mut glyph_data = Vec::new();
-
             shaper.shape_with(|glyph_cluster| {
                 for glyph in glyph_cluster.glyphs {
-                    let position = ((glyph.data as u64 * glyph_width) as f32, glyph.y);
-                    glyph_data.push((glyph.id, position));
+                    let position = Point2D::new((glyph.data as u64 * glyph_width) as f32, glyph.y);
+                    result.push(ShapeResult {
+                        glyph_id: glyph.id,
+                        position
+                    });
                 }
             });
-
-            if glyph_data.is_empty() {
-                continue;
-            }
-
-            let mut blob_builder = TextBlobBuilder::new();
-            let (glyphs, positions) =
-                blob_builder.alloc_run_pos(&font_pair.skia_font, glyph_data.len(), None);
-            for (i, (glyph_id, glyph_position)) in glyph_data.iter().enumerate() {
-                glyphs[i] = *glyph_id;
-                positions[i] = (*glyph_position).into();
-            }
-
-            let blob = blob_builder.make();
-            resulting_blobs.push(blob.expect("Could not create textblob"));
         }
 
         self.adjust_font_cache_size();
 
-        resulting_blobs
+        result
     }
 
-    pub fn shape_cached(&mut self, text: String, bold: bool, italic: bool) -> &Vec<TextBlob> {
+    pub fn shape_cached(&mut self, text: String, bold: bool, italic: bool) -> &Vec<ShapeResult> {
         tracy_zone!("shape_cached");
         let key = ShapeKey::new(text.clone(), bold, italic);
 

@@ -18,7 +18,7 @@ use crate::{
     editor::Style,
     profiling::tracy_zone,
     renderer::{
-        animation_utils::*, BackgroundFragment, GridRenderer, MainRenderPass, RendererSettings,
+        animation_utils::*, BackgroundFragment, GridRenderer, MainRenderPass, RendererSettings, GlyphFragment,
         WGpuRenderer,
     },
 };
@@ -125,8 +125,7 @@ impl LocatedSurface {
 #[derive(Clone)]
 struct Line {
     background: Vec<BackgroundFragment>,
-    //background_picture: Option<Picture>,
-    //foreground_picture: Option<Picture>,
+    glyphs: Vec<GlyphFragment>,
     has_transparency: bool,
 }
 
@@ -153,6 +152,7 @@ pub struct RenderedWindow {
     pub padding: WindowPadding,
 
     background_range: Range<u64>,
+    glyph_range: Range<u64>,
     has_transparency: bool,
 }
 
@@ -194,6 +194,7 @@ impl RenderedWindow {
             padding,
             has_transparency: false,
             background_range: 0..0,
+            glyph_range: 0..0,
         }
     }
 
@@ -254,6 +255,7 @@ impl RenderedWindow {
         font_dimensions: &Dimensions,
         default_background: &Color,
         background_fragments: &mut Vec<BackgroundFragment>,
+        glyph_fragments: &mut Vec<GlyphFragment>,
     ) {
         let image_size: (i32, i32) = (self.grid_size * *font_dimensions).into();
         //let pixel_region = Rect::from_size(image_size);
@@ -297,6 +299,17 @@ impl RenderedWindow {
         background_fragments.extend(new_fragments);
         self.background_range = start_index as u64..background_fragments.len() as u64;
 
+        let new_fragments = lines
+            .iter()
+            .flat_map(|(y, line)| {
+                line.glyphs.iter().map(|fragment| GlyphFragment {
+                    position: [fragment.position[0] + pixel_region.min_x(), *y + pixel_region.min_y()],
+                    ..*fragment
+                })
+            });
+        let start_index = glyph_fragments.len();
+        glyph_fragments.extend(new_fragments);
+        self.glyph_range = start_index as u64..glyph_fragments.len() as u64;
 
         /*
         let mut foreground_paint = Paint::default();
@@ -321,7 +334,7 @@ impl RenderedWindow {
 
         let pixel_region = self.pixel_region(font_dimensions);
         let transparent_floating = self.floating_order.is_some() && has_transparency;
-        render_pass.draw_background(&self.background_range);
+        render_pass.draw_window(&self.background_range, &self.glyph_range);
         /*
 
         root_canvas.save();
@@ -468,6 +481,22 @@ impl RenderedWindow {
                 let mut has_transparency = false;
                 let mut custom_background = false;
 
+                // Draw the foreground and glyphs first to give more time for the rasterizer to
+                // finish
+
+                let mut glyphs = Vec::new();
+                for line_fragment in &line_fragments {
+                    let LineFragment {
+                        text,
+                        window_left,
+                        width,
+                        style,
+                        ..
+                    } = line_fragment;
+                    let grid_position = (*window_left, 0);
+                    grid_renderer.draw_foreground(text, grid_position, *width, style, &mut glyphs);
+                };
+
                 let background = line_fragments
                     .iter()
                     .map(|line_fragment| {
@@ -483,32 +512,10 @@ impl RenderedWindow {
                         let transparent = background_fragment.color[3] < 1.0;
                         has_transparency |= transparent;
                         background_fragment
-                    })
-                    .collect();
-                /*
-                let background_picture = custom_background
-                    .then_some(recorder.finish_recording_as_picture(None).unwrap());
-
-                let canvas = recorder.begin_recording(grid_rect, None);
-                canvas.clear(Color::from_argb(0, 255, 255, 255));
-                let mut foreground_drawn = false;
-                for line_fragment in line_fragments.into_iter() {
-                    let LineFragment {
-                        text,
-                        window_left,
-                        width,
-                        style,
-                    } = line_fragment;
-                    let grid_position = (window_left, 0);
-
-                    foreground_drawn |=
-                        grid_renderer.draw_foreground(canvas, text, grid_position, width, &style);
-                }
-                let foreground_picture =
-                    foreground_drawn.then_some(recorder.finish_recording_as_picture(None).unwrap());
-                */
+                    }).collect();
 
                 self.lines[line_index] = Some(Line {
+                    glyphs,
                     background,
                     has_transparency,
                 });
