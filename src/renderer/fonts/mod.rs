@@ -1,5 +1,6 @@
+pub mod atlas;
 pub mod caching_shaper;
 pub mod font_loader;
-pub mod atlas;
 mod font_options;
+mod glyph_cache;
 mod swash_font;

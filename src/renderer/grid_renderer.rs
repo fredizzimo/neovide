@@ -149,7 +149,7 @@ impl GridRenderer {
         grid_position: (u64, u64),
         cell_width: u64,
         style: &Option<Arc<Style>>,
-        glyph_fragments: &mut Vec<GlyphFragment>
+        glyph_fragments: &mut Vec<GlyphFragment>,
     ) {
         tracy_zone!("draw_foreground");
         let debug = SETTINGS.get::<RendererSettings>().debug_renderer;
@@ -197,7 +197,6 @@ impl GridRenderer {
             color.b as f32,
             color.a as f32,
         ];
-
 
         // There's a lot of overhead for empty blobs in Skia, for some reason they never hit the
         // cache, so trim all the spaces

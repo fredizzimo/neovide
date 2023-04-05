@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use std::ops::Range;
+use std::sync::Arc;
 
 /*
 use skia_safe::{
@@ -18,8 +18,8 @@ use crate::{
     editor::Style,
     profiling::tracy_zone,
     renderer::{
-        animation_utils::*, BackgroundFragment, GridRenderer, MainRenderPass, RendererSettings, GlyphFragment,
-        WGpuRenderer,
+        animation_utils::*, BackgroundFragment, GlyphFragment, GridRenderer, MainRenderPass,
+        RendererSettings, WGpuRenderer,
     },
 };
 
@@ -269,7 +269,6 @@ impl RenderedWindow {
         //background_paint.set_blend_mode(BlendMode::Src);
         //background_paint.set_alpha(default_background.a());
 
-
         // HACK the position
         let pixel_region = self.pixel_region(font_dimensions);
 
@@ -287,26 +286,28 @@ impl RenderedWindow {
             })
             .collect();
 
-        let new_fragments = lines
-            .iter()
-            .flat_map(|(y, line)| {
-                line.background.iter().map(|fragment| BackgroundFragment {
-                    position: [fragment.position[0] + pixel_region.min_x(), *y + pixel_region.min_y()],
-                    ..*fragment
-                })
-            });
+        let new_fragments = lines.iter().flat_map(|(y, line)| {
+            line.background.iter().map(|fragment| BackgroundFragment {
+                position: [
+                    fragment.position[0] + pixel_region.min_x(),
+                    *y + pixel_region.min_y(),
+                ],
+                ..*fragment
+            })
+        });
         let start_index = background_fragments.len();
         background_fragments.extend(new_fragments);
         self.background_range = start_index as u64..background_fragments.len() as u64;
 
-        let new_fragments = lines
-            .iter()
-            .flat_map(|(y, line)| {
-                line.glyphs.iter().map(|fragment| GlyphFragment {
-                    position: [fragment.position[0] + pixel_region.min_x(), *y + pixel_region.min_y()],
-                    ..*fragment
-                })
-            });
+        let new_fragments = lines.iter().flat_map(|(y, line)| {
+            line.glyphs.iter().map(|fragment| GlyphFragment {
+                position: [
+                    fragment.position[0] + pixel_region.min_x(),
+                    *y + pixel_region.min_y(),
+                ],
+                ..*fragment
+            })
+        });
         let start_index = glyph_fragments.len();
         glyph_fragments.extend(new_fragments);
         self.glyph_range = start_index as u64..glyph_fragments.len() as u64;
@@ -495,7 +496,7 @@ impl RenderedWindow {
                     } = line_fragment;
                     let grid_position = (*window_left, 0);
                     grid_renderer.draw_foreground(text, grid_position, *width, style, &mut glyphs);
-                };
+                }
 
                 let background = line_fragments
                     .iter()
@@ -512,7 +513,8 @@ impl RenderedWindow {
                         let transparent = background_fragment.color[3] < 1.0;
                         has_transparency |= transparent;
                         background_fragment
-                    }).collect();
+                    })
+                    .collect();
 
                 self.lines[line_index] = Some(Line {
                     glyphs,
