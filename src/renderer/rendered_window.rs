@@ -19,8 +19,9 @@ use crate::{
     editor::Style,
     profiling::tracy_zone,
     renderer::{
-        animation_utils::*, BackgroundFragment, GlyphFragment, GlyphPlaceholder, GridRenderer,
-        MainRenderPass, RendererSettings, WGpuRenderer, clamp_render_buffer_size
+        animation_utils::*,
+        pipeline::{BackgroundFragment, GlyphFragment},
+        GlyphPlaceholder, GridRenderer, MainRenderPass, RendererSettings, WGpuRenderer, clamp_render_buffer_size
     },
 };
 use winit::dpi::PhysicalSize;
