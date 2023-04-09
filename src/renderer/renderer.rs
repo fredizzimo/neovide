@@ -83,8 +83,8 @@ impl WGpuRenderer {
             let size = window.inner_size();
 
             // The instance is a handle to our GPU
-            // Backends::all => Vulkan + Metal + DX12 + Browser WebGPU
-            let instance = Instance::new(Backends::DX12);
+            // Backends::all() => Vulkan + Metal + DX12 + Browser WebGPU
+            let instance = Instance::new(Backends::all());
 
             // # Safety
             // The surface needs to live as long as the window that created it.

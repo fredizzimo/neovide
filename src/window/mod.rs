@@ -405,6 +405,11 @@ pub fn create_window() {
 
     let (txtemp, rx) = mpsc::channel::<Event<UserEvent>>();
     let mut tx = Some(txtemp);
+
+    // the Instance::new(Backends::all()); in macos requires running in main thread
+    // otherwise it will throw error of running in non-UI thread
+    let wgpu_renderer = WGpuRenderer::new(&window);
+
     let mut render_thread_handle = Some(thread::spawn(move || {
         let initial_size = window.inner_size();
 
@@ -447,8 +452,6 @@ pub fn create_window() {
             scale_factor,
             renderer.grid_renderer.font_dimensions,
         );
-
-        let wgpu_renderer = WGpuRenderer::new(&window);
 
         let mut window_wrapper = WinitWindowWrapper {
             wgpu_renderer,
