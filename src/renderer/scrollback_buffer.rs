@@ -1,15 +1,15 @@
 use std::collections::VecDeque;
 
 
-struct ScrollbackBuffer<LineType> {
-    actual_lines: Vec<Option<LineType>>,
-    scrollback_lines: VecDeque<(isize, LineType)>,
-    actual_position: isize,
-    scroll_position: f64,
+pub struct ScrollbackBuffer<LineType> {
+    pub actual_lines: Vec<Option<LineType>>,
+    pub scrollback_lines: VecDeque<(isize, LineType)>,
+    pub actual_position: isize,
+    pub scroll_position: f64,
 }
 
 impl<LineType: Clone> ScrollbackBuffer<LineType> {
-    fn new(size: usize) -> Self {
+    pub fn new(size: usize) -> Self {
         Self {
             actual_lines: vec![None; size],
             scrollback_lines: VecDeque::new(),
@@ -18,7 +18,13 @@ impl<LineType: Clone> ScrollbackBuffer<LineType> {
         }
     }
 
-    fn scroll_internal(&mut self, top: isize, bottom: isize, rows: isize) {
+    pub fn get_scroll_delta(&self) -> f32 {
+        (self.scroll_position - self.actual_position as f64) as f32
+    }
+
+    pub fn scroll_internal(&mut self, top: usize, bottom: usize, rows: isize) {
+        let top = top as isize;
+        let bottom = bottom as isize;
         let mut top_to_bottom;
         let mut bottom_to_top;
         let y_iter: &mut dyn Iterator<Item = isize > = if rows > 0 {
@@ -36,7 +42,7 @@ impl<LineType: Clone> ScrollbackBuffer<LineType> {
         }
     }
 
-    fn scroll(&mut self, rows: isize) {
+    pub fn scroll(&mut self, rows: isize) {
         let prev_position = self.actual_position;
         self.actual_position += rows;
         self.cleanup_scrollback();
@@ -78,7 +84,7 @@ impl<LineType: Clone> ScrollbackBuffer<LineType> {
         self.scrollback_lines.drain(self.scrollback_lines.partition_point(|line| line.0 > last_valid)..);
     }
 
-    fn get_visible_line(&self, index: usize) -> Option<&LineType> {
+    pub fn get_visible_line(&self, index: usize) -> Option<&LineType> {
         let start_virtual_line = self.scroll_position.floor();
         let start_virtual_line = start_virtual_line as isize;
 
@@ -92,7 +98,26 @@ impl<LineType: Clone> ScrollbackBuffer<LineType> {
             None
         }
     }
+
+    pub fn resize(&mut self, size: usize) {
+        self.actual_lines.resize_with(size, || None);
+        // Reset all scrolling after resizing
+        self.reset();
+    }
+
+    pub fn clear(&mut self) {
+        self.actual_lines.iter_mut().for_each(|line| *line = None);
+        self.reset();
+    }
+
+    fn reset(&mut self) {
+        // Reset all scrolling after resizing
+        self.scrollback_lines.clear();
+        self.actual_position = 0;
+        self.scroll_position = 0.0;
+    }
 }
+
 
 
 #[cfg(test)]
