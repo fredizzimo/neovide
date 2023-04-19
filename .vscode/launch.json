@@ -11,5 +11,25 @@
             "program": "${workspaceFolder}/target/debug/neovide.exe",
             "args": [],
         },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "-vv"
+                ],
+                //"filter": {
+                    //"name": "<your-test-name>",
+                    //"kind": "test"
+                //}
+
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            ""
+        }
     ]
 }
