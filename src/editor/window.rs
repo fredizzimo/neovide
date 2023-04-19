@@ -105,6 +105,8 @@ impl Window {
         grid_size: (u64, u64),
         grid_position: (f64, f64),
     ) {
+        // This could perhaps be optimized, setting the position does not necessarily need
+        // to rezize, and reset everything
         self.grid
             .resize((grid_size.0 as usize, grid_size.1 as usize));
         self.anchor_info = anchor_info;
@@ -187,7 +189,6 @@ impl Window {
         let line_fragment = LineFragment {
             text,
             window_left: start as u64,
-            window_top: row_index as u64,
             width: width as u64,
             style: style.clone(),
         };
@@ -206,7 +207,10 @@ impl Window {
             current_start = next_start;
             line_fragments.push(line_fragment);
         }
-        self.send_command(WindowDrawCommand::DrawLine(line_fragments));
+        self.send_command(WindowDrawCommand::DrawLine {
+            row,
+            line_fragments,
+        });
     }
 
     pub fn draw_grid_line(
@@ -274,6 +278,26 @@ impl Window {
             rows,
             cols,
         });
+
+        let is_whole_line = left == 0 && right == self.grid.width as u64;
+
+        // There's no need to send any updates when the whole lines are moved
+        // The receiver will deal with that, and the new lines will be sent later
+        if !is_whole_line{
+            let mut top = top as isize;
+            let mut bottom = bottom as isize;
+            // Send only the scrolled lines
+            // neovim will send the rest later
+            if rows > 0 {
+                bottom -= rows as isize;
+            } else {
+                top -= rows as isize;
+            }
+
+            for row in top..bottom {
+                self.redraw_line(row as usize);
+            }
+        }
     }
 
     pub fn clear(&mut self) {
@@ -302,7 +326,7 @@ impl Window {
         self.send_command(WindowDrawCommand::Close);
     }
 
-    pub fn update_viewport(&self, scroll_delta: f64) {
+    pub fn update_viewport(&self, scroll_delta: isize) {
         self.send_command(WindowDrawCommand::Viewport { scroll_delta });
     }
 }

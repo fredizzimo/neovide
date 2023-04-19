@@ -260,7 +260,7 @@ impl Editor {
                     ..
                 } => {
                     tracy_zone!("EditorWindowViewport");
-                    self.send_updated_viewport(grid, scroll_delta)
+                    self.send_updated_viewport(grid, scroll_delta as isize)
                 }
                 _ => {}
             },
@@ -511,7 +511,7 @@ impl Editor {
         }
     }
 
-    fn send_updated_viewport(&mut self, grid: u64, scroll_delta: f64) {
+    fn send_updated_viewport(&mut self, grid: u64, scroll_delta: isize) {
         if let Some(window) = self.windows.get_mut(&grid) {
             window.update_viewport(scroll_delta);
         } else {

@@ -98,6 +98,7 @@ impl CharacterGrid {
         }
     }
 
+    // Returns true if it's a pure up/down scroll
     pub fn scroll_region(
         &mut self,
         top: usize,
@@ -150,7 +151,7 @@ impl CharacterGrid {
         }
     }
 
-    fn get_row_array_index(&self, index: isize) -> usize {
+    pub fn get_row_array_index(&self, index: isize) -> usize {
         let rows = self.lines.len() as isize;
         (self.top_index + index).rem_euclid(rows) as usize
     }

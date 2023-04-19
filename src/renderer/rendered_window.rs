@@ -1,11 +1,11 @@
-use std::{collections::VecDeque, sync::Arc};
+use std::{
+    sync::Arc,
+};
 
 use skia_safe::{
-    canvas::{SaveLayerRec, SrcRectConstraint},
-    gpu::SurfaceOrigin,
-    image_filters::blur,
-    BlendMode, Budgeted, Canvas, Color, Image, ImageInfo, Paint, Point, Rect, SamplingOptions,
-    Surface, SurfaceProps, SurfacePropsFlags,
+    canvas::SaveLayerRec, gpu::SurfaceOrigin, image_filters::blur, BlendMode, Budgeted, Canvas,
+    Color, ImageInfo, Matrix, Paint, Picture, PictureRecorder, Point, Rect, Surface, SurfaceProps,
+    SurfacePropsFlags,
 };
 
 use crate::{
@@ -13,14 +13,13 @@ use crate::{
     editor::Style,
     profiling::tracy_zone,
     redraw_scheduler::REDRAW_SCHEDULER,
-    renderer::{animation_utils::*, GridRenderer, RendererSettings},
+    renderer::{animation_utils::*, GridRenderer, RendererSettings, ScrollbackBuffer},
 };
 
 #[derive(Clone, Debug)]
 pub struct LineFragment {
     pub text: String,
     pub window_left: u64,
-    pub window_top: u64,
     pub width: u64,
     pub style: Option<Arc<Style>>,
 }
@@ -32,7 +31,10 @@ pub enum WindowDrawCommand {
         grid_size: (u64, u64),
         floating_order: Option<u64>,
     },
-    DrawLine(Vec<LineFragment>),
+    DrawLine {
+        row: usize,
+        line_fragments: Vec<LineFragment>,
+    },
     Scroll {
         top: u64,
         bottom: u64,
@@ -46,7 +48,7 @@ pub enum WindowDrawCommand {
     Hide,
     Close,
     Viewport {
-        scroll_delta: f64,
+        scroll_delta: isize,
     },
 }
 
@@ -98,11 +100,6 @@ fn build_window_surface_with_grid_size(
     surface
 }
 
-pub struct LocatedSnapshot {
-    image: Image,
-    vertical_position: f32,
-}
-
 pub struct LocatedSurface {
     surface: Surface,
     pub vertical_position: f32,
@@ -122,18 +119,9 @@ impl LocatedSurface {
             vertical_position,
         }
     }
-
-    fn snapshot(&mut self) -> LocatedSnapshot {
-        let image = self.surface.image_snapshot();
-        LocatedSnapshot {
-            image,
-            vertical_position: self.vertical_position,
-        }
-    }
 }
 
 pub struct RenderedWindow {
-    snapshots: VecDeque<LocatedSnapshot>,
     pub current_surface: LocatedSurface,
 
     pub id: u64,
@@ -142,13 +130,14 @@ pub struct RenderedWindow {
 
     pub grid_size: Dimensions,
 
+    pub scrollback_buffer: ScrollbackBuffer<Picture>,
+
     grid_start_position: Point,
     pub grid_current_position: Point,
     grid_destination: Point,
     position_t: f32,
 
     start_scroll: f32,
-    pub current_scroll: f32,
     scroll_destination: f32,
     scroll_t: f32,
 
@@ -174,7 +163,6 @@ impl RenderedWindow {
         let current_surface = LocatedSurface::new(parent_canvas, grid_renderer, grid_size, 0.);
 
         RenderedWindow {
-            snapshots: VecDeque::new(),
             current_surface,
             id,
             hidden: false,
@@ -182,13 +170,14 @@ impl RenderedWindow {
 
             grid_size,
 
+            scrollback_buffer: ScrollbackBuffer::new(grid_size.height as usize),
+
             grid_start_position: grid_position,
             grid_current_position: grid_position,
             grid_destination: grid_position,
             position_t: 2.0, // 2.0 is out of the 0.0 to 1.0 range and stops animation.
 
             start_scroll: 0.0,
-            current_scroll: 0.0,
             scroll_destination: 0.0,
             scroll_t: 2.0, // 2.0 is out of the 0.0 to 1.0 range and stops animation.
             padding,
@@ -231,21 +220,69 @@ impl RenderedWindow {
             if 1.0 - self.scroll_t < std::f32::EPSILON {
                 // We are at destination, move t out of 0-1 range to stop the animation.
                 self.scroll_t = 2.0;
-                self.snapshots.clear();
             } else {
                 animating = true;
                 self.scroll_t = (self.scroll_t + dt / settings.scroll_animation_length).min(1.0);
             }
 
-            self.current_scroll = ease(
+            self.scrollback_buffer.scroll_position = ease(
                 ease_out_expo,
                 self.start_scroll,
                 self.scroll_destination,
                 self.scroll_t,
-            );
+            ) as f64;
+            // TODO: Clean up old scrollback
+            // TODO: f64
         }
 
         animating
+    }
+
+    fn draw_surface(&mut self, font_dimensions: Dimensions) {
+        let canvas = self.current_surface.surface.canvas();
+        let mut matrix = Matrix::new_identity();
+
+        /*
+        let start_virtual_line = self.scrollback_bufer.scroll_position.floor();
+        let scroll_offset = self.current_scroll - start_virtual_line;
+        let start_virtual_line = start_virtual_line as isize;
+        //let first_line = self.actual_position + scroll_offset_lines as isize;
+        */
+        let scroll_offset = self.scrollback_buffer.get_scroll_delta().fract();
+
+
+        for i in 0..self.grid_size.height as usize + 1 {
+            matrix.set_translate((
+                0.0,
+                (scroll_offset + i as f32) * font_dimensions.height as f32,
+            ));
+            if let Some(picture) = self.scrollback_buffer.get_visible_line(i) {
+                canvas.draw_picture(picture, Some(&matrix), None);
+            }
+
+            /*
+            let virtual_line = start_virtual_line + i;
+            let offset = virtual_line - self.actual_position;
+            if offset >= 0 && (offset as u64) < self.grid_size.height {
+                if let Some(picture) = &self.actual_lines[offset as usize] {
+                    canvas.draw_picture(picture, Some(&matrix), None);
+                };
+            } else {
+                if let Ok(index) = self.scrollback_lines.binary_search_by_key(&virtual_line, |line| line.0) {
+                    let picture = &self.scrollback_lines[index].1;
+                    canvas.draw_picture(picture, Some(&matrix), None);
+                }
+            }
+            */
+
+
+            /*
+            if let Ok(index) = self.lines.binary_search_by_key(&(first_line + i), |line| line.0) {
+                let picture = &self.lines[index].1;
+                canvas.draw_picture(picture, Some(&matrix), None);
+            }
+            */
+        }
     }
 
     pub fn draw(
@@ -259,6 +296,8 @@ impl RenderedWindow {
         if self.update(settings, dt) {
             REDRAW_SCHEDULER.queue_next_frame();
         }
+
+        self.draw_surface(font_dimensions);
 
         let pixel_region = self.pixel_region(font_dimensions);
 
@@ -305,31 +344,9 @@ impl RenderedWindow {
 
         paint.set_color(Color::from_argb(255, 255, 255, 255));
 
-        let font_height = font_dimensions.height;
-
-        // Draw scrolling snapshots.
-        for snapshot in self.snapshots.iter_mut().rev() {
-            let scroll_offset =
-                (snapshot.vertical_position - self.current_scroll) * font_height as f32;
-            let image = &mut snapshot.image;
-            root_canvas.draw_image_rect(
-                image,
-                None,
-                pixel_region.with_offset((0.0, scroll_offset)),
-                &paint,
-            );
-        }
-
         // Draw current surface.
-        let scroll_offset =
-            (self.current_surface.vertical_position - self.current_scroll) * font_height as f32;
         let snapshot = self.current_surface.surface.image_snapshot();
-        root_canvas.draw_image_rect(
-            snapshot,
-            None,
-            pixel_region.with_offset((0.0, scroll_offset)),
-            &paint,
-        );
+        root_canvas.draw_image_rect(snapshot, None, pixel_region, &paint);
 
         root_canvas.restore();
 
@@ -344,6 +361,11 @@ impl RenderedWindow {
             region: pixel_region,
             floating_order: self.floating_order,
         }
+    }
+
+    fn reset_scroll(&mut self) {
+        self.start_scroll = 0.0;
+        self.scroll_t = 2.0;
     }
 
     pub fn handle_window_draw_command(
@@ -388,21 +410,17 @@ impl RenderedWindow {
                 }
 
                 if self.grid_size != new_grid_size {
-                    let mut new_surface = build_window_surface_with_grid_size(
+                    self.current_surface.surface = build_window_surface_with_grid_size(
                         self.current_surface.surface.canvas(),
                         grid_renderer,
                         new_grid_size,
                     );
-                    self.current_surface.surface.draw(
-                        new_surface.canvas(),
-                        (0.0, 0.0),
-                        SamplingOptions::default(),
-                        None,
-                    );
-
-                    self.current_surface.surface = new_surface;
                     self.grid_size = new_grid_size;
                 }
+
+                // This could perhaps be optimized, setting the position does not necessarily need
+                // to rezize
+                self.scrollback_buffer.resize(grid_size.1 as usize);
 
                 self.floating_order = floating_order;
 
@@ -413,21 +431,30 @@ impl RenderedWindow {
                     self.grid_start_position = new_destination;
                     self.grid_destination = new_destination;
                 }
+                self.reset_scroll();
             }
-            WindowDrawCommand::DrawLine(line_fragments) => {
+            WindowDrawCommand::DrawLine {
+                row,
+                line_fragments,
+            } => {
                 tracy_zone!("draw_line_cmd", 0);
-                let canvas = self.current_surface.surface.canvas();
+                let font_dimensions = grid_renderer.font_dimensions;
+                let mut recorder = PictureRecorder::new();
 
-                canvas.save();
+                let grid_rect = Rect::from_wh(
+                    (self.grid_size.width * font_dimensions.width) as f32,
+                    font_dimensions.height as f32,
+                );
+                let canvas = recorder.begin_recording(grid_rect, None);
+
                 for line_fragment in line_fragments.iter() {
                     let LineFragment {
                         window_left,
-                        window_top,
                         width,
                         style,
                         ..
                     } = line_fragment;
-                    let grid_position = (*window_left, *window_top);
+                    let grid_position = (*window_left, 0);
                     grid_renderer.draw_background(
                         canvas,
                         grid_position,
@@ -441,14 +468,22 @@ impl RenderedWindow {
                     let LineFragment {
                         text,
                         window_left,
-                        window_top,
                         width,
                         style,
                     } = line_fragment;
-                    let grid_position = (window_left, window_top);
+                    let grid_position = (window_left, 0);
                     grid_renderer.draw_foreground(canvas, text, grid_position, width, &style);
                 }
-                canvas.restore();
+
+                let picture = recorder.finish_recording_as_picture(None).unwrap();
+                self.scrollback_buffer.actual_lines[row as usize] = Some(picture);
+                /*
+                let line_index = self.actual_position + row as isize;
+                match self.lines.binary_search_by_key(&line_index, |line| line.0){
+                    Ok(i) => self.lines[i] = (line_index as isize, picture),
+                    Err(i) => self.lines.insert(i, (line_index as isize, picture)),
+                }
+                */
             }
             WindowDrawCommand::Scroll {
                 top,
@@ -456,50 +491,90 @@ impl RenderedWindow {
                 left,
                 right,
                 rows,
-                cols,
+                ..
             } => {
                 tracy_zone!("scroll_cmd", 0);
-                let Dimensions {
-                    width: font_width,
-                    height: font_height,
-                } = grid_renderer.font_dimensions;
-                let scrolled_region = Rect::new(
-                    (left * font_width) as f32,
-                    (top * font_height) as f32,
-                    (right * font_width) as f32,
-                    (bottom * font_height) as f32,
-                );
+                // We only need to deal with full line scrolls here, partialy scrolled lines will be re-sent
+                if left == 0 && right == self.grid_size.width
+                {
+                    self.scrollback_buffer.scroll_internal(top as usize, bottom as usize, rows as isize);
 
-                let mut translated_region = scrolled_region;
-                translated_region.offset((
-                    -cols as f32 * font_width as f32,
-                    -rows as f32 * font_height as f32,
-                ));
 
-                let snapshot = self.current_surface.surface.image_snapshot();
-                let canvas = self.current_surface.surface.canvas();
+                    // Use unwrap here, since the actual position should always exist, furthermore, it should be followed by a full screen of lines
+                    // So no further checks are needed below
+                    /*
+                    let offset = self.lines.binary_search_by_key(&self.actual_position, |line| line.0).unwrap() as isize;
 
-                canvas.save();
+                    let top = top as isize + offset;
+                    let bottom = bottom as isize + offset;
+                    let rows = rows as isize;
 
-                canvas.clip_rect(scrolled_region, None, Some(false));
-                canvas.draw_image_rect(
-                    snapshot,
-                    Some((&scrolled_region, SrcRectConstraint::Fast)),
-                    translated_region,
-                    &grid_renderer.paint,
-                );
+                    let mut top_to_bottom;
+                    let mut bottom_to_top;
+                    let y_iter: &mut dyn Iterator<Item = isize> = if rows > 0 {
+                        top_to_bottom = (top + rows)..bottom;
+                        &mut top_to_bottom
+                    } else {
+                        bottom_to_top = (top..bottom + rows).rev();
+                        &mut bottom_to_top
+                    };
 
-                canvas.restore();
+                    // Swap the lines, to avoid moving things around, the lines that are wrong will be replaced throuhg DrawLine commands
+                    for y in y_iter {
+                        let dest_y = (y - rows) as usize;
+                        self.lines.swap(dest_y, y as usize);
+                    }
+
+                    // The positions also need some fixup
+                    let changed_rows = &mut self.lines.range_mut(offset as usize..(offset + (bottom-top)) as usize);
+                    for (i, (position, _)) in  changed_rows.enumerate() {
+                        *position = self.actual_position + i as isize;
+
+                    }
+                    */
+
+                    /*
+                    let top = top as isize;
+                    let bottom = bottom as isize;
+                    let rows = rows as isize;
+
+                    let mut top_to_bottom;
+                    let mut bottom_to_top;
+                    let y_iter: &mut dyn Iterator<Item = isize > = if rows > 0 {
+                        top_to_bottom = top + rows..bottom;
+                        &mut top_to_bottom
+                    } else {
+                        bottom_to_top = (top..(bottom + rows)).rev();
+                        &mut bottom_to_top
+                    };
+
+                    // Swap the lines instead of copying since the source lines will be overwritten anyway
+                    for y in y_iter {
+                        let dest_y = (y - rows) as usize;
+                        self.actual_lines.swap(dest_y, y as usize);
+                    }
+                    */
+                    /*
+
+                    // The positions also need some fixup
+                    let changed_rows = &mut self.lines.range_mut(offset as usize..(offset + (bottom-top)) as usize);
+                    for (i, (position, _)) in  changed_rows.enumerate() {
+                        *position = self.actual_position + i as isize;
+
+                    }
+                    */
+                }
             }
             WindowDrawCommand::Clear => {
                 tracy_zone!("clear_cmd", 0);
+
+                self.scrollback_buffer.clear();
+                self.reset_scroll();
                 self.current_surface.surface = build_window_surface_with_grid_size(
                     self.current_surface.surface.canvas(),
                     grid_renderer,
                     self.grid_size,
                 );
-
-                self.snapshots.clear();
             }
             WindowDrawCommand::Show => {
                 tracy_zone!("show_cmd", 0);
@@ -508,6 +583,7 @@ impl RenderedWindow {
                     self.position_t = 2.0; // We don't want to animate since the window is becoming visible,
                                            // so we set t to 2.0 to stop animations.
                     self.grid_start_position = self.grid_destination;
+                    self.reset_scroll();
                 }
             }
             WindowDrawCommand::Hide => {
@@ -516,19 +592,40 @@ impl RenderedWindow {
             }
             WindowDrawCommand::Viewport { scroll_delta, .. } => {
                 tracy_zone!("viewport_cmd", 0);
-                if scroll_delta.abs() > f64::EPSILON {
-                    let new_snapshot = self.current_surface.snapshot();
-                    self.snapshots.push_back(new_snapshot);
+                if scroll_delta.abs() > 0 {
+                    self.scrollback_buffer.scroll(scroll_delta);
+                    /*
+                    self.actual_position += scroll_delta;
+                    self.cleanup_scrollback();
 
-                    if self.snapshots.len() > 5 {
-                        self.snapshots.pop_front();
+                    if scroll_delta.abs() < self.grid_size.height as isize {
+                        if scroll_delta >  0 {
+                            // Check if we need to extend the scrollback buffer
+                            // If the scroll direction has changed it might have been shrunk by the cleanup_scrollback function instead.
+                            if self.scrollback_lines.iter().last().map_or(true, |v| v.0 < self.actual_position) {
+                                let source = &self.actual_lines[0..scroll_delta as usize];
+                                for (i, line) in source.iter().enumerate() {
+                                    if let Some(picture) = line {
+                                        self.scrollback_lines.push_back((self.actual_position + i as isize, picture.clone()));
+                                    }
+                                }
+                            }
+                        } else {
+                            // Check if we need to extend the scrollback buffer
+                            // If the scroll direction has changed it might have been shrunk by the cleanup_scrollback function instead.
+                            if self.scrollback_lines.iter().next().map_or(true, |v| v.0 > self.actual_position) {
+                                let source = self.actual_lines.iter().rev().take(-scroll_delta as usize);
+                                for (i, line) in source.enumerate() {
+                                    if let Some(picture) = line {
+                                        self.scrollback_lines.push_front((self.actual_position + (scroll_delta - 1 - i as isize), picture.clone()));
+                                    }
+                                }
+                            }
+                        };
                     }
-
-                    self.current_surface.vertical_position += scroll_delta as f32;
-
-                    // Set new target viewport position and initialize animation timer.
-                    self.start_scroll = self.current_scroll;
-                    self.scroll_destination = self.current_surface.vertical_position;
+                    */
+                    self.start_scroll = self.scrollback_buffer.scroll_position as f32;
+                    self.scroll_destination = self.scrollback_buffer.actual_position as f32;
                     self.scroll_t = 0.0;
                 }
             }
