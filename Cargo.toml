@@ -55,6 +55,7 @@ tracy-client-sys = { version = "0.19.0", optional = true }
 
 [dev-dependencies]
 mockall = "0.11.0"
+approx = "0.5.1"
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3.9", features = ["winuser", "wincon"] }

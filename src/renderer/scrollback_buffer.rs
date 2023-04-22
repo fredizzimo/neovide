@@ -22,6 +22,12 @@ impl<LineType: Clone> ScrollbackBuffer<LineType> {
         (self.scroll_position - self.actual_position as f64) as f32
     }
 
+    pub fn get_scroll_offset(&self) -> f32 {
+        let delta = self.get_scroll_delta();
+        let prev_line = delta.floor();
+        prev_line - delta
+     }
+
     pub fn scroll_internal(&mut self, top: usize, bottom: usize, rows: isize) {
         let top = top as isize;
         let bottom = bottom as isize;
@@ -66,7 +72,7 @@ impl<LineType: Clone> ScrollbackBuffer<LineType> {
                     let source = self.actual_lines.iter().rev().take(-rows as usize);
                     for (i, line) in source.enumerate() {
                         if let Some(picture) = line {
-                            self.scrollback_lines.push_front((prev_position + (rows - 1 - i as isize), picture.clone()));
+                            self.scrollback_lines.push_front((prev_position + self.actual_lines.len() as isize - i as isize - 1, picture.clone()));
                         }
                     }
                 }
@@ -78,7 +84,7 @@ impl<LineType: Clone> ScrollbackBuffer<LineType> {
         let (first_valid, last_valid) = if self.scroll_position <= self.actual_position as f64 {
             (self.scroll_position.floor() as isize, self.actual_position - 1)
         } else {
-            (self.actual_position + self.actual_lines.len() as isize, self.scroll_position.ceil() as isize)
+            (self.actual_position + self.actual_lines.len() as isize, self.scroll_position.floor() as isize + self.actual_lines.len() as isize )
         };
         self.scrollback_lines.drain(0..self.scrollback_lines.partition_point(|line| line.0 < first_valid));
         self.scrollback_lines.drain(self.scrollback_lines.partition_point(|line| line.0 > last_valid)..);
@@ -110,12 +116,17 @@ impl<LineType: Clone> ScrollbackBuffer<LineType> {
         self.reset();
     }
 
-    fn reset(&mut self) {
+    pub fn reset_scroll(&mut self) {
+        self.scroll_position = (self.actual_position as f64 + 0.5).floor();
+    }
+
+    pub fn reset(&mut self) {
         // Reset all scrolling after resizing
         self.scrollback_lines.clear();
         self.actual_position = 0;
         self.scroll_position = 0.0;
     }
+
 }
 
 
@@ -123,6 +134,7 @@ impl<LineType: Clone> ScrollbackBuffer<LineType> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use approx::assert_relative_eq;
 
     fn assign_lines(buffer: &mut ScrollbackBuffer<i32>, lines: &[i32]) {
         buffer.actual_lines.iter_mut().zip(lines.iter()).for_each(|(line, new_value)| *line=Some(*new_value));
@@ -246,9 +258,71 @@ mod tests {
         assert_eq!(buffer.scroll_position, 0.0);
         assert_eq!(buffer.actual_position, 2);
         assert_eq!(get_visible_lines(&buffer), lines(&[1, 2, 3, 4, 5, 6]));
+        assert_relative_eq!(buffer.get_scroll_delta(), -2.0);
+        assert_relative_eq!(buffer.get_scroll_offset(), 0.0);
+
+        buffer.scroll_position = 0.5;
+        assert_eq!(get_visible_lines(&buffer), lines(&[1, 2, 3, 4, 5, 6]));
+        assert_relative_eq!(buffer.get_scroll_delta(), -1.5);
+        assert_relative_eq!(buffer.get_scroll_offset(), -0.5);
+
         buffer.scroll_position = 1.0;
         assert_eq!(get_visible_lines(&buffer), lines(&[2, 3, 4, 5, 6, 7]));
+        assert_relative_eq!(buffer.get_scroll_delta(), -1.0);
+        assert_relative_eq!(buffer.get_scroll_offset(), 0.0);
+
+        buffer.scroll_position = 1.2;
+        assert_eq!(get_visible_lines(&buffer), lines(&[2, 3, 4, 5, 6, 7]));
+        assert_relative_eq!(buffer.get_scroll_delta(), -0.8);
+        assert_relative_eq!(buffer.get_scroll_offset(), -0.2);
+
+        buffer.scroll_position = 1.7;
+        assert_eq!(get_visible_lines(&buffer), lines(&[2, 3, 4, 5, 6, 7]));
+        assert_relative_eq!(buffer.get_scroll_delta(), -0.3);
+        assert_relative_eq!(buffer.get_scroll_offset(), -0.7);
+
         buffer.scroll_position = 2.0;
         assert_eq!(get_visible_lines(&buffer), &[Some(3), Some(4), Some(5), Some(6), Some(7), None]);
+        assert_relative_eq!(buffer.get_scroll_delta(), 0.0);
+        assert_relative_eq!(buffer.get_scroll_offset(), 0.0);
+    }
+
+    #[test]
+    fn scroll_up() {
+        let mut buffer = ScrollbackBuffer::<i32>::new(5);
+        assign_lines(&mut buffer, &[1, 2, 3, 4, 5]);
+        buffer.scroll(-2);
+        buffer.scroll_internal(0, 5, -2);
+        assign_lines_at(&mut buffer, 0, &[-1, 0]);
+        assert_eq!(buffer.scroll_position, 0.0);
+        assert_eq!(buffer.actual_position, -2);
+        assert_eq!(get_visible_lines(&buffer), &[Some(1), Some(2), Some(3), Some(4), Some(5), None]);
+        assert_relative_eq!(buffer.get_scroll_delta(), 2.0);
+        assert_relative_eq!(buffer.get_scroll_offset(), 0.0);
+
+        buffer.scroll_position = -0.5;
+        assert_eq!(get_visible_lines(&buffer), lines(&[0, 1, 2, 3, 4, 5]));
+        assert_relative_eq!(buffer.get_scroll_delta(), 1.5);
+        assert_relative_eq!(buffer.get_scroll_offset(), -0.5);
+
+        buffer.scroll_position = -1.0;
+        assert_eq!(get_visible_lines(&buffer), lines(&[0, 1, 2, 3, 4, 5]));
+        assert_relative_eq!(buffer.get_scroll_delta(), 1.0);
+        assert_relative_eq!(buffer.get_scroll_offset(), 0.0);
+
+        buffer.scroll_position = -1.2;
+        assert_eq!(get_visible_lines(&buffer), lines(&[-1, 0, 1, 2, 3, 4]));
+        assert_relative_eq!(buffer.get_scroll_delta(), 0.8);
+        assert_relative_eq!(buffer.get_scroll_offset(), -0.8);
+
+        buffer.scroll_position = -1.7;
+        assert_eq!(get_visible_lines(&buffer), lines(&[-1, 0, 1, 2, 3, 4]));
+        assert_relative_eq!(buffer.get_scroll_delta(), 0.3);
+        assert_relative_eq!(buffer.get_scroll_offset(), -0.3);
+
+        buffer.scroll_position = -2.0;
+        assert_eq!(get_visible_lines(&buffer), lines(&[-1, 0, 1, 2, 3, 4]));
+        assert_relative_eq!(buffer.get_scroll_delta(), 0.0);
+        assert_relative_eq!(buffer.get_scroll_offset(), 0.0);
     }
 }
