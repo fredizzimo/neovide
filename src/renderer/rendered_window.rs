@@ -234,6 +234,7 @@ impl RenderedWindow {
                 *current_scroll += self.scroll_v * timestep;
                 dt -= timestep;
             }
+            log::trace!("Current scroll {}", *current_scroll);
 
             if (*current_scroll - scroll_destination).abs() < 0.01 {
                 self.reset_scroll();
@@ -501,6 +502,7 @@ impl RenderedWindow {
                 if left == 0 && right == self.grid_size.width
                 {
                     self.scrollback_buffer.scroll_internal(top as usize, bottom as usize, rows as isize);
+                    log::trace!("Actual Scroll{}", rows);
 
 
                     // Use unwrap here, since the actual position should always exist, furthermore, it should be followed by a full screen of lines
@@ -596,6 +598,7 @@ impl RenderedWindow {
             WindowDrawCommand::Viewport { scroll_delta, .. } => {
                 tracy_zone!("viewport_cmd", 0);
                 if scroll_delta.abs() > 0 {
+                    log::trace!("Viewport Scroll delta {}", scroll_delta);
                     self.scrollback_buffer.scroll(scroll_delta);
                     /*
                     self.actual_position += scroll_delta;
@@ -628,7 +631,7 @@ impl RenderedWindow {
                     }
                     */
                     //self.start_scroll = self.scrollback_buffer.scroll_position as f32;
-                    self.scroll_v = 0.0;
+                    //self.scroll_v = 0.0;
                 }
             }
             _ => {}
