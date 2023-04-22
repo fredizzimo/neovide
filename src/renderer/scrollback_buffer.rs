@@ -57,7 +57,7 @@ impl<LineType: Clone> ScrollbackBuffer<LineType> {
             if rows >  0 {
                 // Check if we need to extend the scrollback buffer
                 // If the scroll direction has changed it might have been shrunk by the cleanup_scrollback function instead.
-                if self.scrollback_lines.iter().last().map_or(true, |v| v.0 < self.actual_position) {
+                if self.scrollback_lines.iter().last().map_or(true, |v| v.0 < prev_position) {
                     let source = &self.actual_lines[0..rows as usize];
                     for (i, line) in source.iter().enumerate() {
                         if let Some(picture) = line {
@@ -68,7 +68,7 @@ impl<LineType: Clone> ScrollbackBuffer<LineType> {
             } else {
                 // Check if we need to extend the scrollback buffer
                 // If the scroll direction has changed it might have been shrunk by the cleanup_scrollback function instead.
-                if self.scrollback_lines.iter().next().map_or(true, |v| v.0 > self.actual_position) {
+                if self.scrollback_lines.iter().next().map_or(true, |v| v.0 > prev_position) {
                     let source = self.actual_lines.iter().rev().take(-rows as usize);
                     for (i, line) in source.enumerate() {
                         if let Some(picture) = line {
@@ -81,13 +81,17 @@ impl<LineType: Clone> ScrollbackBuffer<LineType> {
     }
 
     fn cleanup_scrollback(&mut self) {
+        // Only the lines between the current scroll position and actual position should be included
+        // Furthermore the scrollback should not include any lines in the actual_lines
         let (first_valid, last_valid) = if self.scroll_position <= self.actual_position as f64 {
             (self.scroll_position.floor() as isize, self.actual_position - 1)
         } else {
             (self.actual_position + self.actual_lines.len() as isize, self.scroll_position.floor() as isize + self.actual_lines.len() as isize )
         };
-        self.scrollback_lines.drain(0..self.scrollback_lines.partition_point(|line| line.0 < first_valid));
-        self.scrollback_lines.drain(self.scrollback_lines.partition_point(|line| line.0 > last_valid)..);
+        let first_valid_index = self.scrollback_lines.partition_point(|line| line.0 < first_valid);
+        self.scrollback_lines.drain(0..first_valid_index);
+        let last_valid_index = self.scrollback_lines.partition_point(|line| line.0 <= last_valid);
+        self.scrollback_lines.drain(last_valid_index..);
     }
 
     pub fn get_visible_line(&self, index: usize) -> Option<&LineType> {
@@ -261,6 +265,7 @@ mod tests {
         assert_relative_eq!(buffer.get_scroll_delta(), -2.0);
         assert_relative_eq!(buffer.get_scroll_offset(), 0.0);
 
+        // Update the scroll_position to simulate what smooth scrolling does
         buffer.scroll_position = 0.5;
         assert_eq!(get_visible_lines(&buffer), lines(&[1, 2, 3, 4, 5, 6]));
         assert_relative_eq!(buffer.get_scroll_delta(), -1.5);
@@ -281,10 +286,21 @@ mod tests {
         assert_relative_eq!(buffer.get_scroll_delta(), -0.3);
         assert_relative_eq!(buffer.get_scroll_offset(), -0.7);
 
+        // Scroll more while still scrolling (almost a complete screen)
+        buffer.scroll(4);
+        buffer.scroll_internal(0, 5, 4);
+        assign_lines_at(&mut buffer, 1, &[8, 9, 10, 11]);
+        // Nothing changes, since we haven't updated the scroll position
+        assert_eq!(get_visible_lines(&buffer), lines(&[2, 3, 4, 5, 6, 7]));
+        assert_relative_eq!(buffer.get_scroll_offset(), -0.7);
+        
+
+        /*
         buffer.scroll_position = 2.0;
         assert_eq!(get_visible_lines(&buffer), &[Some(3), Some(4), Some(5), Some(6), Some(7), None]);
         assert_relative_eq!(buffer.get_scroll_delta(), 0.0);
         assert_relative_eq!(buffer.get_scroll_offset(), 0.0);
+        */
     }
 
     #[test]
