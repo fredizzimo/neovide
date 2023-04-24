@@ -525,6 +525,7 @@ pub fn create_window() {
     let mut last_dt = 0.0;
 
     let start_time = Instant::now();
+    let mut vsync_offset = 0.0;
 
     event_loop.run(move |e, _window_target, control_flow| {
         /*
@@ -566,9 +567,23 @@ pub fn create_window() {
                     dt -= step;
                 }
                 let current_time = start_time.elapsed().as_secs_f64();
-                let time_until_next_vsync = expected_frame_length_seconds - (current_time % expected_frame_length_seconds);
+                let time_until_next_vsync = expected_frame_length_seconds - ((current_time + vsync_offset) % expected_frame_length_seconds);
+                trace!("Time until next vsync {} {}", time_until_next_vsync, vsync_offset);
                 if time_until_next_vsync > 0.001 {
                     native_sleep(Duration::from_secs_f64(time_until_next_vsync));
+                }
+                let vsync_offset_adjust = 0.0001;
+                if time_until_next_vsync > 0.003 {
+                    //vsync_offset -= expected_frame_length_seconds / refresh_rate as f64;
+                    vsync_offset += vsync_offset_adjust;
+                    if vsync_offset > expected_frame_length_seconds {
+                        vsync_offset -= expected_frame_length_seconds;
+                    }
+                } else if time_until_next_vsync < 0.002 {
+                    vsync_offset -= vsync_offset_adjust;
+                    if vsync_offset < 0.0 {
+                        vsync_offset += expected_frame_length_seconds;
+                    }
                 }
                 last_dt = frame_start.elapsed().as_secs_f32();
                 frame_start = Instant::now();
