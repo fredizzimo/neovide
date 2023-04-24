@@ -264,10 +264,6 @@ impl RenderedWindow {
         let scroll_offset_pixels = (scroll_offset * font_dimensions.height as f32).round() as isize;
         let mut has_transparency = false;
 
-        let mut background_paint = Paint::default();
-        background_paint.set_blend_mode(BlendMode::Src);
-        background_paint.set_alpha(default_background.a());
-
         let lines: Vec<(Matrix, &Line)> = (0..self.grid_size.height as isize + 1)
             .filter_map(|i| {
                 let line_index = (self.scrollback_top_index + scroll_offset_lines as isize + i)
@@ -289,14 +285,12 @@ impl RenderedWindow {
         for (matrix, line) in &lines {
             if let Some(background_picture) = &line.background_picture {
                 has_transparency |= line.has_transparency;
-                canvas.draw_picture(background_picture, Some(matrix), Some(&background_paint));
+                canvas.draw_picture(background_picture, Some(matrix), None);
             }
         }
-        let mut foreground_paint = Paint::default();
-        foreground_paint.set_blend_mode(BlendMode::SrcOver);
         for (matrix, line) in &lines {
             if let Some(foreground_picture) = &line.foreground_picture {
-                canvas.draw_picture(foreground_picture, Some(matrix), Some(&foreground_paint));
+                canvas.draw_picture(foreground_picture, Some(matrix), None);
             }
         }
         has_transparency
@@ -456,7 +450,6 @@ impl RenderedWindow {
                     .rem_euclid(self.actual_lines.len() as isize)
                     as usize;
 
-                canvas.clear(grid_renderer.get_default_background());
                 let mut has_transparency = false;
                 let mut custom_background = false;
 
@@ -477,7 +470,6 @@ impl RenderedWindow {
                     .then_some(recorder.finish_recording_as_picture(None).unwrap());
 
                 let canvas = recorder.begin_recording(grid_rect, None);
-                canvas.clear(Color::from_argb(0, 255, 255, 255));
                 let mut foreground_drawn = false;
                 for line_fragment in line_fragments.into_iter() {
                     let LineFragment {
