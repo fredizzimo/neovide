@@ -19,6 +19,7 @@ use winit::{
     event_loop::{ControlFlow, EventLoop},
     window::{self, Fullscreen, Icon},
 };
+use spin_sleep::native_sleep;
 
 #[cfg(target_os = "macos")]
 use winit::platform::macos::WindowBuilderExtMacOS;
@@ -521,6 +522,9 @@ pub fn create_window() {
     let mut frame_start = Instant::now();
     let mut should_render = true;
     let mut animating = false;
+    let mut last_dt = 0.0;
+
+    let start_time = Instant::now();
 
     event_loop.run(move |e, _window_target, control_flow| {
         /*
@@ -532,10 +536,10 @@ pub fn create_window() {
         }
         .max(1.0);
         */
-        let refresh_rate = 60.0;
+        let refresh_rate = 120.0;
 
         let expected_frame_length_seconds = 1.0 / refresh_rate;
-        let excpected_frame_duration = Duration::from_secs_f32(expected_frame_length_seconds);
+        let excpected_frame_duration = Duration::from_secs_f64(expected_frame_length_seconds);
         match e {
             // Window focus changed
             Event::WindowEvent {
@@ -553,10 +557,6 @@ pub fn create_window() {
                 //let expected_frame_length_seconds = 1.0 / refresh_rate;
                 //let frame_duration = Duration::from_secs_f32(expected_frame_length_seconds);
 
-                let last_dt = Instant::now().duration_since(frame_start);
-
-                frame_start = Instant::now();
-
                 let mut dt = expected_frame_length_seconds;
                 should_render |= window_wrapper.prepare_frame();
                 while dt > 0.0 {
@@ -565,14 +565,23 @@ pub fn create_window() {
                     should_render |= window_wrapper.animate_frame(step as f32);
                     dt -= step;
                 }
+                let current_time = start_time.elapsed().as_secs_f64();
+                let time_until_next_vsync = expected_frame_length_seconds - (current_time % expected_frame_length_seconds);
+                if time_until_next_vsync > 0.001 {
+                    native_sleep(Duration::from_secs_f64(time_until_next_vsync));
+                }
+                last_dt = frame_start.elapsed().as_secs_f32();
+                frame_start = Instant::now();
+
                 if should_render || cmd_line_settings.no_idle {
                     window_wrapper
-                        .draw_frame(last_dt.as_secs_f32());
+                        .draw_frame(last_dt);
                     should_render = false;
                     animating = true;
                 } else {
                     animating = false;
                 }
+
 
                 if let FocusedState::UnfocusedNotDrawn = focused {
                     focused = FocusedState::Unfocused;
@@ -604,13 +613,13 @@ pub fn create_window() {
         window_wrapper.synchronize_settings();
         should_render |= window_wrapper.handle_event(e);
 
-        let frame_duration = Instant::now().duration_since(frame_start);
-        let wait_time = excpected_frame_duration.as_secs_f64() - frame_duration.as_secs_f64();
+        //let frame_duration = Instant::now().duration_since(frame_start);
+        //let wait_time = excpected_frame_duration.as_secs_f64() - frame_duration.as_secs_f64();
 
-        if true || wait_time < 0.001 {
+        if true /* || wait_time < 0.001 */ {
             *control_flow = ControlFlow::Poll;
         } else {
-            *control_flow = ControlFlow::WaitUntil(Instant::now() + Duration::from_secs_f64(wait_time))
+            *control_flow = ControlFlow::WaitUntil(frame_start + excpected_frame_duration);
         }
 
     });
