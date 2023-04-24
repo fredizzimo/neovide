@@ -51,7 +51,7 @@ use crate::{
     frame::Frame,
     renderer::Renderer,
     renderer::WindowPadding,
-    renderer::{build_context, WindowedContext},
+    renderer::{build_context, VSync, WindowedContext},
     running_tracker::*,
     settings::{
         load_last_window_settings, save_window_size, PersistentWindowSettings,
@@ -205,12 +205,16 @@ impl WinitWindowWrapper {
         should_render
     }
 
-    pub fn draw_frame(&mut self, dt: f32) {
+    pub fn draw_frame(&mut self, vsync: &mut VSync, dt: f32) {
         tracy_zone!("draw_frame");
         self.renderer.draw_frame(self.skia_renderer.canvas(), dt);
         {
             tracy_gpu_zone!("skia flush");
             self.skia_renderer.gr_context.flush_and_submit();
+        }
+        {
+            tracy_gpu_zone!("wait for vsync");
+            vsync.wait_for_vsync();
         }
         {
             tracy_gpu_zone!("swap buffers");
@@ -511,7 +515,10 @@ pub fn create_window() {
     }
     let mut focused = FocusedState::Focused;
 
+    let mut vsync = VSync::new();
+
     event_loop.run(move |e, _window_target, control_flow| {
+        tracy_zone!("loop");
         let refresh_rate = match focused {
             FocusedState::Focused | FocusedState::UnfocusedNotDrawn => {
                 SETTINGS.get::<WindowSettings>().refresh_rate as f32
@@ -548,7 +555,7 @@ pub fn create_window() {
                     should_render |= window_wrapper.animate_frame(step);
                 }
                 if should_render || cmd_line_settings.no_idle {
-                    window_wrapper.draw_frame(last_dt);
+                    window_wrapper.draw_frame(&mut vsync, last_dt);
 
                     if num_consecutive_rendered > 2 {
                         frame_dt_avg.add_sample(previous_frame_start.elapsed().as_secs_f64());
