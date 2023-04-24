@@ -33,7 +33,7 @@ use winit::platform::x11::WindowBuilderExtX11;
 
 use crate::{profiling::{
     emit_frame_mark, tracy_create_gpu_context, tracy_gpu_collect, tracy_gpu_zone, tracy_zone,
-}, cmd_line};
+}, cmd_line, frame};
 
 use image::{load_from_memory, GenericImageView, Pixel};
 use keyboard_manager::KeyboardManager;
@@ -518,12 +518,12 @@ pub fn create_window() {
     }
     let max_animation_dt = 1.0 / 120.0;
     let mut focused = FocusedState::Focused;
-    let mut prev_frame_start = Instant::now();
-    let mut frame_dt_avg = NoSumSMA::<f64, f64, 10>::new();
+    let mut frame_start = Instant::now();
     let mut should_render = true;
     let mut animating = false;
 
     event_loop.run(move |e, _window_target, control_flow| {
+        /*
         let refresh_rate = match focused {
             FocusedState::Focused | FocusedState::UnfocusedNotDrawn => {
                 SETTINGS.get::<WindowSettings>().refresh_rate as f32
@@ -531,9 +531,11 @@ pub fn create_window() {
             FocusedState::Unfocused => SETTINGS.get::<WindowSettings>().refresh_rate_idle as f32,
         }
         .max(1.0);
+        */
+        let refresh_rate = 60.0;
 
         let expected_frame_length_seconds = 1.0 / refresh_rate;
-        let frame_duration = Duration::from_secs_f32(expected_frame_length_seconds);
+        let excpected_frame_duration = Duration::from_secs_f32(expected_frame_length_seconds);
         match e {
             // Window focus changed
             Event::WindowEvent {
@@ -551,11 +553,11 @@ pub fn create_window() {
                 //let expected_frame_length_seconds = 1.0 / refresh_rate;
                 //let frame_duration = Duration::from_secs_f32(expected_frame_length_seconds);
 
-                let mut dt = if should_render {
-                    frame_dt_avg.get_average()
-                } else {
-                    frame_duration.as_secs_f64()
-                };
+                let last_dt = Instant::now().duration_since(frame_start);
+
+                frame_start = Instant::now();
+
+                let mut dt = expected_frame_length_seconds;
                 should_render |= window_wrapper.prepare_frame();
                 while dt > 0.0 {
                     let step = dt.min(max_animation_dt);
@@ -565,10 +567,7 @@ pub fn create_window() {
                 }
                 if should_render || cmd_line_settings.no_idle {
                     window_wrapper
-                        .draw_frame(frame_dt_avg.get_most_recent_sample().unwrap_or(0.0) as f32);
-                    // TODO: Only add samples when rendering is stable
-                    frame_dt_avg.add_sample(prev_frame_start.elapsed().as_secs_f64());
-                    prev_frame_start = Instant::now();
+                        .draw_frame(last_dt.as_secs_f32());
                     should_render = false;
                     animating = true;
                 } else {
@@ -582,8 +581,10 @@ pub fn create_window() {
 
                 #[cfg(target_os = "macos")]
                 draw_background(window);
-                window.request_redraw();
 
+                window.request_redraw();
+            }
+            Event::RedrawRequested(_) => {
             }
             _ => (),
         }
@@ -603,10 +604,13 @@ pub fn create_window() {
         window_wrapper.synchronize_settings();
         should_render |= window_wrapper.handle_event(e);
 
-        if animating {
+        let frame_duration = Instant::now().duration_since(frame_start);
+        let wait_time = excpected_frame_duration.as_secs_f64() - frame_duration.as_secs_f64();
+
+        if true || wait_time < 0.001 {
             *control_flow = ControlFlow::Poll;
         } else {
-            *control_flow = ControlFlow::WaitUntil(Instant::now() + frame_duration)
+            *control_flow = ControlFlow::WaitUntil(Instant::now() + Duration::from_secs_f64(wait_time))
         }
 
     });
