@@ -8,7 +8,7 @@
             "name": "Launch",
             "type": "lldb",
             "request": "launch",
-            "args": ["--wsl", "--multigrid"],
+            "args": ["--wsl", "--multigrid", "--noidle"],
             "cargo": {
                 "args": ["build"]
             }

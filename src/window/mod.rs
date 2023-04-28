@@ -50,7 +50,7 @@ use crate::{
     frame::Frame,
     renderer::Renderer,
     renderer::WindowPadding,
-    renderer::{build_context, WindowedContext},
+    renderer::{build_context, VSync, WindowedContext},
     running_tracker::*,
     settings::{
         load_last_window_settings, save_window_size, PersistentWindowSettings,
@@ -205,7 +205,7 @@ impl WinitWindowWrapper {
         should_render
     }
 
-    pub fn draw_frame(&mut self, dt: f32) {
+    pub fn draw_frame(&mut self, vsync: &mut VSync, dt: f32) {
         tracy_zone!("draw_frame");
 
         {
@@ -225,6 +225,10 @@ impl WinitWindowWrapper {
         {
             tracy_gpu_zone!("skia flush");
             self.skia_renderer.gr_context.flush_and_submit();
+        }
+        {
+            tracy_gpu_zone!("wait for vsync");
+            vsync.wait_for_vsync();
         }
         {
             tracy_gpu_zone!("swap buffers");
@@ -525,9 +529,13 @@ pub fn create_window() {
     let mut last_dt = 0.0;
 
     let start_time = Instant::now();
+    let mut simulation_time = start_time;
     let mut vsync_offset = 0.0;
 
+    let mut vsync = VSync::new();
+
     event_loop.run(move |e, _window_target, control_flow| {
+        tracy_zone!("loop");
         /*
         let refresh_rate = match focused {
             FocusedState::Focused | FocusedState::UnfocusedNotDrawn => {
@@ -537,10 +545,10 @@ pub fn create_window() {
         }
         .max(1.0);
         */
-        let refresh_rate = 120.0;
+        //let refresh_rate = vsync.interval.as_secs_f64();
 
-        let expected_frame_length_seconds = 1.0 / refresh_rate;
-        let excpected_frame_duration = Duration::from_secs_f64(expected_frame_length_seconds);
+        let expected_frame_length_seconds = vsync.interval.as_secs_f64();
+        let excpected_frame_duration = vsync.interval;
         match e {
             // Window focus changed
             Event::WindowEvent {
@@ -558,15 +566,21 @@ pub fn create_window() {
                 //let expected_frame_length_seconds = 1.0 / refresh_rate;
                 //let frame_duration = Duration::from_secs_f32(expected_frame_length_seconds);
 
-                let mut dt = expected_frame_length_seconds;
+                let current_time = Instant::now();
                 should_render |= window_wrapper.prepare_frame();
-                while dt > 0.0 {
-                    let step = dt.min(max_animation_dt);
 
-                    should_render |= window_wrapper.animate_frame(step as f32);
-                    dt -= step;
+                // TODO: Detect jumps
+                while simulation_time < current_time {
+                    let mut dt = expected_frame_length_seconds;
+                    simulation_time += excpected_frame_duration;
+                    while dt > 0.0 {
+                        let step = dt.min(max_animation_dt);
+
+                        should_render |= window_wrapper.animate_frame(step as f32);
+                        dt -= step;
+                    }
                 }
-                let current_time = start_time.elapsed().as_secs_f64();
+                /*
                 let time_until_next_vsync = expected_frame_length_seconds - ((current_time + vsync_offset) % expected_frame_length_seconds);
                 trace!("Time until next vsync {} {}", time_until_next_vsync, vsync_offset);
                 if time_until_next_vsync > 0.001 {
@@ -585,17 +599,17 @@ pub fn create_window() {
                         vsync_offset += expected_frame_length_seconds;
                     }
                 }
-                last_dt = frame_start.elapsed().as_secs_f32();
-                frame_start = Instant::now();
-
+                */
                 if should_render || cmd_line_settings.no_idle {
                     window_wrapper
-                        .draw_frame(last_dt);
+                        .draw_frame(&mut vsync, last_dt);
                     should_render = false;
                     animating = true;
                 } else {
                     animating = false;
                 }
+                last_dt = frame_start.elapsed().as_secs_f32();
+                frame_start = Instant::now();
 
 
                 if let FocusedState::UnfocusedNotDrawn = focused {
