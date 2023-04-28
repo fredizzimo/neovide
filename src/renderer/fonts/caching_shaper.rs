@@ -404,6 +404,7 @@ impl CachingShaper {
     }
 
     pub fn process(&mut self, device: &Device, queue: &Queue) {
+        tracy_zone!("process_glyph_cache");
         self.font_loader.glyph_cache.process(device, queue);
     }
 

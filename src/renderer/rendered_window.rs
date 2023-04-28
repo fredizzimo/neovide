@@ -214,6 +214,7 @@ impl RenderedWindow {
         glyph_fragments: &mut Vec<GlyphFragment>,
         shaper: &CachingShaper,
     ) {
+        tracy_zone!("draw_surface");
         let image_size: (i32, i32) = (self.grid_size * *font_dimensions).into();
         //let pixel_region = Rect::from_size(image_size);
 

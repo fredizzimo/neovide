@@ -1,3 +1,5 @@
+use crate::profiling::tracy_zone;
+
 use super::fonts::atlas::Atlas;
 use super::pipeline::{Background, BackgroundFragment, Camera, GlyphFragment, Glyphs};
 use bytemuck::{cast_slice, Pod, Zeroable};
@@ -207,10 +209,12 @@ impl WGpuRenderer {
     }
 
     pub fn update_background_fragments(&mut self, fragments: Vec<BackgroundFragment>) {
+        tracy_zone!("update_background_fragments");
         self.background.update(&self.device, &self.queue, fragments);
     }
 
     pub fn update_glyph_fragments(&mut self, fragments: Vec<GlyphFragment>) {
+        tracy_zone!("update_glyph_fragments");
         self.glyphs.update(&self.device, &self.queue, fragments);
     }
 
@@ -224,6 +228,7 @@ impl WGpuRenderer {
     ) where
         F: FnOnce(MainRenderPass),
     {
+        tracy_zone!("renderer_render");
         // TODO: Deal with errors
         let output = self.surface.get_current_texture().unwrap();
         let mut view = output
@@ -278,8 +283,14 @@ impl WGpuRenderer {
                 quad_index_buffer,
             });
         }
-        self.queue.submit(std::iter::once(encoder.finish()));
-        output.present();
+        {
+            self.queue.submit(std::iter::once(encoder.finish()));
+            tracy_zone!("submit");
+        }
+        {
+            tracy_zone!("present");
+            output.present();
+        }
     }
 
     pub fn resize(&mut self, window: &Window) {
