@@ -156,7 +156,7 @@ impl GpuCtx {
         let mut query = Vec::with_capacity(len);
         let remaining = query.spare_capacity_mut();
         unsafe {
-            GenQueries(remaining.len() as i32, remaining.as_mut_ptr() as *mut u32);
+            //GenQueries(remaining.len() as i32, remaining.as_mut_ptr() as *mut u32);
             query.set_len(len);
         }
 
@@ -209,7 +209,7 @@ pub fn tracy_create_gpu_context(name: &str) {
         let ctx = ctx.borrow();
         ctx.id
     });
-
+    /*
     let mut timestamp: i64 = 0;
     unsafe {
         GetInteger64v(TIMESTAMP, &mut timestamp);
@@ -232,6 +232,7 @@ pub fn tracy_create_gpu_context(name: &str) {
         ___tracy_emit_gpu_new_context(ctxt_data);
         ___tracy_emit_gpu_context_name(name_data);
     }
+    */
 }
 
 pub fn tracy_gpu_collect() {
