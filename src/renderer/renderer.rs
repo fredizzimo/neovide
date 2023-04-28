@@ -2,6 +2,7 @@ use crate::profiling::tracy_zone;
 
 use super::fonts::atlas::Atlas;
 use super::pipeline::{Background, BackgroundFragment, Camera, GlyphFragment, Glyphs};
+use super::VSync;
 use bytemuck::{cast_slice, Pod, Zeroable};
 use csscolorparser::Color;
 use euclid::default::Size2D;
@@ -224,13 +225,17 @@ impl WGpuRenderer {
         size: Size2D<f32>,
         row_height: f32,
         glyph_atlas: &Atlas,
+        vsync: &mut VSync,
         callback: F,
     ) where
         F: FnOnce(MainRenderPass),
     {
         tracy_zone!("renderer_render");
         // TODO: Deal with errors
-        let output = self.surface.get_current_texture().unwrap();
+        let output = {
+            tracy_zone!("get output");
+            self.surface.get_current_texture().unwrap()
+        };
         let mut view = output
             .texture
             .create_view(&TextureViewDescriptor::default());
@@ -286,6 +291,10 @@ impl WGpuRenderer {
         {
             self.queue.submit(std::iter::once(encoder.finish()));
             tracy_zone!("submit");
+        }
+        {
+            tracy_zone!("wait for vsync");
+            vsync.wait_for_vsync();
         }
         {
             tracy_zone!("present");

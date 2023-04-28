@@ -49,9 +49,7 @@ use crate::{
     editor::EditorCommand,
     event_aggregator::EVENT_AGGREGATOR,
     frame::Frame,
-    renderer::Renderer,
-    renderer::WGpuRenderer,
-    renderer::WindowPadding,
+    renderer::{Renderer,WGpuRenderer, WindowPadding, VSync},
     //renderer::{build_context, VSync, WindowedContext},
     running_tracker::*,
     settings::{
@@ -209,7 +207,7 @@ impl WinitWindowWrapper {
 
     pub fn draw_frame(&mut self, vsync: &mut VSync, dt: f32) {
         tracy_zone!("draw_frame");
-        self.renderer.draw_frame(&mut self.wgpu_renderer, dt);
+        self.renderer.draw_frame(&mut self.wgpu_renderer, vsync, dt);
         emit_frame_mark();
         tracy_gpu_collect();
     }

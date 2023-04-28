@@ -178,7 +178,7 @@ impl Renderer {
         self.grid_renderer.font_names()
     }
 
-    pub fn draw_frame(&mut self, renderer: &mut WGpuRenderer, dt: f32) {
+    pub fn draw_frame(&mut self, renderer: &mut WGpuRenderer, vsync: &mut VSync, dt: f32) {
         tracy_zone!("renderer_draw_frame");
         let default_background = self.grid_renderer.get_default_background();
         let font_dimensions = self.grid_renderer.font_dimensions;
@@ -216,6 +216,7 @@ impl Renderer {
                 window_size,
                 font_dimensions.height as f32,
                 self.grid_renderer.shaper.get_atlas(),
+                vsync,
                 |mut render_pass| {
                     let settings = SETTINGS.get::<RendererSettings>();
                     let background = Color {
