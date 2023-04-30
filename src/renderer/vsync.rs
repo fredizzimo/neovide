@@ -143,7 +143,10 @@ impl VSync {
         if true || elapsed < self.interval {
             if let Some(output) = self.primary_output {
                 unsafe {
-                    (*output).WaitForVBlank();
+                    //DwmFlush();
+                    //DwmFlush();
+
+                    //(*output).WaitForVBlank();
                     let elapsed = self.last_vsync.elapsed().as_micros();
                     let long = if elapsed > 8500 {
                         "long"

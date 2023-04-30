@@ -3,7 +3,7 @@ use std::num::NonZeroU32;
 
 use crate::cmd_line::CmdLineSettings;
 
-use gl::MAX_RENDERBUFFER_SIZE;
+use gl::{MAX_RENDERBUFFER_SIZE};
 use glutin::surface::SwapInterval;
 use glutin::{
     config::{Config, ConfigTemplateBuilder},
@@ -42,7 +42,13 @@ impl Context {
         GlSurface::resize(&self.surface, &self.context, width, height)
     }
     pub fn swap_buffers(&self) -> glutin::error::Result<()> {
-        GlSurface::swap_buffers(&self.surface, &self.context)
+        let res = GlSurface::swap_buffers(&self.surface, &self.context);
+        /*
+        unsafe {
+            gl::Finish();
+        }
+        */
+        res
     }
     pub fn get_proc_address(&self, addr: &CStr) -> *const c_void {
         GlDisplay::get_proc_address(&self.surface.display(), addr)
@@ -81,6 +87,7 @@ pub fn build_context<TE>(
 
     let surface_attributes = SurfaceAttributesBuilder::<WindowSurface>::new()
         .with_srgb(Some(cmd_line_settings.srgb))
+        .with_single_buffer(false)
         .build(
             raw_window_handle,
             NonZeroU32::new(size.width).unwrap(),
@@ -99,7 +106,7 @@ pub fn build_context<TE>(
 
     // NOTE: We don't care if these fails, the driver can override the SwapInterval in any case, so it needs to work in all cases
     let _ = if cmd_line_settings.vsync {
-        surface.set_swap_interval(&context, SwapInterval::Wait(NonZeroU32::new(1).unwrap()))
+        surface.set_swap_interval(&context, SwapInterval::Wait(NonZeroU32::new(2).unwrap()))
     } else {
         surface.set_swap_interval(&context, SwapInterval::DontWait)
     };

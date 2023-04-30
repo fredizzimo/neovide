@@ -227,12 +227,12 @@ impl WinitWindowWrapper {
             self.skia_renderer.gr_context.flush_and_submit();
         }
         {
-            tracy_gpu_zone!("wait for vsync");
-            vsync.wait_for_vsync();
-        }
-        {
             tracy_gpu_zone!("swap buffers");
             self.windowed_context.swap_buffers().unwrap();
+        }
+        {
+            tracy_gpu_zone!("wait for vsync");
+            vsync.wait_for_vsync();
         }
         emit_frame_mark();
         tracy_gpu_collect();
@@ -547,8 +547,9 @@ pub fn create_window() {
         */
         //let refresh_rate = vsync.interval.as_secs_f64();
 
-        let expected_frame_length_seconds = vsync.interval.as_secs_f64();
+        let expected_frame_length_seconds = vsync.interval.as_secs_f64() * 2.0;
         let excpected_frame_duration = vsync.interval;
+        let max_animation_dt = vsync.interval.as_secs_f64();
         match e {
             // Window focus changed
             Event::WindowEvent {
@@ -569,16 +570,13 @@ pub fn create_window() {
                 let current_time = Instant::now();
                 should_render |= window_wrapper.prepare_frame();
 
-                // TODO: Detect jumps
-                while simulation_time < current_time {
-                    let mut dt = expected_frame_length_seconds;
-                    simulation_time += excpected_frame_duration;
-                    while dt > 0.0 {
-                        let step = dt.min(max_animation_dt);
+                let mut dt = expected_frame_length_seconds;
+                //simulation_time += excpected_frame_duration;
+                while dt > 0.0 {
+                    let step = dt.min(max_animation_dt);
 
-                        should_render |= window_wrapper.animate_frame(step as f32);
-                        dt -= step;
-                    }
+                    should_render |= window_wrapper.animate_frame(step as f32);
+                    dt -= step;
                 }
                 /*
                 let time_until_next_vsync = expected_frame_length_seconds - ((current_time + vsync_offset) % expected_frame_length_seconds);
