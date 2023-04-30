@@ -2914,7 +2914,7 @@ checksum = "1a515f5799fe4961cb532f983ce2b23082366b898e52ffbce459c86f67c8378a"
 [[package]]
 name = "winit"
 version = "0.28.1"
-source = "git+https://github.com/neovide/winit?branch=new-keyboard-v3#4a566b72bcd8a4b7fefff3f278f0c0b485e899b0"
+source = "git+https://github.com/neovide/winit?branch=new-keyboard-v3#4d8d82fd3e2eca51822c0f3a749678090d22efe4"
 dependencies = [
  "android-activity",
  "bitflags",
