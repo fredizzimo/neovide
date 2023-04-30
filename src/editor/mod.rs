@@ -214,10 +214,10 @@ impl Editor {
                 }
                 RedrawEvent::WindowViewport {
                     grid,
-                    top_line,
-                    bottom_line,
+                    // Don't send viewport events if they don't have a scroll delta
+                    scroll_delta: Some(scroll_delta),
                     ..
-                } => self.send_updated_viewport(grid, top_line, bottom_line),
+                } => self.send_updated_viewport(grid, scroll_delta),
                 _ => {}
             },
             EditorCommand::RedrawScreen => self.redraw_screen(),
@@ -236,6 +236,21 @@ impl Editor {
     fn resize_window(&mut self, grid: u64, width: u64, height: u64) {
         if let Some(window) = self.windows.get_mut(&grid) {
             window.resize((width, height));
+            if let Some(anchor_info) = &window.anchor_info {
+                let anchor_grid_id = anchor_info.anchor_grid_id;
+                let anchor_type = anchor_info.anchor_type.clone();
+                let anchor_left = anchor_info.anchor_left;
+                let anchor_top = anchor_info.anchor_top;
+                let sort_order = Some(anchor_info.sort_order);
+                self.set_window_float_position(
+                    grid,
+                    anchor_grid_id,
+                    anchor_type,
+                    anchor_left,
+                    anchor_top,
+                    sort_order,
+                )
+            }
         } else {
             let window = Window::new(
                 grid,
@@ -448,9 +463,9 @@ impl Editor {
         }
     }
 
-    fn send_updated_viewport(&mut self, grid: u64, top_line: f64, bottom_line: f64) {
+    fn send_updated_viewport(&mut self, grid: u64, scroll_delta: f64) {
         if let Some(window) = self.windows.get_mut(&grid) {
-            window.update_viewport(top_line, bottom_line);
+            window.update_viewport(scroll_delta);
         } else {
             trace!("viewport event received before window initialized");
         }

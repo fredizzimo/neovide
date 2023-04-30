@@ -39,13 +39,13 @@ Can be set to:
 - (macOS only) `transparent`: Transparent decorations including a transparent bar.
 - (macOS only) `buttonless`: All decorations, but without quit, minimize or fullscreen buttons.
 
-### Geometry
+### Window Size
 
 ```sh
---geometry=<width>x<height>
+--size=<width>x<height>
 ```
 
-Sets the initial neovide window size in characters.
+Sets the initial neovide window size in pixels.
 
 ### Log File
 
@@ -129,13 +129,13 @@ or not.
 
 By default, Neovide requests to use VSync on the created window. This option disables this behavior.
 
-### Remote TCP
+### Neovim Server
 
 ```sh
---remote-tcp <remote_tcp>
+--server <ADDRESS>
 ```
 
-What IP and port to use when connecting to neovim.
+Connects to the named pipe or socket at ADDRESS.
 
 ### WSL
 

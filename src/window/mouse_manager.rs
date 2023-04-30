@@ -4,16 +4,15 @@ use std::{
     time::{Duration, Instant},
 };
 
-use glutin::{
-    self,
+use skia_safe::Rect;
+use winit::{
     dpi::PhysicalPosition,
     event::{
         DeviceId, ElementState, Event, MouseButton, MouseScrollDelta, Touch, TouchPhase,
         WindowEvent,
     },
-    PossiblyCurrent, WindowedContext,
+    window::Window,
 };
-use skia_safe::Rect;
 
 use crate::{
     bridge::{SerialCommand, UiCommand},
@@ -109,9 +108,9 @@ impl MouseManager {
         y: i32,
         keyboard_manager: &KeyboardManager,
         renderer: &Renderer,
-        windowed_context: &WindowedContext<PossiblyCurrent>,
+        window: &Window,
     ) {
-        let size = windowed_context.window().inner_size();
+        let size = window.inner_size();
         if x < 0 || x as u32 >= size.width || y < 0 || y as u32 >= size.height {
             return;
         }
@@ -184,6 +183,16 @@ impl MouseManager {
             } else {
                 // otherwise, update the window_id_under_mouse to match the one selected
                 self.window_details_under_mouse = Some(relevant_window_details.clone());
+            }
+            if has_moved {
+                // Send a mouse move command
+                EVENT_AGGREGATOR.send(UiCommand::Serial(SerialCommand::MouseButton {
+                    button: "move".into(),
+                    action: "".into(), // this is ignored by nvim
+                    grid_id: relevant_window_details.id,
+                    position: self.relative_position.into(),
+                    modifier_string: keyboard_manager.format_modifier_string(true),
+                }))
             }
 
             self.has_moved = self.dragging.is_some() && (self.has_moved || has_moved);
@@ -313,7 +322,7 @@ impl MouseManager {
         &mut self,
         keyboard_manager: &KeyboardManager,
         renderer: &Renderer,
-        windowed_context: &WindowedContext<PossiblyCurrent>,
+        window: &Window,
         finger_id: (DeviceId, u64),
         location: PhysicalPosition<f32>,
         phase: &TouchPhase,
@@ -362,7 +371,7 @@ impl MouseManager {
                             location.y.round() as i32,
                             keyboard_manager,
                             renderer,
-                            windowed_context,
+                            window,
                         );
                     }
                     // the double check might seem useless, but the if branch above might set
@@ -385,7 +394,7 @@ impl MouseManager {
                         location.y.round() as i32,
                         keyboard_manager,
                         renderer,
-                        windowed_context,
+                        window,
                     );
                     self.handle_pointer_transition(&MouseButton::Left, true, keyboard_manager);
                 }
@@ -401,7 +410,7 @@ impl MouseManager {
                             trace.start.y.round() as i32,
                             keyboard_manager,
                             renderer,
-                            windowed_context,
+                            window,
                         );
                         self.handle_pointer_transition(&MouseButton::Left, true, keyboard_manager);
                         self.handle_pointer_transition(&MouseButton::Left, false, keyboard_manager);
@@ -416,7 +425,7 @@ impl MouseManager {
         event: &Event<()>,
         keyboard_manager: &KeyboardManager,
         renderer: &Renderer,
-        windowed_context: &WindowedContext<PossiblyCurrent>,
+        window: &Window,
     ) {
         match event {
             Event::WindowEvent {
@@ -428,10 +437,10 @@ impl MouseManager {
                     position.y as i32,
                     keyboard_manager,
                     renderer,
-                    windowed_context,
+                    window,
                 );
                 if self.mouse_hidden {
-                    windowed_context.window().set_cursor_visible(true);
+                    window.set_cursor_visible(true);
                     self.mouse_hidden = false;
                 }
             }
@@ -468,7 +477,7 @@ impl MouseManager {
             } => self.handle_touch(
                 keyboard_manager,
                 renderer,
-                windowed_context,
+                window,
                 (*device_id, *id),
                 location.cast(),
                 phase,
@@ -491,7 +500,7 @@ impl MouseManager {
                 if key_event.state == ElementState::Pressed {
                     let window_settings = SETTINGS.get::<WindowSettings>();
                     if window_settings.hide_mouse_when_typing && !self.mouse_hidden {
-                        windowed_context.window().set_cursor_visible(false);
+                        window.set_cursor_visible(false);
                         self.mouse_hidden = true;
                     }
                 }

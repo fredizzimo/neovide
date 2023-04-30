@@ -115,6 +115,31 @@ this][scale-runtime] for a nice recipe to bind this to a hotkey.
 
 [scale-runtime]: faq.md#how-can-i-dynamically-change-the-scale-at-runtime
 
+#### Padding
+
+VimScript:
+
+```vim
+let g:neovide_padding_top = 0
+let g:neovide_padding_bottom = 0
+let g:neovide_padding_right = 0
+let g:neovide_padding_left = 0
+```
+
+Lua:
+
+```lua
+vim.g.neovide_padding_top = 0
+vim.g.neovide_padding_bottom = 0
+vim.g.neovide_padding_right = 0
+vim.g.neovide_padding_left = 0
+```
+
+**Available since 0.10.4.**
+
+Controls the space between the window border and the actual Neovim, which is filled with the
+background color instead.
+
 #### Background Color (Currently macOS only)
 
 VimScript:
@@ -358,7 +383,7 @@ vim.g.neovide_remember_window_size = true
 
 Setting `g:neovide_remember_window_size` to a boolean value will determine whether the window size
 from the previous session or the default size will be used on startup. The commandline option
-`--geometry` will take priority over this value.
+`--size` will take priority over this value.
 
 #### Profiler
 

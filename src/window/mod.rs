@@ -8,25 +8,23 @@ mod draw_background;
 
 use std::time::{Duration, Instant};
 
-use glutin::{
-    self,
+use log::trace;
+use tokio::sync::mpsc::UnboundedReceiver;
+use winit::{
     dpi::PhysicalSize,
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::{self, Fullscreen, Icon},
-    ContextBuilder, GlProfile, WindowedContext,
 };
-use log::trace;
-use tokio::sync::mpsc::UnboundedReceiver;
 
 #[cfg(target_os = "macos")]
-use glutin::platform::macos::WindowBuilderExtMacOS;
+use winit::platform::macos::WindowBuilderExtMacOS;
 
 #[cfg(target_os = "macos")]
 use draw_background::draw_background;
 
 #[cfg(target_os = "linux")]
-use glutin::platform::unix::WindowBuilderExtUnix;
+use winit::platform::unix::WindowBuilderExtUnix;
 
 use image::{load_from_memory, GenericImageView, Pixel};
 use keyboard_manager::KeyboardManager;
@@ -43,9 +41,11 @@ use crate::{
     redraw_scheduler::REDRAW_SCHEDULER,
     renderer::Renderer,
     renderer::WindowPadding,
+    renderer::{build_context, WindowedContext},
     running_tracker::*,
     settings::{
-        load_last_window_settings, save_window_geometry, PersistentWindowSettings, SETTINGS,
+        load_last_window_settings, save_window_size, PersistentWindowSettings,
+        DEFAULT_WINDOW_GEOMETRY, SETTINGS,
     },
 };
 pub use settings::{KeyboardSettings, WindowSettings};
@@ -62,8 +62,8 @@ pub enum WindowCommand {
     ListAvailableFonts,
 }
 
-pub struct GlutinWindowWrapper {
-    windowed_context: WindowedContext<glutin::PossiblyCurrent>,
+pub struct WinitWindowWrapper {
+    windowed_context: WindowedContext,
     skia_renderer: SkiaRenderer,
     renderer: Renderer,
     keyboard_manager: KeyboardManager,
@@ -78,7 +78,7 @@ pub struct GlutinWindowWrapper {
     window_command_receiver: UnboundedReceiver<WindowCommand>,
 }
 
-impl GlutinWindowWrapper {
+impl WinitWindowWrapper {
     pub fn toggle_fullscreen(&mut self) {
         let window = self.windowed_context.window();
         if self.fullscreen {
@@ -125,7 +125,7 @@ impl GlutinWindowWrapper {
     }
 
     pub fn handle_quit(&mut self) {
-        if SETTINGS.get::<CmdLineSettings>().remote_tcp.is_none() {
+        if SETTINGS.get::<CmdLineSettings>().server.is_none() {
             EVENT_AGGREGATOR.send(UiCommand::Parallel(ParallelCommand::Quit));
         } else {
             RUNNING_TRACKER.quit("window closed");
@@ -147,7 +147,7 @@ impl GlutinWindowWrapper {
             &event,
             &self.keyboard_manager,
             &self.renderer,
-            &self.windowed_context,
+            self.windowed_context.window(),
         );
         self.renderer.handle_event(&event);
         match event {
@@ -195,7 +195,6 @@ impl GlutinWindowWrapper {
 
     pub fn draw_frame(&mut self, dt: f32) {
         let window = self.windowed_context.window();
-        let new_size = window.inner_size();
 
         let window_settings = SETTINGS.get::<WindowSettings>();
         let window_padding = WindowPadding {
@@ -210,6 +209,7 @@ impl GlutinWindowWrapper {
             self.renderer.window_padding = window_padding;
         }
 
+        let new_size = window.inner_size();
         if self.saved_inner_size != new_size || self.font_changed_last_frame || padding_changed {
             self.font_changed_last_frame = false;
             self.saved_inner_size = new_size;
@@ -230,29 +230,47 @@ impl GlutinWindowWrapper {
             return;
         }
 
-        let settings = SETTINGS.get::<CmdLineSettings>();
         // Resize at startup happens when window is maximized or when using tiling WM
         // which already resized window.
         let resized_at_startup = self.maximized_at_startup || self.has_been_resized();
 
-        log::trace!(
-            "Settings geometry {:?}",
-            PhysicalSize::from(settings.geometry)
-        );
         log::trace!("Inner size: {:?}", new_size);
 
         if self.saved_grid_size.is_none() && !resized_at_startup {
-            let window = self.windowed_context.window();
-            window.set_inner_size(
-                self.renderer
-                    .grid_renderer
-                    .convert_grid_to_physical(settings.geometry),
-            );
-            self.saved_grid_size = Some(settings.geometry);
-            // Font change at startup is ignored, so grid size (and startup screen) could be preserved.
-            // But only when not resized yet. With maximized or resized window we should redraw grid.
-            self.font_changed_last_frame = false;
+            self.init_window_size();
         }
+    }
+
+    fn init_window_size(&self) {
+        let settings = SETTINGS.get::<CmdLineSettings>();
+        log::trace!("Settings geometry {:?}", settings.geometry,);
+        log::trace!("Settings size {:?}", settings.size);
+
+        let window = self.windowed_context.window();
+        let inner_size = if let Some(size) = settings.size {
+            // --size
+            size.into()
+        } else if let Some(geometry) = settings.geometry {
+            // --geometry
+            self.renderer
+                .grid_renderer
+                .convert_grid_to_physical(geometry)
+        } else if let Ok(PersistentWindowSettings::Windowed {
+            pixel_size: Some(size),
+            ..
+        }) = load_last_window_settings()
+        {
+            // remembered size
+            size
+        } else {
+            // default geometry
+            self.renderer
+                .grid_renderer
+                .convert_grid_to_physical(DEFAULT_WINDOW_GEOMETRY)
+        };
+        window.set_inner_size(inner_size);
+        // next frame will detect change in window.inner_size() and hence will
+        // handle_new_grid_size automatically
     }
 
     fn handle_new_grid_size(&mut self, new_size: PhysicalSize<u32>) {
@@ -361,41 +379,16 @@ pub fn create_window() {
 
     #[cfg(target_os = "linux")]
     let winit_window_builder = winit_window_builder
-        .with_app_id(cmd_line_settings.wayland_app_id)
+        .with_app_id(cmd_line_settings.wayland_app_id.clone())
         .with_class(
-            cmd_line_settings.x11_wm_class_instance,
-            cmd_line_settings.x11_wm_class,
+            cmd_line_settings.x11_wm_class_instance.clone(),
+            cmd_line_settings.x11_wm_class.clone(),
         );
 
     #[cfg(target_os = "macos")]
     let winit_window_builder = winit_window_builder.with_accepts_first_mouse(false);
 
-    let builder = ContextBuilder::new()
-        .with_pixel_format(24, 8)
-        .with_stencil_buffer(8)
-        .with_gl_profile(GlProfile::Core)
-        .with_srgb(cmd_line_settings.srgb)
-        .with_vsync(cmd_line_settings.vsync);
-
-    let windowed_context = match builder
-        .clone()
-        .build_windowed(winit_window_builder.clone(), &event_loop)
-    {
-        Ok(ctx) => ctx,
-        Err(err) => {
-            // haven't found any sane way to actually match on the pattern rabbithole CreationError
-            // provides, so here goes nothing
-            if err.to_string().contains("vsync") {
-                builder
-                    .with_vsync(false)
-                    .build_windowed(winit_window_builder, &event_loop)
-                    .unwrap()
-            } else {
-                panic!("{}", err);
-            }
-        }
-    };
-    let windowed_context = unsafe { windowed_context.make_current().unwrap() };
+    let windowed_context = build_context(&cmd_line_settings, winit_window_builder, &event_loop);
 
     let window = windowed_context.window();
     let initial_size = window.inner_size();
@@ -409,7 +402,10 @@ pub fn create_window() {
             let monitor_width = monitor_size.width as i32;
             let monitor_height = monitor_size.height as i32;
 
-            let window_position = window.outer_position().ok()?;
+            let window_position = previous_position
+                .filter(|_| !maximized)
+                .or_else(|| window.outer_position().ok())?;
+
             let window_size = window.outer_size();
             let window_width = window_size.width as i32;
             let window_height = window_size.height as i32;
@@ -442,7 +438,7 @@ pub fn create_window() {
         renderer.grid_renderer.font_dimensions,
     );
 
-    let mut window_wrapper = GlutinWindowWrapper {
+    let mut window_wrapper = WinitWindowWrapper {
         windowed_context,
         skia_renderer,
         renderer,
@@ -483,9 +479,9 @@ pub fn create_window() {
 
         if !RUNNING_TRACKER.is_running() {
             let window = window_wrapper.windowed_context.window();
-            save_window_geometry(
+            save_window_size(
                 window.is_maximized(),
-                window_wrapper.saved_grid_size,
+                window.inner_size(),
                 window.outer_position().ok(),
             );
 
@@ -517,7 +513,7 @@ pub fn create_window() {
             }
             previous_frame_start = frame_start;
             #[cfg(target_os = "macos")]
-            draw_background(&window_wrapper.windowed_context);
+            draw_background(window_wrapper.windowed_context.window());
         }
 
         *control_flow = ControlFlow::WaitUntil(previous_frame_start + frame_duration)

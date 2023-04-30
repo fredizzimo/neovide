@@ -3,8 +3,8 @@ mod cursor_vfx;
 
 use std::collections::HashMap;
 
-use glutin::event::{Event, WindowEvent};
 use skia_safe::{op, Canvas, Paint, Path, Point};
+use winit::event::{Event, WindowEvent};
 
 use crate::{
     bridge::EditorMode,
@@ -252,7 +252,7 @@ impl CursorRenderer {
         if let Some(window) = windows.get(&self.cursor.parent_window_id) {
             let grid_x = cursor_grid_x as f32 + window.grid_current_position.x;
             let mut grid_y = cursor_grid_y as f32 + window.grid_current_position.y
-                - (window.current_scroll - window.current_surface.top_line as f32);
+                - (window.current_scroll - window.current_surface.vertical_position);
 
             // Prevent the cursor from targeting a position outside its current window. Since only
             // the vertical direction is effected by scrolling, we only have to clamp the vertical
