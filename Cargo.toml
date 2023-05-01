@@ -29,7 +29,7 @@ euclid = "0.22.7"
 flexi_logger = { version = "0.22.3", default-features = false }
 futures = "0.3.21"
 gl = "0.14.0"
-glutin = "0.30.7"
+glutin = {version = "0.30.7", features = ["egl"] }
 glutin-winit = "0.3.0"
 image = { version = "0.24.1", default-features = false, features = ["ico"] }
 itertools = "0.10.5"
@@ -62,6 +62,8 @@ mockall = "0.11.0"
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3.9", features = ["dxgi", "impl-default", "winuser", "wincon", "dwmapi"] }
+surfman = { version="0.6.0", default-features = false, features =["sm-winit", "sm-no-wgl", "sm-angle-builtin"] }
+mozangle = { version = "0.3.3", features = ["egl"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 cocoa = "0.24.0"

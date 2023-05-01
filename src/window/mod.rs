@@ -277,7 +277,7 @@ impl WinitWindowWrapper {
             self.saved_inner_size = new_size;
 
             self.handle_new_grid_size(new_size);
-            self.skia_renderer.resize(&self.windowed_context);
+            self.skia_renderer.resize(&mut self.windowed_context);
             should_render = true;
         }
 
@@ -457,7 +457,7 @@ pub fn create_window() {
     #[cfg(target_os = "macos")]
     let winit_window_builder = winit_window_builder.with_accepts_first_mouse(false);
 
-    let windowed_context = build_context(&cmd_line_settings, winit_window_builder, &event_loop);
+    let mut windowed_context = build_context(&cmd_line_settings, winit_window_builder, &event_loop);
 
     let window = windowed_context.window();
     let initial_size = window.inner_size();
@@ -497,7 +497,7 @@ pub fn create_window() {
     let renderer = Renderer::new(scale_factor);
     let saved_inner_size = window.inner_size();
 
-    let skia_renderer = SkiaRenderer::new(&windowed_context);
+    let skia_renderer = SkiaRenderer::new(&mut windowed_context);
 
     let window_command_receiver = EVENT_AGGREGATOR.register_event::<WindowCommand>();
 
@@ -556,7 +556,7 @@ pub fn create_window() {
         */
         //let refresh_rate = vsync.interval.as_secs_f64();
 
-        let expected_frame_length_seconds = vsync.interval.as_secs_f64() * 2.0;
+        let expected_frame_length_seconds = vsync.interval.as_secs_f64();
         let excpected_frame_duration = vsync.interval;
         let max_animation_dt = vsync.interval.as_secs_f64();
         match e {

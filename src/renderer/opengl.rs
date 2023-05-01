@@ -27,13 +27,6 @@ pub struct Context {
     config: Config,
 }
 
-pub fn clamp_render_buffer_size(size: PhysicalSize<u32>) -> PhysicalSize<u32> {
-    PhysicalSize::new(
-        size.width.clamp(1, MAX_RENDERBUFFER_SIZE),
-        size.height.clamp(1, MAX_RENDERBUFFER_SIZE),
-    )
-}
-
 impl Context {
     pub fn window(&self) -> &Window {
         &self.window

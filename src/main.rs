@@ -57,6 +57,10 @@ pub use running_tracker::*;
 #[cfg(target_os = "windows")]
 pub use windows_utils::*;
 
+use surfman::declare_surfman;
+
+declare_surfman!();
+
 pub use profiling::startup_profiler;
 
 const BACKTRACES_FILE: &str = "neovide_backtraces.log";

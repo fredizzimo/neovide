@@ -2,7 +2,10 @@ pub mod animation_utils;
 pub mod cursor_renderer;
 pub mod fonts;
 pub mod grid_renderer;
+#[cfg(not(target_os = "windows"))]
 mod opengl;
+#[cfg(target_os = "windows")]
+mod angle;
 pub mod profiler;
 mod rendered_window;
 mod vsync;
@@ -17,6 +20,7 @@ use log::error;
 use skia_safe::Canvas;
 use tokio::sync::mpsc::UnboundedReceiver;
 use winit::event::Event;
+use winit::dpi::PhysicalSize;
 
 use crate::{
     bridge::EditorMode,
@@ -34,8 +38,19 @@ pub use rendered_window::{
     LineFragment, RenderedWindow, WindowDrawCommand, WindowDrawDetails, WindowPadding,
 };
 
+#[cfg(not(target_os = "windows"))]
 pub use opengl::{build_context, Context as WindowedContext};
+#[cfg(target_os = "windows")]
+pub use angle::{build_context, Context as WindowedContext};
+
 pub use vsync::*;
+
+pub fn clamp_render_buffer_size(size: PhysicalSize<u32>) -> PhysicalSize<u32> {
+    PhysicalSize::new(
+        size.width.clamp(1, gl::MAX_RENDERBUFFER_SIZE),
+        size.height.clamp(1, gl::MAX_RENDERBUFFER_SIZE),
+    )
+}
 
 #[derive(SettingGroup, Clone)]
 pub struct RendererSettings {

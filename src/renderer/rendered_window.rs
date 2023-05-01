@@ -12,13 +12,11 @@ use crate::{
     dimensions::Dimensions,
     editor::Style,
     profiling::tracy_zone,
-    renderer::{animation_utils::*, GridRenderer, RendererSettings},
+    renderer::{animation_utils::*, GridRenderer, RendererSettings, clamp_render_buffer_size},
     settings::SETTINGS,
     window::WindowSettings,
 };
 use winit::dpi::PhysicalSize;
-
-use super::opengl::clamp_render_buffer_size;
 
 #[derive(Clone, Debug)]
 pub struct LineFragment {

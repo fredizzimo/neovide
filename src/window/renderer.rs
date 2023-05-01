@@ -9,6 +9,7 @@ use skia_safe::{
     Canvas, ColorType, Surface,
 };
 
+/*
 fn create_surface(
     windowed_context: &WindowedContext,
     gr_context: &mut DirectContext,
@@ -39,6 +40,9 @@ fn create_surface(
     )
     .expect("Could not create skia surface")
 }
+*/
+
+
 
 pub struct SkiaRenderer {
     pub gr_context: DirectContext,
@@ -47,7 +51,7 @@ pub struct SkiaRenderer {
 }
 
 impl SkiaRenderer {
-    pub fn new(windowed_context: &WindowedContext) -> SkiaRenderer {
+    pub fn new(windowed_context: &mut WindowedContext) -> SkiaRenderer {
         gl::load_with(|s| windowed_context.get_proc_address(CString::new(s).unwrap().as_c_str()));
 
         let interface = skia_safe::gpu::gl::Interface::new_load_with(|name| {
@@ -69,7 +73,7 @@ impl SkiaRenderer {
                 format: skia_safe::gpu::gl::Format::RGBA8.into(),
             }
         };
-        let surface = create_surface(windowed_context, &mut gr_context, fb_info);
+        let surface = windowed_context.create_surface(&mut gr_context, fb_info);
 
         SkiaRenderer {
             gr_context,
@@ -82,7 +86,7 @@ impl SkiaRenderer {
         self.surface.canvas()
     }
 
-    pub fn resize(&mut self, windowed_context: &WindowedContext) {
-        self.surface = create_surface(windowed_context, &mut self.gr_context, self.fb_info);
+    pub fn resize(&mut self, windowed_context: &mut WindowedContext) {
+        self.surface = windowed_context.create_surface(&mut self.gr_context, self.fb_info);
     }
 }
