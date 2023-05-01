@@ -1,5 +1,12 @@
 use std::{
     time::{Duration, Instant},
+    thread::{spawn, JoinHandle},
+    sync::{
+        Arc,
+        Condvar,
+        Mutex,
+        atomic::{AtomicBool, Ordering},
+    }
 };
 use winapi::{
     um::dwmapi::{
@@ -18,8 +25,9 @@ use winapi::{
     },
     Interface
 };
+use crate::profiling::tracy_zone;
 
-fn get_vsync_interval() -> Duration {
+fn get_composition_timing_info() -> Option<DWM_TIMING_INFO> {
     let mut composition_enabled = FALSE;
     unsafe {
         DwmIsCompositionEnabled(&mut composition_enabled);
@@ -34,13 +42,23 @@ fn get_vsync_interval() -> Duration {
             DwmGetCompositionTimingInfo(NULL as HWND, &mut timing_info) 
         };
         if SUCCEEDED(res) {
-            let rate = timing_info.rateRefresh;
-            let refresh_rate = rate.uiDenominator as f64 / rate.uiNumerator as f64;
-            return Duration::from_secs_f64(refresh_rate)
+            Some(timing_info)
+        } else {
+            None
         }
+    } else {
+        None
     }
+}
 
-    Duration::from_secs_f64(1.0 / 60.0) 
+fn get_vsync_interval() -> Duration {
+    if let Some(timing_info) = get_composition_timing_info() {
+        let rate = timing_info.rateRefresh;
+        let refresh_rate = rate.uiDenominator as f64 / rate.uiNumerator as f64;
+        Duration::from_secs_f64(refresh_rate)
+    } else {
+        Duration::from_secs_f64(1.0 / 60.0) 
+    }
 }
 
 fn create_dxgifactory() -> Option<*mut IDXGIFactory1> {
@@ -116,37 +134,86 @@ fn get_primary_output(factory: &Option<*mut IDXGIFactory1>) -> Option<*mut IDXGI
 */
 
 pub struct VSync {
-    last_vsync: Instant,
+    //last_vsync: Instant,
     pub interval: Duration,
-    dxgi_factory: Option<*mut IDXGIFactory1>,
-    primary_output: Option<*mut IDXGIOutput>,
+    last_refresh: usize,
+    should_exit: Arc<AtomicBool>,
+    vsync_thread: Option<JoinHandle<()>>,
+    vsync_count: Arc<(Mutex<usize>, Condvar)>,
+    last_vsync: usize,
 }
 
 
 impl VSync {
     pub fn new() -> Self {
         let interval = get_vsync_interval();
-        let dxgi_factory = create_dxgifactory();
-        let primary_output = get_primary_output(&dxgi_factory);
+        let should_exit = Arc::new(AtomicBool::new(false));
+        let should_exit2 = should_exit.clone();
+        let vsync_count = Arc::new((Mutex::new(0), Condvar::new()));
+        let vsync_count2 = vsync_count.clone();
+
+        let vsync_thread = Some(spawn(move || {
+            let dxgi_factory = create_dxgifactory();
+            let primary_output = get_primary_output(&dxgi_factory);
+            let (lock, cvar) = &*vsync_count2;
+            let output = primary_output.unwrap();
+            while should_exit2.load(Ordering::SeqCst) == false {
+                unsafe {
+                    tracy_zone!("VSyncThread");
+                    //(*output).WaitForVBlank();
+                    DwmFlush();
+                    {
+                        let mut count = lock.lock().unwrap();
+                        *count += 1;
+                        cvar.notify_one();
+                    }
+                }
+            }
+        }));
 
         VSync {
             interval,
-            last_vsync: Instant::now(),
-            dxgi_factory,
-            primary_output,
+            //last_vsync: Instant::now(),
+            last_refresh: 0,
+            should_exit,
+            vsync_thread,
+            vsync_count,
+            last_vsync: 0,
         }
     }
 
     pub fn wait_for_vsync(&mut self) {
+        let (lock, cvar) = &*self.vsync_count;
+        // As long as the value inside the `Mutex<bool>` is `true`, we wait.
+        let count = cvar.wait_while(lock.lock().unwrap(), |count| {*count < self.last_vsync + 2 }).unwrap();
+        self.last_vsync = *count;
+        /*
+        let mut timing_info = get_composition_timing_info().unwrap();
+
         let elapsed = self.last_vsync.elapsed();
         let elapsed_before = elapsed.as_micros();
+        let mut max: i32 = 3;
+        while (timing_info.cRefresh as usize) <= (self.last_refresh + 2)  && max > 0 {
+            if let Some(output) = self.primary_output {
+                unsafe {
+                    tracy_zone!("wait for vblank");
+                    (*output).WaitForVBlank();
+                }
+            }
+            timing_info = get_composition_timing_info().unwrap();
+            max -= 1
+        }
+        */
+        //self.last_refresh = timing_info.cRefresh as usize;
+        /*
         if true || elapsed < self.interval {
             if let Some(output) = self.primary_output {
                 unsafe {
                     //DwmFlush();
                     //DwmFlush();
 
-                    //(*output).WaitForVBlank();
+                    (*output).WaitForVBlank();
+                    let timing_info2 = get_composition_timing_info();
                     let elapsed = self.last_vsync.elapsed().as_micros();
                     let long = if elapsed > 8500 {
                         "long"
@@ -162,8 +229,16 @@ impl VSync {
                 }
             }
         }
+        */
 
-        self.last_vsync = Instant::now();
+        //self.last_vsync = Instant::now();
+    }
+}
+
+impl Drop for VSync {
+    fn drop(&mut self) {
+        self.should_exit.store(true, Ordering::SeqCst);
+        self.vsync_thread.take().unwrap().join().unwrap();
     }
 }
 

@@ -227,12 +227,12 @@ impl WinitWindowWrapper {
             self.skia_renderer.gr_context.flush_and_submit();
         }
         {
-            tracy_gpu_zone!("swap buffers");
-            self.windowed_context.swap_buffers().unwrap();
-        }
-        {
             tracy_gpu_zone!("wait for vsync");
             vsync.wait_for_vsync();
+        }
+        {
+            tracy_gpu_zone!("swap buffers");
+            self.windowed_context.swap_buffers().unwrap();
         }
         emit_frame_mark();
         tracy_gpu_collect();
