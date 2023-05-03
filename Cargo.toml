@@ -112,3 +112,4 @@ osx_minimum_system_version = "10.11"
 
 [patch.crates-io]
 winit = { git = "https://github.com/neovide/winit", branch = "new-keyboard-v3", version="0.28.1" }
+#winit = { path = "../winit", version="0.28.1" }

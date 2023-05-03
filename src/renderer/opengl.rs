@@ -73,7 +73,8 @@ pub fn build_context<TE>(
 ) -> Context {
     let template_builder = ConfigTemplateBuilder::new()
         .with_stencil_size(8)
-        .with_transparency(true);
+        .with_transparency(true)
+        .with_single_buffering(false);
     let (window, config) = DisplayBuilder::new()
         .with_window_builder(Some(winit_window_builder))
         .build(event_loop, template_builder, gen_config)
@@ -87,7 +88,6 @@ pub fn build_context<TE>(
 
     let surface_attributes = SurfaceAttributesBuilder::<WindowSurface>::new()
         .with_srgb(Some(cmd_line_settings.srgb))
-        .with_single_buffer(false)
         .build(
             raw_window_handle,
             NonZeroU32::new(size.width).unwrap(),

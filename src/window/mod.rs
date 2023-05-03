@@ -224,7 +224,13 @@ impl WinitWindowWrapper {
         self.renderer.draw_frame(self.skia_renderer.canvas(), dt);
         {
             tracy_gpu_zone!("skia flush");
-            self.skia_renderer.gr_context.flush_and_submit();
+            self.skia_renderer.gr_context.flush_submit_and_sync_cpu();
+        }
+        unsafe {
+            // Make sure that all gpu rendering is completed, so that the latest 
+            // state is actually drawn
+            tracy_gpu_zone!("glFinish");
+            gl::Finish();
         }
         {
             tracy_gpu_zone!("wait for vsync");
@@ -618,7 +624,7 @@ pub fn create_window() {
                 #[cfg(target_os = "macos")]
                 draw_background(window);
 
-                window.request_redraw();
+                //window.request_redraw();
             }
             Event::RedrawRequested(_) => {
             }

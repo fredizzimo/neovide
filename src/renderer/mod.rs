@@ -143,6 +143,7 @@ impl Renderer {
     }
 
     fn get_sorted_windows(&mut self) -> Vec<&mut RenderedWindow> {
+        let len = self.rendered_windows.len();
         let windows: Vec<&mut RenderedWindow> = {
             let (mut root_windows, mut floating_windows): (
                 Vec<&mut RenderedWindow>,
@@ -163,13 +164,14 @@ impl Renderer {
                 .chain(floating_windows.into_iter())
                 .collect()
         };
+        assert!(windows.len() <= len);
         windows
     }
 
     pub fn draw_window_surfaces(&mut self) {
         let font_dimensions = self.grid_renderer.font_dimensions;
         let default_background = self.grid_renderer.get_default_background();
-        let windows = self.get_sorted_windows();
+        let mut windows = self.get_sorted_windows();
 
         for window in windows {
             window.draw_surface(font_dimensions, default_background);

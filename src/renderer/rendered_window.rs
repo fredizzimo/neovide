@@ -155,6 +155,10 @@ pub struct RenderedWindow {
     scroll_delta: isize,
 
     pub padding: WindowPadding,
+    
+    has_transparency: bool,
+
+    frame: usize,
 }
 
 #[derive(Clone, Debug)]
@@ -197,6 +201,8 @@ impl RenderedWindow {
             scroll_v: 0.0,
             scroll_delta: 0,
             padding,
+            has_transparency: false,
+            frame: 0,
         }
     }
 
@@ -252,12 +258,21 @@ impl RenderedWindow {
         animating
     }
 
-    pub fn draw_surface(&mut self, font_dimensions: Dimensions, default_background: Color) -> bool {
+    pub fn draw_surface(&mut self, font_dimensions: Dimensions, default_background: Color) {
         let image_size: (i32, i32) = (self.grid_size * font_dimensions).into();
         let pixel_region = Rect::from_size(image_size);
         let canvas = self.current_surface.surface.canvas();
         canvas.clip_rect(pixel_region, None, Some(false));
-        canvas.clear(default_background);
+        /*
+        let color = if (self.frame % 2) == 0{
+            Color::from_argb(default_background.a(), 0, 255, 255)
+        } else {
+            Color::from_argb(default_background.a(), 255, 0, 0)
+        };
+        */
+        let color = default_background;
+        self.frame += 1;
+        canvas.clear(color);
 
         let scroll_offset_lines = self.current_scroll.floor();
         let scroll_offset = scroll_offset_lines - self.current_scroll;
@@ -282,18 +297,20 @@ impl RenderedWindow {
             })
             .collect();
 
+        /*
         for (matrix, line) in &lines {
             if let Some(background_picture) = &line.background_picture {
                 has_transparency |= line.has_transparency;
                 canvas.draw_picture(background_picture, Some(matrix), None);
             }
         }
+        */
         for (matrix, line) in &lines {
             if let Some(foreground_picture) = &line.foreground_picture {
                 canvas.draw_picture(foreground_picture, Some(matrix), None);
             }
         }
-        has_transparency
+        self.has_transparency = has_transparency;
     }
 
     pub fn draw(
@@ -303,7 +320,8 @@ impl RenderedWindow {
         default_background: Color,
         font_dimensions: Dimensions,
     ) -> WindowDrawDetails {
-        let has_transparency = self.draw_surface(font_dimensions, default_background);
+        //let has_transparency = self.draw_surface(font_dimensions, default_background);
+        let has_transparency = self.has_transparency;
 
         let pixel_region = self.pixel_region(font_dimensions);
         let transparent_floating = self.floating_order.is_some() && has_transparency;
