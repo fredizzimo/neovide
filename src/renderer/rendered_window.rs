@@ -297,14 +297,13 @@ impl RenderedWindow {
             })
             .collect();
 
-        /*
         for (matrix, line) in &lines {
             if let Some(background_picture) = &line.background_picture {
                 has_transparency |= line.has_transparency;
                 canvas.draw_picture(background_picture, Some(matrix), None);
             }
         }
-        */
+
         for (matrix, line) in &lines {
             if let Some(foreground_picture) = &line.foreground_picture {
                 canvas.draw_picture(foreground_picture, Some(matrix), None);
