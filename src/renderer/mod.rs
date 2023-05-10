@@ -168,16 +168,6 @@ impl Renderer {
         windows
     }
 
-    pub fn draw_window_surfaces(&mut self) {
-        let font_dimensions = self.grid_renderer.font_dimensions;
-        let default_background = self.grid_renderer.get_default_background();
-        let mut windows = self.get_sorted_windows();
-
-        for window in windows {
-            window.draw_surface(font_dimensions, default_background);
-        }
-    }
-
     /// Draws frame
     ///
     /// # Returns
@@ -260,7 +250,8 @@ impl Renderer {
         self.cursor_renderer
             .update_cursor_destination(font_dimensions.into(), windows);
 
-        animating |= self.cursor_renderer
+        animating |= self
+            .cursor_renderer
             .animate(&self.current_mode, &self.grid_renderer, dt);
 
         animating

@@ -1,31 +1,24 @@
+use crate::profiling::tracy_zone;
 use std::{
-    time::{Duration, Instant},
-    thread::{spawn, JoinHandle},
     sync::{
-        Arc,
-        Condvar,
-        Mutex,
         atomic::{AtomicBool, Ordering},
-    }
+        Arc, Condvar, Mutex,
+    },
+    thread::{spawn, JoinHandle},
+    time::{Duration, Instant},
 };
 use winapi::{
-    um::dwmapi::{
-        DwmIsCompositionEnabled,
-        DwmGetCompositionTimingInfo,
-        DWM_TIMING_INFO,
-        DwmFlush,
-    },
     shared::{
+        dxgi::{CreateDXGIFactory1, IDXGIAdapter1, IDXGIFactory1, IDXGIOutput},
         guiddef::REFIID,
-        winerror::SUCCEEDED,
-        windef::{HWND},
+        minwindef::FALSE,
         ntdef::NULL,
-        minwindef::{FALSE},
-        dxgi::{CreateDXGIFactory1, IDXGIFactory1, IDXGIOutput, IDXGIAdapter1},
+        windef::HWND,
+        winerror::SUCCEEDED,
     },
-    Interface
+    um::dwmapi::{DwmFlush, DwmGetCompositionTimingInfo, DwmIsCompositionEnabled, DWM_TIMING_INFO},
+    Interface,
 };
-use crate::profiling::tracy_zone;
 
 fn get_composition_timing_info() -> Option<DWM_TIMING_INFO> {
     let mut composition_enabled = FALSE;
@@ -38,9 +31,7 @@ fn get_composition_timing_info() -> Option<DWM_TIMING_INFO> {
             cbSize: std::mem::size_of::<DWM_TIMING_INFO>() as u32,
             ..Default::default()
         };
-        let res = unsafe {
-            DwmGetCompositionTimingInfo(NULL as HWND, &mut timing_info) 
-        };
+        let res = unsafe { DwmGetCompositionTimingInfo(NULL as HWND, &mut timing_info) };
         if SUCCEEDED(res) {
             Some(timing_info)
         } else {
@@ -57,7 +48,7 @@ fn get_vsync_interval() -> Duration {
         let refresh_rate = rate.uiDenominator as f64 / rate.uiNumerator as f64;
         Duration::from_secs_f64(refresh_rate)
     } else {
-        Duration::from_secs_f64(1.0 / 60.0) 
+        Duration::from_secs_f64(1.0 / 60.0)
     }
 }
 
@@ -69,9 +60,7 @@ fn create_dxgifactory() -> Option<*mut IDXGIFactory1> {
     let hr = unsafe { CreateDXGIFactory1(riid, &mut factory as *mut _ as *mut *mut _) };
 
     if SUCCEEDED(hr) {
-        unsafe {
-            Some(factory)
-        }
+        unsafe { Some(factory) }
     } else {
         None
     }
@@ -80,13 +69,9 @@ fn create_dxgifactory() -> Option<*mut IDXGIFactory1> {
 fn get_primary_adapter(factory: &Option<*mut IDXGIFactory1>) -> Option<*mut IDXGIAdapter1> {
     if let Some(factory) = *factory {
         let mut adapter: *mut IDXGIAdapter1 = std::ptr::null_mut();
-        let hr = unsafe {
-            (*factory).EnumAdapters1(0, &mut adapter)
-        };
+        let hr = unsafe { (*factory).EnumAdapters1(0, &mut adapter) };
         if SUCCEEDED(hr) {
-            unsafe {
-                return Some(adapter)
-            }
+            unsafe { return Some(adapter) }
         }
     }
     None
@@ -102,9 +87,7 @@ fn get_primary_output(factory: &Option<*mut IDXGIFactory1>) -> Option<*mut IDXGI
             hr
         };
         if SUCCEEDED(hr) {
-            unsafe {
-                return Some(output)
-            }
+            unsafe { return Some(output) }
         }
     }
     None
@@ -142,7 +125,6 @@ pub struct VSync {
     vsync_count: Arc<(Mutex<usize>, Condvar)>,
     last_vsync: usize,
 }
-
 
 impl VSync {
     pub fn new() -> Self {
@@ -185,7 +167,9 @@ impl VSync {
     pub fn wait_for_vsync(&mut self) {
         let (lock, cvar) = &*self.vsync_count;
         // As long as the value inside the `Mutex<bool>` is `true`, we wait.
-        let count = cvar.wait_while(lock.lock().unwrap(), |count| {*count < self.last_vsync + 2 }).unwrap();
+        let count = cvar
+            .wait_while(lock.lock().unwrap(), |count| *count < self.last_vsync + 2)
+            .unwrap();
         self.last_vsync = *count;
         /*
         let mut timing_info = get_composition_timing_info().unwrap();
@@ -221,7 +205,7 @@ impl VSync {
                         ""
                     };
                     log::trace!("{} frame time {} {}", long, elapsed_before, elapsed);
-                    
+
                 }
             } else {
                 unsafe {
@@ -303,7 +287,6 @@ impl Drop for VSync {
   }
 */
 
- 
 /*
 +#[cfg(target_os = "windows")]
 +use windows::Win32::Graphics::Dxgi::{CreateDXGIFactory1, IDXGIFactory1, IDXGIOutput};
@@ -318,7 +301,7 @@ impl Drop for VSync {
 +    #[cfg(target_os = "windows")]
 +    dxgi_output: IDXGIOutput,
  }
- 
+
  impl GlutinWindowWrapper {
 @@ -205,8 +210,24 @@ impl GlutinWindowWrapper {
      pub fn draw_frame(&mut self, dt: f32) {
@@ -345,7 +328,7 @@ impl Drop for VSync {
 +        tracy_gpu_collect();
 +        emit_frame_mark();
      }
- 
+
      pub fn animate_frame(&mut self, dt: f32, time: f64) -> bool {
 @@ -487,6 +508,13 @@ pub fn create_window() {
              saved_inner_size,
@@ -359,6 +342,6 @@ impl Drop for VSync {
 +                primary_output
 +            },
          };
- 
+
          tracy_create_gpu_context("main render context");
 */

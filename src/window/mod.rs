@@ -12,6 +12,7 @@ use std::time::{Duration, Instant};
 
 use log::trace;
 use simple_moving_average::{NoSumSMA, SMA};
+use spin_sleep::native_sleep;
 use tokio::sync::mpsc::UnboundedReceiver;
 use winit::{
     dpi::PhysicalSize,
@@ -19,7 +20,6 @@ use winit::{
     event_loop::{ControlFlow, EventLoop},
     window::{self, Fullscreen, Icon},
 };
-use spin_sleep::native_sleep;
 
 #[cfg(target_os = "macos")]
 use winit::platform::macos::WindowBuilderExtMacOS;
@@ -32,9 +32,12 @@ use winit::platform::wayland::WindowBuilderExtWayland;
 #[cfg(target_os = "linux")]
 use winit::platform::x11::WindowBuilderExtX11;
 
-use crate::{profiling::{
-    emit_frame_mark, tracy_create_gpu_context, tracy_gpu_collect, tracy_gpu_zone, tracy_zone,
-}, cmd_line, frame};
+use crate::{
+    cmd_line, frame,
+    profiling::{
+        emit_frame_mark, tracy_create_gpu_context, tracy_gpu_collect, tracy_gpu_zone, tracy_zone,
+    },
+};
 
 use image::{load_from_memory, GenericImageView, Pixel};
 use keyboard_manager::KeyboardManager;
@@ -198,8 +201,7 @@ impl WinitWindowWrapper {
                     self.handle_focus_lost();
                 }
             }
-            Event::RedrawRequested(..) | Event::WindowEvent { .. } => {
-            }
+            Event::RedrawRequested(..) | Event::WindowEvent { .. } => {}
             _ => {}
         }
         should_render
@@ -209,28 +211,22 @@ impl WinitWindowWrapper {
         tracy_zone!("draw_frame");
 
         {
-            tracy_gpu_zone!("draw window surfaces");
-            self.renderer.draw_window_surfaces();
-            self.skia_renderer.gr_context.flush_and_submit();
+            tracy_gpu_zone!("skia flush");
+            //self.skia_renderer.gr_context.flush_submit_and_sync_cpu();
+            //self.skia_renderer.gr_context.flush_and_submit();
         }
-
         {
             tracy_gpu_zone!("skia clear");
             let default_background = self.renderer.grid_renderer.get_default_background();
             self.skia_renderer.canvas().clear(default_background);
-            self.skia_renderer.gr_context.flush_and_submit();
+            //self.skia_renderer.gr_context.flush_and_submit();
         }
 
         self.renderer.draw_frame(self.skia_renderer.canvas(), dt);
         {
             tracy_gpu_zone!("skia flush");
             self.skia_renderer.gr_context.flush_submit_and_sync_cpu();
-        }
-        unsafe {
-            // Make sure that all gpu rendering is completed, so that the latest 
-            // state is actually drawn
-            tracy_gpu_zone!("glFinish");
-            gl::Finish();
+            //self.skia_renderer.gr_context.flush_and_submit();
         }
         {
             tracy_gpu_zone!("wait for vsync");
@@ -239,6 +235,13 @@ impl WinitWindowWrapper {
         {
             tracy_gpu_zone!("swap buffers");
             self.windowed_context.swap_buffers().unwrap();
+        }
+        unsafe {
+            // Make sure that all gpu rendering is completed, so that the latest
+            // state is actually drawn
+            tracy_gpu_zone!("glFinish");
+            //gl::Finish();
+            //self.skia_renderer.gr_context.flush_and_submit();
         }
         emit_frame_mark();
         tracy_gpu_collect();
@@ -605,8 +608,7 @@ pub fn create_window() {
                 }
                 */
                 if should_render || cmd_line_settings.no_idle {
-                    window_wrapper
-                        .draw_frame(&mut vsync, last_dt);
+                    window_wrapper.draw_frame(&mut vsync, last_dt);
                     should_render = false;
                     animating = true;
                 } else {
@@ -614,7 +616,6 @@ pub fn create_window() {
                 }
                 last_dt = frame_start.elapsed().as_secs_f32();
                 frame_start = Instant::now();
-
 
                 if let FocusedState::UnfocusedNotDrawn = focused {
                     focused = FocusedState::Unfocused;
@@ -626,8 +627,7 @@ pub fn create_window() {
 
                 //window.request_redraw();
             }
-            Event::RedrawRequested(_) => {
-            }
+            Event::RedrawRequested(_) => {}
             _ => (),
         }
 
@@ -649,11 +649,12 @@ pub fn create_window() {
         //let frame_duration = Instant::now().duration_since(frame_start);
         //let wait_time = excpected_frame_duration.as_secs_f64() - frame_duration.as_secs_f64();
 
-        if true /* || wait_time < 0.001 */ {
+        if true
+        /* || wait_time < 0.001 */
+        {
             *control_flow = ControlFlow::Poll;
         } else {
             *control_flow = ControlFlow::WaitUntil(frame_start + excpected_frame_duration);
         }
-
     });
 }

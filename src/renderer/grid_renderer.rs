@@ -100,6 +100,7 @@ impl GridRenderer {
         grid_position: (u64, u64),
         cell_width: u64,
         style: &Option<Arc<Style>>,
+        transparency: f32,
     ) -> (bool, bool) {
         tracy_zone!("draw_background");
         let debug = SETTINGS.get::<RendererSettings>().debug_renderer;
@@ -119,20 +120,20 @@ impl GridRenderer {
             let random_color = random_hsv.to_color(255);
             paint.set_color(random_color);
         } else {
-            paint
-                .set_color(style.background(&self.default_style.colors).to_color());
+            paint.set_color(style.background(&self.default_style.colors).to_color());
         }
-        if style.blend > 0 {
-            paint.set_alpha_f((100 - style.blend) as f32 / 100.0);
+        let alpha = if style.blend > 0 {
+            (100 - style.blend) as f32 / 100.0
         } else {
-            paint.set_alpha_f(1.0);
-        }
+            1.0
+        };
+        paint.set_alpha_f(alpha * transparency);
 
         if paint.color4f() == self.default_style.colors.background.unwrap() {
-            (false, style.blend > 0)
+            (false, paint.alpha() != 255)
         } else {
             canvas.draw_rect(region, &paint);
-            (true, style.blend > 0)
+            (true, paint.alpha() != 255)
         }
     }
 
@@ -186,8 +187,7 @@ impl GridRenderer {
             let random_color = random_hsv.to_color(255);
             paint.set_color(random_color);
         } else {
-            paint
-                .set_color(style.foreground(&self.default_style.colors).to_color());
+            paint.set_color(style.foreground(&self.default_style.colors).to_color());
         }
         paint.set_anti_alias(false);
 
@@ -215,8 +215,7 @@ impl GridRenderer {
 
         if style.strikethrough {
             let line_position = region.center_y();
-            paint
-                .set_color(style.special(&self.default_style.colors).to_color());
+            paint.set_color(style.special(&self.default_style.colors).to_color());
             canvas.draw_line(
                 (x as f32, line_position),
                 ((x + width) as f32, line_position),
@@ -238,7 +237,6 @@ impl GridRenderer {
         p2: Point,
     ) {
         canvas.save();
-
 
         let mut underline_paint = Paint::default();
         underline_paint.set_anti_alias(false);

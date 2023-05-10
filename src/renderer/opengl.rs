@@ -3,7 +3,7 @@ use std::num::NonZeroU32;
 
 use crate::cmd_line::CmdLineSettings;
 
-use gl::{MAX_RENDERBUFFER_SIZE};
+use gl::MAX_RENDERBUFFER_SIZE;
 use glutin::surface::SwapInterval;
 use glutin::{
     config::{Config, ConfigTemplateBuilder},
