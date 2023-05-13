@@ -8,8 +8,10 @@
             "name": "Launch",
             "type": "lldb",
             "request": "launch",
-            "program": "${workspaceFolder}/target/debug/neovide.exe",
-            "args": [],
+            "args": ["--wsl", "--multigrid", "--noidle"],
+            "cargo": {
+                "args": ["build"]
+            }
         },
     ]
 }
