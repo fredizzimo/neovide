@@ -545,6 +545,7 @@ pub fn create_window() {
                     last_dt
                 }
                 .min(1.0);
+                vsync.set_refresh_rate(SETTINGS.get::<WindowSettings>().refresh_rate);
                 should_render |= window_wrapper.prepare_frame();
                 let num_steps = (dt / max_animation_dt).ceil();
                 let step = dt / num_steps;
