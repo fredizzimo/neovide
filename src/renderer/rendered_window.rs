@@ -90,6 +90,8 @@ pub struct RenderedWindow {
     pub padding: WindowPadding,
 
     has_transparency: bool,
+
+    frame: u64,
 }
 
 #[derive(Clone, Debug)]
@@ -129,6 +131,8 @@ impl RenderedWindow {
 
             padding,
             has_transparency: false,
+
+            frame: 0,
         }
     }
 
@@ -175,6 +179,17 @@ impl RenderedWindow {
         font_dimensions: Dimensions,
         default_background: Color,
     ) {
+        //let pixel_region = Rect::from_size(image_size);
+        /*
+        let color = if (self.frame % 2) == 0{
+            Color::from_argb(default_background.a(), 0, 255, 255)
+        } else {
+            Color::from_argb(default_background.a(), 255, 0, 0)
+        };
+        */
+        let color = default_background;
+        self.frame += 1;
+
         let scroll_offset_lines = self.scroll_animation.position.floor();
         let scroll_offset = scroll_offset_lines - self.scroll_animation.position;
         let scroll_offset_pixels = (scroll_offset * font_dimensions.height as f32).round() as isize;
@@ -207,7 +222,7 @@ impl RenderedWindow {
             .bounds(pixel_region)
             .paint(&background_paint);
         canvas.save_layer(&save_layer_rec);
-        canvas.clear(default_background.with_a(255));
+        canvas.clear(color.with_a(255));
         for (matrix, line) in &lines {
             let line = line.lock().unwrap();
             if let Some(background_picture) = &line.background_picture {
