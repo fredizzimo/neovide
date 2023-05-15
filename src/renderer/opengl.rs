@@ -1,19 +1,19 @@
-use std::ffi::{c_void, CStr};
+use std::ffi::{c_void, CStr, CString};
 use std::num::NonZeroU32;
 
 use crate::cmd_line::CmdLineSettings;
 
 use gl::MAX_RENDERBUFFER_SIZE;
-use glutin::surface::SwapInterval;
+use glutin::surface::{SwapInterval, PbufferSurface};
 use glutin::{
     config::{Config, ConfigTemplateBuilder},
-    context::{ContextAttributesBuilder, GlProfile, PossiblyCurrentContext},
+    context::{ContextAttributesBuilder, ContextAttributes, GlProfile, PossiblyCurrentContext, NotCurrentContext},
     display::GetGlDisplay,
     prelude::*,
     surface::{Surface, SurfaceAttributesBuilder, WindowSurface},
 };
 use glutin_winit::DisplayBuilder;
-use raw_window_handle::HasRawWindowHandle;
+use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
 use winit::dpi::PhysicalSize;
 use winit::{
     event_loop::EventLoop,
@@ -54,6 +54,23 @@ impl Context {
     pub fn get_render_target_size(&self) -> PhysicalSize<u32> {
         clamp_render_buffer_size(self.window.inner_size())
     }
+
+    pub fn new_shared(&self) {
+        
+    }
+}
+
+pub struct OffscreenContext {
+    surface: Surface<PbufferSurface>,
+    context: PossiblyCurrentContext,
+}
+
+impl OffscreenContext {
+    pub fn get_proc_address(&self, addr: &str) -> *const c_void {
+        let addr = CString::new(addr).unwrap();
+        GlDisplay::get_proc_address(&self.surface.display(), addr.as_c_str())
+    }
+
 }
 
 fn gen_config(mut config_iterator: Box<dyn Iterator<Item = Config> + '_>) -> Config {
@@ -114,5 +131,31 @@ pub fn build_context(
         context,
         window,
         config,
+    }
+}
+
+pub fn build_offscreen_context(
+    config: Config,
+) -> OffscreenContext {
+    let gl_display = config.display();
+
+    let surface_attributes = SurfaceAttributesBuilder::<PbufferSurface>::new()
+        .build(
+            NonZeroU32::new(1).unwrap(),
+            NonZeroU32::new(1).unwrap(),
+        );
+    let surface = unsafe { gl_display.create_pbuffer_surface(&config, &surface_attributes) }
+        .expect("Failed to create Pbuffer Surface");
+    let context_attributes = ContextAttributesBuilder::new()
+        .with_profile(GlProfile::Core)
+        .build(None);
+    let context = unsafe { gl_display.create_context(&config, &context_attributes) }
+        .expect("Failed to create OpenGL context")
+        .make_current(&surface)
+        .unwrap();
+
+    OffscreenContext {
+        surface,
+        context,
     }
 }

@@ -4,12 +4,28 @@ use std::{
         atomic::{AtomicBool, Ordering},
         Arc, Condvar, Mutex,
     },
-    thread::{spawn, JoinHandle},
-    time::Instant,
+    thread::{spawn, JoinHandle, sleep},
+    time::{Instant, Duration}
 };
+use winit::window::Window;
+use raw_window_handle::HasRawWindowHandle;
+use glutin::{
+    config::Config,
+    context::{ContextAttributesBuilder, GlProfile, PossiblyCurrentContext, NotCurrentContext},
+};
+
+use crate::cmd_line::CmdLineSettings;
+use crate::renderer::build_offscreen_context;
+
+#[cfg(target_os = "windows")]
 use winapi::um::dwmapi::DwmFlush;
 
+use neovide_gl_bindings::glx::WaitVideoSyncSGI;
+
+
 use simple_moving_average::{NoSumSMA, SMA};
+
+use super::opengl::OffscreenContext;
 
 pub struct VSync {
     should_exit: Arc<AtomicBool>,
@@ -20,30 +36,47 @@ pub struct VSync {
     interval: usize,
 }
 
+#[cfg(target_os = "windows")]
+fn wait() {
+    unsafe {
+        DwmFlush();
+    }
+}
+
+
+#[cfg(target_os = "linux")]
+fn wait() {
+    //sleep(Duration::from_secs_f64(1.0 / 60.0));
+    let mut count = 0;
+    unsafe {
+        WaitVideoSyncSGI(1, 0, &mut count);
+    }
+}
+
 impl VSync {
-    pub fn new() -> Self {
+    pub fn new(window: &Window, config: Config, cmd_line_settings: &CmdLineSettings) -> Self {
         let should_exit = Arc::new(AtomicBool::new(false));
         let should_exit2 = should_exit.clone();
         let vsync_count = Arc::new((Mutex::new((0, 0.0)), Condvar::new()));
         let vsync_count2 = vsync_count.clone();
 
         let vsync_thread = Some(spawn(move || {
+            let context = build_offscreen_context(config);
+            WaitVideoSyncSGI::load_with(|s| context.get_proc_address(s) as *const _);
             let mut frame_dt_avg = NoSumSMA::<f64, f64, 10>::new();
             let mut prev_frame_start = Instant::now();
 
             let (lock, cvar) = &*vsync_count2;
             while !should_exit2.load(Ordering::SeqCst) {
-                unsafe {
-                    tracy_zone!("VSyncThread");
-                    DwmFlush();
-                    frame_dt_avg.add_sample(prev_frame_start.elapsed().as_secs_f64());
-                    prev_frame_start = Instant::now();
-                    {
-                        let mut count_dt = lock.lock().unwrap();
-                        count_dt.0 += 1;
-                        count_dt.1 = frame_dt_avg.get_average();
-                        cvar.notify_one();
-                    }
+                tracy_zone!("VSyncThread");
+                wait();
+                frame_dt_avg.add_sample(prev_frame_start.elapsed().as_secs_f64());
+                prev_frame_start = Instant::now();
+                {
+                    let mut count_dt = lock.lock().unwrap();
+                    count_dt.0 += 1;
+                    count_dt.1 = frame_dt_avg.get_average();
+                    cvar.notify_one();
                 }
             }
         }));

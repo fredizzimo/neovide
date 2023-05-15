@@ -51,7 +51,7 @@ use crate::{
     frame::Frame,
     renderer::Renderer,
     renderer::WindowPadding,
-    renderer::{build_context, build_window, VSync, WindowedContext},
+    renderer::{build_context, build_offscreen_context, build_window, VSync, WindowedContext},
     running_tracker::*,
     settings::{
         load_last_window_settings, save_window_size, PersistentWindowSettings,
@@ -439,7 +439,7 @@ pub fn create_window() {
     let (txtemp, rx) = mpsc::channel::<Event<UserEvent>>();
     let mut tx = Some(txtemp);
     let mut render_thread_handle = Some(thread::spawn(move || {
-        let windowed_context = build_context(window, config, &cmd_line_settings);
+        let windowed_context = build_context(window, config.clone(), &cmd_line_settings);
         let window = windowed_context.window();
         let initial_size = window.inner_size();
 
@@ -521,7 +521,7 @@ pub fn create_window() {
         }
         let mut focused = FocusedState::Focused;
 
-        let mut vsync = VSync::new();
+        let mut vsync = VSync::new(&window_wrapper.windowed_context.window(), config.clone(), &cmd_line_settings);
 
         #[allow(unused_assignments)]
         loop {

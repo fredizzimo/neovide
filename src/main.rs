@@ -6,6 +6,9 @@
 extern crate neovide_derive;
 
 #[macro_use]
+extern crate neovide_gl_bindings;
+
+#[macro_use]
 extern crate clap;
 
 mod bridge;

@@ -1308,6 +1308,7 @@ dependencies = [
  "lru",
  "mockall",
  "neovide-derive",
+ "neovide-gl-bindings",
  "nvim-rs",
  "objc",
  "parking_lot",
@@ -1339,6 +1340,13 @@ version = "0.1.0"
 dependencies = [
  "quote",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "neovide-gl-bindings"
+version = "0.1.0"
+dependencies = [
+ "gl_generator",
 ]
 
 [[package]]
