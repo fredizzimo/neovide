@@ -38,21 +38,33 @@ impl Context {
     pub fn window(&self) -> &Window {
         &self.window
     }
+
     pub fn resize(&self, width: NonZeroU32, height: NonZeroU32) {
         GlSurface::resize(&self.surface, &self.context, width, height)
     }
+
     pub fn swap_buffers(&self) -> glutin::error::Result<()> {
         GlSurface::swap_buffers(&self.surface, &self.context)
     }
+
     pub fn get_proc_address(&self, addr: &CStr) -> *const c_void {
         GlDisplay::get_proc_address(&self.surface.display(), addr)
     }
+
     pub fn get_config(&self) -> &Config {
         &self.config
     }
 
     pub fn get_render_target_size(&self) -> PhysicalSize<u32> {
         clamp_render_buffer_size(self.window.inner_size())
+    }
+
+    #[allow(dead_code)]
+    pub fn set_swap_interval(&self, interval: u32) {
+        let _ = self.surface.set_swap_interval(
+            &self.context,
+            SwapInterval::Wait(NonZeroU32::new(interval).unwrap()),
+        );
     }
 }
 
