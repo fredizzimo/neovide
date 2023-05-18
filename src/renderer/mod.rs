@@ -5,7 +5,10 @@ pub mod grid_renderer;
 mod opengl;
 pub mod profiler;
 mod rendered_window;
+#[cfg(not(target_os = "windows"))]
 mod vsync;
+#[cfg(target_os = "windows")]
+mod vsync_win;
 
 use std::{
     cmp::Ordering,
@@ -36,7 +39,10 @@ pub use rendered_window::{
 };
 
 pub use opengl::{build_context, build_window, Context as WindowedContext};
+#[cfg(not(target_os = "windows"))]
 pub use vsync::*;
+#[cfg(target_os = "windows")]
+pub use vsync_win::*;
 
 #[derive(SettingGroup, Clone)]
 pub struct RendererSettings {
