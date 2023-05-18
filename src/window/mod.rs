@@ -521,7 +521,7 @@ pub fn create_window() {
         }
         let mut focused = FocusedState::Focused;
 
-        let mut vsync = VSync::new();
+        let mut vsync = VSync::new(cmd_line_settings.vsync);
 
         #[allow(unused_assignments)]
         loop {
@@ -587,7 +587,9 @@ pub fn create_window() {
                     window_wrapper.draw_frame(&mut vsync, last_dt);
 
                     if num_consecutive_rendered > 2 {
-                        frame_dt_avg.add_sample(previous_frame_start.elapsed().as_secs_f64());
+                        let frame_time = previous_frame_start.elapsed().as_secs_f64();
+                        vsync.notify_frame_duration(&window_wrapper.windowed_context, frame_time);
+                        frame_dt_avg.add_sample(frame_time);
                     }
                     should_render = false;
                     num_consecutive_rendered += 1;
