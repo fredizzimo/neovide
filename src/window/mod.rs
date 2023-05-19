@@ -6,6 +6,8 @@ mod settings;
 #[cfg(target_os = "macos")]
 mod draw_background;
 
+#[cfg(target_os = "linux")]
+use std::env;
 use std::time::{Duration, Instant};
 
 use log::trace;
@@ -24,7 +26,9 @@ use winit::platform::macos::WindowBuilderExtMacOS;
 use draw_background::draw_background;
 
 #[cfg(target_os = "linux")]
-use winit::platform::unix::WindowBuilderExtUnix;
+use winit::platform::wayland::WindowBuilderExtWayland;
+#[cfg(target_os = "linux")]
+use winit::platform::x11::WindowBuilderExtX11;
 
 use crate::profiling::{
     emit_frame_mark, tracy_create_gpu_context, tracy_gpu_collect, tracy_gpu_zone, tracy_zone,
@@ -393,12 +397,16 @@ pub fn create_window() {
     }
 
     #[cfg(target_os = "linux")]
-    let winit_window_builder = winit_window_builder
-        .with_app_id(cmd_line_settings.wayland_app_id.clone())
-        .with_class(
-            cmd_line_settings.x11_wm_class_instance.clone(),
-            cmd_line_settings.x11_wm_class.clone(),
-        );
+    let winit_window_builder = {
+        if env::var("WAYLAND_DISPLAY").is_ok() {
+            let app_id = &cmd_line_settings.wayland_app_id;
+            WindowBuilderExtWayland::with_name(winit_window_builder, "neovide", app_id.clone())
+        } else {
+            let class = &cmd_line_settings.x11_wm_class;
+            let instance = &cmd_line_settings.x11_wm_class_instance;
+            WindowBuilderExtX11::with_name(winit_window_builder, class, instance)
+        }
+    };
 
     #[cfg(target_os = "macos")]
     let winit_window_builder = winit_window_builder.with_accepts_first_mouse(false);
@@ -417,7 +425,10 @@ pub fn create_window() {
             let monitor_width = monitor_size.width as i32;
             let monitor_height = monitor_size.height as i32;
 
-            let window_position = window.outer_position().ok()?;
+            let window_position = previous_position
+                .filter(|_| !maximized)
+                .or_else(|| window.outer_position().ok())?;
+
             let window_size = window.outer_size();
             let window_width = window_size.width as i32;
             let window_height = window_size.height as i32;

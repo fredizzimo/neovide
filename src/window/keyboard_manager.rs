@@ -5,7 +5,7 @@ use crate::{
     window::KeyboardSettings,
 };
 use winit::{
-    event::{ElementState, Event, KeyEvent, WindowEvent},
+    event::{ElementState, Event, Ime, KeyEvent, WindowEvent},
     keyboard::{Key, Key::Dead},
     platform::modifier_supplement::KeyEventExtModifierSupplement,
 };
@@ -60,7 +60,7 @@ impl KeyboardManager {
                     .push(InputEvent::KeyEvent(key_event.clone()));
             }
             Event::WindowEvent {
-                event: WindowEvent::ReceivedImeText(string),
+                event: WindowEvent::Ime(Ime::Commit(string)),
                 ..
             } => {
                 self.queued_input_events
@@ -130,7 +130,7 @@ impl KeyboardManager {
     fn maybe_get_keybinding(&self, key_event: &KeyEvent) -> Option<String> {
         // Determine if this key event represents a key which won't ever
         // present text.
-        if let Some(key_text) = is_control_key(key_event.logical_key) {
+        if let Some(key_text) = is_control_key(&key_event.logical_key) {
             if self.prev_dead_key.is_some() {
                 //recover dead key to normal character
                 let real_char = String::from(self.prev_dead_key.unwrap());
@@ -140,12 +140,12 @@ impl KeyboardManager {
             }
         } else {
             let key_text = if self.prev_dead_key.is_none() {
-                key_event.text
+                key_event.text.as_ref().map(|text| text.as_str())
             } else {
                 key_event.text_with_all_modifiers()
             };
             if let Some(original_key_text) = key_text {
-                let mut key_text = original_key_text;
+                let mut key_text = original_key_text.to_string();
                 if self.alt {
                     if let Some(modify) = key_event_text(key_event) {
                         key_text = modify;
@@ -154,10 +154,10 @@ impl KeyboardManager {
                 // This is not a control key, so we rely upon winit to determine if
                 // this is a deadkey or not.
                 let keybinding_string =
-                    if let Some((escaped_text, use_shift)) = is_special(key_text) {
+                    if let Some((escaped_text, use_shift)) = is_special(&key_text) {
                         self.format_special_key(use_shift, escaped_text)
                     } else {
-                        self.format_normal_key(key_text)
+                        self.format_normal_key(&key_text)
                     };
 
                 Some(keybinding_string)
@@ -209,17 +209,22 @@ fn use_alt(alt: bool) -> bool {
 }
 
 #[cfg(not(target_os = "macos"))]
-fn key_event_text(key_event: &KeyEvent) -> Option<&str> {
-    key_event.key_without_modifiers().to_text()
+fn key_event_text(key_event: &KeyEvent) -> Option<String> {
+    key_event
+        .key_without_modifiers()
+        .to_text()
+        .map(|text| text.to_string())
 }
 
 #[cfg(target_os = "macos")]
-fn key_event_text(key_event: &KeyEvent) -> Option<&str> {
+fn key_event_text(key_event: &KeyEvent) -> Option<String> {
     let settings = SETTINGS.get::<KeyboardSettings>();
     if settings.macos_alt_is_meta {
-        key_event.text
+        key_event.text.as_ref().map(|text| text.to_string())
     } else {
-        key_event.text_with_all_modifiers()
+        key_event
+            .text_with_all_modifiers()
+            .map(|text| text.to_string())
     }
 }
 
@@ -231,7 +236,7 @@ fn or_empty(condition: bool, text: &str) -> &str {
     }
 }
 
-fn is_control_key(key: Key<'static>) -> Option<&str> {
+fn is_control_key(key: &Key) -> Option<&'static str> {
     match key {
         Key::Backspace => Some("BS"),
         Key::Escape => Some("Esc"),
