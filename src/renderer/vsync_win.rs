@@ -24,7 +24,7 @@ pub struct VSync {
 impl VSync {
     // On Windows the fake vsync is always enabled
     // Everything else is very jerky
-    pub fn new(_vsync_enabled: bool) -> Self {
+    pub fn new(_vsync_enabled: bool, _context: &WindowedContext) -> Self {
         let should_exit = Arc::new(AtomicBool::new(false));
         let should_exit2 = should_exit.clone();
         let vsync_count = Arc::new((Mutex::new((0, 0.0)), Condvar::new()));

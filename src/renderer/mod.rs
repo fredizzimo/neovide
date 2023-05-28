@@ -7,6 +7,10 @@ pub mod profiler;
 mod rendered_window;
 #[cfg(not(target_os = "windows"))]
 mod vsync;
+#[cfg(not(target_os = "windows"))]
+mod vsync_opengl;
+#[cfg(target_os = "linux")]
+mod vsync_wayland;
 #[cfg(target_os = "windows")]
 mod vsync_win;
 

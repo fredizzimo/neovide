@@ -120,6 +120,7 @@ pub fn build_context(
     } else {
         surface.set_swap_interval(&context, SwapInterval::DontWait)
     };
+    let _ = surface.set_swap_interval(&context, SwapInterval::DontWait);
 
     Context {
         surface,
