@@ -521,7 +521,7 @@ pub fn create_window() {
         }
         let mut focused = FocusedState::Focused;
 
-        let mut vsync = VSync::new(cmd_line_settings.vsync);
+        let mut vsync = VSync::new(cmd_line_settings.vsync, &window_wrapper.windowed_context);
 
         #[allow(unused_assignments)]
         loop {
