@@ -8,6 +8,8 @@ use skia_safe::{
     BlendMode, Canvas, ClipOp, Color, Contains, Matrix, Paint, Path, Picture, PictureRecorder,
     Point, Point3, Rect,
 };
+use unicode_segmentation::UnicodeSegmentation;
+use unicode_width::UnicodeWidthStr;
 
 use crate::{
     cmd_line::CmdLineSettings,
@@ -387,13 +389,15 @@ impl RenderedWindow {
         );
 
         if !ime_preedit.text.is_empty() && cursor.parent_window_id == self.id {
-            grid_renderer.draw_foreground(
-                root_canvas,
-                &ime_preedit.text,
-                cursor.grid_position,
-                ime_preedit.text.len() as u64,
-                &None,
-            );
+            let graphemes: Vec<_> = ime_preedit.text.graphemes(true).collect();
+            let segments = graphemes.split_inclusive(|grapheme| grapheme.width() > 1);
+            let mut position = cursor.grid_position;
+            for segment in segments {
+                let text = segment.join("");
+                let width = text.width() as u64;
+                grid_renderer.draw_foreground(root_canvas, &text, position, width, &None);
+                position.0 += width;
+            }
         }
 
         root_canvas.restore();
