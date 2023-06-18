@@ -2,8 +2,10 @@ mod blink;
 mod cursor_vfx;
 
 use std::collections::HashMap;
+use std::str::from_utf8;
 
 use skia_safe::{op, Canvas, Paint, Path, Point};
+use unicode_width::UnicodeWidthStr;
 use winit::event::{Event, WindowEvent};
 
 use crate::{
@@ -13,6 +15,7 @@ use crate::{
     renderer::animation_utils::*,
     renderer::{GridRenderer, RenderedWindow},
     settings::{ParseFromValue, SETTINGS},
+    window::ImePreedit,
     window::UserEvent,
 };
 
@@ -247,29 +250,40 @@ impl CursorRenderer {
         &mut self,
         (font_width, font_height): (u64, u64),
         windows: &HashMap<u64, RenderedWindow>,
+        ime_preedit: &ImePreedit,
     ) {
         let (cursor_grid_x, cursor_grid_y) = self.cursor.grid_position;
 
-        if let Some(window) = windows.get(&self.cursor.parent_window_id) {
-            let grid_x = cursor_grid_x as f32 + window.grid_current_position.x;
-            let mut grid_y = cursor_grid_y as f32 + window.grid_current_position.y
-                - window.scroll_animation.position;
+        let mut destination: Point =
+            if let Some(window) = windows.get(&self.cursor.parent_window_id) {
+                let grid_x = cursor_grid_x as f32 + window.grid_current_position.x;
+                let mut grid_y = cursor_grid_y as f32 + window.grid_current_position.y
+                    - window.scroll_animation.position;
 
-            // Prevent the cursor from targeting a position outside its current window. Since only
-            // the vertical direction is effected by scrolling, we only have to clamp the vertical
-            // grid position.
-            grid_y = grid_y
-                .max(window.grid_current_position.y)
-                .min(window.grid_current_position.y + window.grid_size.height as f32 - 1.0);
+                // Prevent the cursor from targeting a position outside its current window. Since only
+                // the vertical direction is effected by scrolling, we only have to clamp the vertical
+                // grid position.
+                grid_y = grid_y
+                    .max(window.grid_current_position.y)
+                    .min(window.grid_current_position.y + window.grid_size.height as f32 - 1.0);
 
-            self.destination = (grid_x * font_width as f32, grid_y * font_height as f32).into();
-        } else {
-            self.destination = (
-                (cursor_grid_x * font_width) as f32,
-                (cursor_grid_y * font_height) as f32,
-            )
-                .into();
+                (grid_x * font_width as f32, grid_y * font_height as f32).into()
+            } else {
+                (
+                    (cursor_grid_x * font_width) as f32,
+                    (cursor_grid_y * font_height) as f32,
+                )
+                    .into()
+            };
+        if !ime_preedit.text.is_empty() && ime_preedit.cursor_offset.is_some() {
+            let (_start, end) = ime_preedit.cursor_offset.unwrap();
+            if end > 0 {
+                let bytes = &ime_preedit.text.as_bytes()[0..end];
+                let offset = from_utf8(bytes).map_or(0, |text| text.width()) as u64;
+                destination.x += (offset * font_width) as f32;
+            }
         }
+        self.destination = destination;
     }
 
     pub fn draw(&mut self, grid_renderer: &mut GridRenderer, canvas: &Canvas) {

@@ -331,10 +331,12 @@ impl WinitWindowWrapper {
 
     pub fn animate_frame(&mut self, dt: f32) -> bool {
         tracy_zone!("animate_frame", 0);
+        let ime_preedit = &self.keyboard_manager.ime_preedit;
 
         self.renderer.animate_frame(
             &self.get_grid_size_from_window(0, 0),
             &self.padding_as_grid(),
+            ime_preedit,
             dt,
         )
     }

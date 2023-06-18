@@ -213,6 +213,7 @@ impl Renderer {
         &mut self,
         window_size: &Dimensions,
         padding_as_grid: &Rect,
+        ime_preedit: &ImePreedit,
         dt: f32,
     ) -> bool {
         let windows = {
@@ -242,8 +243,11 @@ impl Renderer {
 
         let windows = &self.rendered_windows;
         let font_dimensions = self.grid_renderer.font_dimensions;
-        self.cursor_renderer
-            .update_cursor_destination(font_dimensions.into(), windows);
+        self.cursor_renderer.update_cursor_destination(
+            font_dimensions.into(),
+            windows,
+            ime_preedit,
+        );
 
         animating |= self
             .cursor_renderer
