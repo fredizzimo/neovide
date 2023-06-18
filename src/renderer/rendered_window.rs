@@ -12,11 +12,12 @@ use skia_safe::{
 use crate::{
     cmd_line::CmdLineSettings,
     dimensions::Dimensions,
-    editor::{AnchorInfo, Style, WindowType},
+    editor::{AnchorInfo, Cursor, Style, WindowType},
     profiling::tracy_zone,
     renderer::{animation_utils::*, GridRenderer, RendererSettings},
     settings::SETTINGS,
     utils::RingBuffer,
+    window::ImePreedit,
 };
 
 #[derive(Clone, Debug)]
@@ -285,6 +286,7 @@ impl RenderedWindow {
             .any(|line| line.lock().unwrap().has_transparency)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn draw(
         &mut self,
         root_canvas: &Canvas,
@@ -292,6 +294,9 @@ impl RenderedWindow {
         default_background: Color,
         font_dimensions: Dimensions,
         previous_floating_rects: &mut Vec<Rect>,
+        cursor: &Cursor,
+        ime_preedit: &ImePreedit,
+        grid_renderer: &mut GridRenderer,
     ) -> WindowDrawDetails {
         let has_transparency = default_background.a() != 255 || self.has_transparency();
 
@@ -380,6 +385,17 @@ impl RenderedWindow {
             font_dimensions,
             default_background,
         );
+
+        if !ime_preedit.text.is_empty() && cursor.parent_window_id == self.id {
+            grid_renderer.draw_foreground(
+                root_canvas,
+                &ime_preedit.text,
+                cursor.grid_position,
+                ime_preedit.text.len() as u64,
+                &None,
+            );
+        }
+
         root_canvas.restore();
 
         root_canvas.restore();

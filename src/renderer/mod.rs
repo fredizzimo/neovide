@@ -25,6 +25,7 @@ use crate::{
     event_aggregator::EVENT_AGGREGATOR,
     profiling::tracy_zone,
     settings::*,
+    window::ImePreedit,
     window::UserEvent,
     WindowSettings,
 };
@@ -148,7 +149,7 @@ impl Renderer {
     }
 
     #[allow(clippy::needless_collect)]
-    pub fn draw_frame(&mut self, root_canvas: &Canvas, dt: f32) {
+    pub fn draw_frame(&mut self, root_canvas: &Canvas, ime_preedit: &ImePreedit, dt: f32) {
         tracy_zone!("renderer_draw_frame");
         let default_background = self.grid_renderer.get_default_background();
         let font_dimensions = self.grid_renderer.font_dimensions;
@@ -193,6 +194,9 @@ impl Renderer {
                     default_background.with_a((255.0 * transparency) as u8),
                     font_dimensions,
                     &mut floating_rects,
+                    &self.cursor_renderer.cursor,
+                    ime_preedit,
+                    &mut self.grid_renderer,
                 )
             })
             .collect();

@@ -172,7 +172,7 @@ impl Corner {
 
 pub struct CursorRenderer {
     pub corners: Vec<Corner>,
-    cursor: Cursor,
+    pub cursor: Cursor,
     destination: Point,
     blink_status: BlinkStatus,
     previous_cursor_shape: Option<CursorShape>,

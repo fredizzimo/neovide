@@ -17,16 +17,25 @@ fn is_ascii_alphabetic_char(text: &str) -> bool {
     text.len() == 1 && text.chars().next().unwrap().is_ascii_alphabetic()
 }
 
+pub struct ImePreedit {
+    pub text: String,
+    pub cursor_offset: Option<(usize, usize)>,
+}
+
 pub struct KeyboardManager {
     modifiers: Modifiers,
-    ime_preedit: (String, Option<(usize, usize)>),
+    pub ime_preedit: ImePreedit,
 }
 
 impl KeyboardManager {
     pub fn new() -> KeyboardManager {
+        let ime_preedit = ImePreedit {
+            text: String::new(),
+            cursor_offset: None,
+        };
         KeyboardManager {
             modifiers: Modifiers::default(),
-            ime_preedit: ("".to_string(), None),
+            ime_preedit,
         }
     }
 
@@ -40,7 +49,7 @@ impl KeyboardManager {
                         ..
                     },
                 ..
-            } if self.ime_preedit.0.is_empty() => {
+            } if self.ime_preedit.text.is_empty() => {
                 log::trace!("{:#?}", key_event);
                 if key_event.state == ElementState::Pressed {
                     if let Some(text) = self.format_key(key_event) {
@@ -59,7 +68,12 @@ impl KeyboardManager {
             Event::WindowEvent {
                 event: WindowEvent::Ime(Ime::Preedit(text, cursor_offset)),
                 ..
-            } => self.ime_preedit = (text.to_string(), *cursor_offset),
+            } => {
+                self.ime_preedit = ImePreedit {
+                    text: text.to_string(),
+                    cursor_offset: *cursor_offset,
+                };
+            }
             Event::WindowEvent {
                 event: WindowEvent::ModifiersChanged(modifiers),
                 ..

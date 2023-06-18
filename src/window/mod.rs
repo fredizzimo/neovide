@@ -40,6 +40,7 @@ use std::{
 use winit::event_loop::ControlFlow;
 
 use image::{load_from_memory, GenericImageView, Pixel};
+pub use keyboard_manager::ImePreedit;
 use keyboard_manager::KeyboardManager;
 use mouse_manager::MouseManager;
 use renderer::SkiaRenderer;

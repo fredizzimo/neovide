@@ -309,7 +309,9 @@ impl WinitWindowWrapper {
     pub fn draw_frame(&mut self, vsync: &mut VSync, dt: f32) {
         tracy_zone!("draw_frame");
         self.renderer.prepare_lines();
-        self.renderer.draw_frame(self.skia_renderer.canvas(), dt);
+        let ime_preedit = &self.keyboard_manager.ime_preedit;
+        self.renderer
+            .draw_frame(self.skia_renderer.canvas(), ime_preedit, dt);
         {
             tracy_gpu_zone!("skia flush");
             self.skia_renderer.gr_context.flush_and_submit();
