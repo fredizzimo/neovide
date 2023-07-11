@@ -1,5 +1,5 @@
 name: neovide # you probably want to 'snapcraft register <name>'
-base: core20 # the base snap is the execution environment for this snap
+base: core22 # the base snap is the execution environment for this snap
 version: "0.10.4+git"
 summary: The snappiest vim editor you are likely to find.
 description: |
@@ -7,110 +7,103 @@ description: |
   but it should act functionally like the terminal UI.
 
 grade: stable # must be 'stable' to release into candidate/stable channels
-confinement: strict # use 'strict' once you have the right plugs and slots
-build-packages:
-  - cmake
-  - freeglut3-dev
-  - libbz2-dev
-  - libexpat1-dev
-  - libgl-dev
-  - libssl-dev
-  - libxmu-dev
-  - pkg-config
-
+confinement: classic # use 'strict' once you have the right plugs and slots
+lint:
+  ignore:
+    - classic:
+      - usr/lib/${CRAFT_ARCH_TRIPLET}/dri/*
+    - library:
+      - usr/lib/${CRAFT_ARCH_TRIPLET}/libEGL.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET}/libEGL_mesa.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET}/libGL.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET}/libGLU.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET}/libGLX.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET}/libGLX_mesa.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET}/libGLdispatch.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET}/libOpenGL.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET}/libX11.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET}/libXcursor.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET}/libXext.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET}/libXfixes.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET}/libXi.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET}/libXrandr.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET}/libXrender.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET}/libXxf86vm.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET}/libgbm.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET}/libicui18n.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET}/libicuio.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET}/libicutest.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET}/libicutu.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET}/libwayland-client.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET}/libwayland-server.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET}/libxcb-dri2.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET}/libxcb-glx.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET}/libxcb-present.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET}/libxcb-render.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET}/libxcb-shm.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET}/libxcb-sync.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET}/libxcb-xfixes.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET}/libxcb-xkb.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET}/libxkbcommon-x11.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET}/libxkbcommon.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET}/libxshmfence.so.*
+      - usr/lib/${CRAFT_ARCH_TRIPLET}/libwayland-egl.so.*
 parts:
-  nvim:
-    source: https://github.com/neovim/neovim.git
-    override-pull: |
-      snapcraftctl pull
-      branch="$(git tag -l --sort=refname | awk '/v[0-9\.]/{print $0}' | tail -1)"
-      git checkout tags/${branch} -b ${branch}
-      major="$(awk '/NVIM_VERSION_MAJOR/{gsub(")","",$2); print $2}' CMakeLists.txt)"
-      minor="$(awk '/NVIM_VERSION_MINOR/{gsub(")","",$2); print $2}' CMakeLists.txt)"
-      patch="$(awk '/NVIM_VERSION_PATCH/{gsub(")","",$2); print $2}' CMakeLists.txt)"
-      VERSION="v$major.$minor.$patch"
-      snapcraftctl set-version "${VERSION}"
-    plugin: make
-    override-build: |
-      echo "Building on $SNAP_ARCH"
-      set -x
-      case "$SNAP_ARCH" in
-        "arm64" | "ppc64el"  | "s390x")
-        make -j"${SNAPCRAFT_PARALLEL_BUILD_COUNT}" \
-          CMAKE_BUILD_TYPE=RelWithDebInfo \
-          CMAKE_INSTALL_PREFIX=/usr \
-          CMAKE_FLAGS=-DPREFER_LUA=ON \
-          DEPS_CMAKE_FLAGS="-DUSE_BUNDLED_LUA=ON -DUSE_BUNDLED_LUAJIT=OFF"
-        ;;
-        *)
-        make -j"${SNAPCRAFT_PARALLEL_BUILD_COUNT}" \
-          CMAKE_BUILD_TYPE=RelWithDebInfo \
-          CMAKE_INSTALL_PREFIX=/usr
-        ;;
-      esac
-      make DESTDIR="$SNAPCRAFT_PART_INSTALL" install
-      # Fix Desktop file
-      sed -i 's|^Exec=nvim|Exec=/snap/bin/nvim.nvim|' \
-        ${SNAPCRAFT_PART_INSTALL}/usr/share/applications/nvim.desktop
-      sed -i 's|^TryExec=nvim|TryExec=/snap/bin/nvim.nvim|' \
-        ${SNAPCRAFT_PART_INSTALL}/usr/share/applications/nvim.desktop
-      sed -i 's|^Icon=.*|Icon=${SNAP}/usr/share/icons/hicolor/128x128/apps/nvim.png|' \
-        ${SNAPCRAFT_PART_INSTALL}/usr/share/applications/nvim.desktop
-    build-packages:
-      - ninja-build
-      - libtool
-      - libtool-bin
-      - autoconf
-      - automake
-      - cmake
-      - gawk
-      - g++
-      - git
-      - gettext
-      - pkg-config
-      - unzip
-      - wget
-    prime:
-      - -usr/share/man
-  desktop-glib-only:
-    plugin: make
-    source: https://github.com/ubuntu/snapcraft-desktop-helpers.git
-    source-subdir: glib-only
+  # The mesa drivers can't be patched, see various issues on the snap forums
+  mesa-nopatchelf:
+    plugin: nil
+    stage-packages:
+    - libgl1-mesa-dri
+    build-attributes:
+      - no-patchelf
+    stage:
+      - usr/lib/${SNAPCRAFT_ARCH_TRIPLET}/dri
+
+  # These libraries are dynamically loaded, and can't be verified automatically
+  # by the linter. So you need to manually verify which packages are needed at
+  # runtime. You can use for example /proc/<pid>/maps, to see where each so
+  # file is loaded from. This needs to be done for both Wayland and X11, and a
+  # combination of all libraries should be included. A corresponding line also
+  # needs to be added to the linter ignore list.
+  # If you remove this part completely, the snap should still build without
+  # linter errors, so that's a good way to check that you have everything
+  # needed in the normal neovide part.
+  dload:
+    plugin: nil
+    build-attributes:
+      - enable-patchelf
+    stage-packages:
+      - libegl1
+      - libgl1
+      - libglu1-mesa
+      - libglx0
+      - libxcb-render0
+      - libxcursor1
+      - libxi6
+      - libxkbcommon-x11-0
+      - libxrandr2
+      - libwayland-egl1
+      - libwayland-client0
+    stage:
+    - -usr/lib/${CRAFT_ARCH_TRIPLET}/dri
   neovide:
     plugin: rust
     source: .
     build-packages:
+      - cargo
+      - patchelf
       - fontconfig
       - libfontconfig1-dev
       - libfreetype6-dev
       - libxcb-composite0-dev
     stage-packages:
-      - libxkbcommon0
-      - libxkbcommon-x11-0
-      - libegl1-mesa
-      - libgl1-mesa-glx
-      - fontconfig
-      - fonts-noto
       - libfontconfig1
-      - libibus-1.0-5
       - libpng16-16
-      - libx11-6
-      - libx11-xcb1
-      - libxcursor1
-      - libxi6
-      - libxrandr2
       - locales-all
       - xdg-user-dirs
+    build-attributes:
+      - enable-patchelf
 
 apps:
   neovide:
     command: bin/neovide
-    plugs:
-      - desktop
-      - desktop-legacy
-      - wayland
-      - unity7
-      - opengl
-      - x11
-    command-chain:
-      - bin/desktop-launch
