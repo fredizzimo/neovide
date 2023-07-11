@@ -103,3 +103,12 @@ long_description = """
 This is a simple graphical user interface for Neovim. Where possible there are some graphical improvements, but it should act functionally like the terminal UI.
 """
 osx_minimum_system_version = "10.11"
+
+[patch.crates-io]
+wayland-backend = { git="https://github.com/fredizzimo/wayland-rs", branch="fsundvik/sonames-first" }
+wayland-client = { git="https://github.com/fredizzimo/wayland-rs", branch="fsundvik/sonames-first" }
+wayland-cursor = { git="https://github.com/fredizzimo/wayland-rs", branch="fsundvik/sonames-first" }
+wayland-protocols = { git="https://github.com/fredizzimo/wayland-rs", branch="fsundvik/sonames-first" }
+wayland-protocols-wlr = { git="https://github.com/fredizzimo/wayland-rs", branch="fsundvik/sonames-first" }
+wayland-scanner = { git="https://github.com/fredizzimo/wayland-rs", branch="fsundvik/sonames-first" }
+wayland-sys= { git="https://github.com/fredizzimo/wayland-rs", branch="fsundvik/sonames-first" }
