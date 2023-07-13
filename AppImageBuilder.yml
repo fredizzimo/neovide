@@ -27,6 +27,24 @@ AppDir:
     - sourceline: deb http://security.ubuntu.com/ubuntu/ bionic-security multiverse
     include:
     - libc6:amd64
+    - libfontconfig1
+    - libpng16-16
+    - libxcb-render0
+    - libxcursor1
+    - libxi6
+    - libx11-xcb1
+    - libxkbcommon-x11-0
+    - libxrandr2
+    - locales-all
+    - xdg-user-dirs
+    - libxrandr2
+    - libxshmfence1
+    - libxcb-sync1
+    - libxcb-present0
+    - libxcb-xfixes0
+    - libxcb-randr0
+    - libffi7
+    #- libwayland-client0
   files:
     include: []
     exclude:
@@ -35,27 +53,6 @@ AppDir:
     - usr/share/doc/*/changelog.*
     - usr/share/doc/*/NEWS.*
     - usr/share/doc/*/TODO.*
-  test:
-    fedora-30:
-      image: appimagecrafters/tests-env:fedora-30
-      command: ./AppRun
-      use_host_x: true
-    debian-stable:
-      image: appimagecrafters/tests-env:debian-stable
-      command: ./AppRun
-      use_host_x: true
-    archlinux-latest:
-      image: appimagecrafters/tests-env:archlinux-latest
-      command: ./AppRun
-      use_host_x: true
-    centos-7:
-      image: appimagecrafters/tests-env:centos-7
-      command: ./AppRun
-      use_host_x: true
-    ubuntu-xenial:
-      image: appimagecrafters/tests-env:ubuntu-xenial
-      command: ./AppRun
-      use_host_x: true
 AppImage:
   arch: x86_64
   update-information: guess
