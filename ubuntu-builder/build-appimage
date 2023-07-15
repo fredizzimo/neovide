@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+
+run=$(dirname "$0")/run
+#$run cargo build --release
+
+neovide=target-ubuntu/release/neovide
+
+$run linuxdeploy \
+    --executable=$neovide \
+    --desktop-file=assets/neovide.desktop \
+    --appdir=target-ubuntu/AppDir \
+    --icon-file=assets/neovide.svg \
+    --output=appimage
+
+mv Neovide_\(nvim\)-*.AppImage neovide.AppImage
