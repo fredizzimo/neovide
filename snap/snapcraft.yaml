@@ -77,13 +77,13 @@ parts:
       - libgl1
       - libglu1-mesa
       - libglx0
+      - libwayland-client0
+      - libwayland-egl1
+      - libxcb-randr0
       - libxcb-render0
       - libxcursor1
       - libxi6
       - libxkbcommon-x11-0
-      - libxrandr2
-      - libwayland-egl1
-      - libwayland-client0
     stage:
     - -usr/lib/${CRAFT_ARCH_TRIPLET}/dri
   neovide:

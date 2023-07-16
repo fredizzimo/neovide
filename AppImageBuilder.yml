@@ -1,0 +1,61 @@
+# appimage-builder recipe see https://appimage-builder.readthedocs.io for details
+version: 1
+AppDir:
+  path: AppDir
+  app_info:
+    id: com.neovide.neovide
+    name: Neovide
+    icon: neovide
+    version: latest
+    exec: usr/bin/neovide
+    exec_args: $@
+  apt:
+    arch:
+      - amd64
+    allow_unauthenticated: true
+    sources:
+      - sourceline: deb http://archive.ubuntu.com/ubuntu/ jammy main restricted
+      - sourceline: deb http://archive.ubuntu.com/ubuntu/ jammy-updates main restricted
+      - sourceline: deb http://archive.ubuntu.com/ubuntu/ jammy universe
+      - sourceline: deb http://archive.ubuntu.com/ubuntu/ jammy-updates universe
+      - sourceline: deb http://archive.ubuntu.com/ubuntu/ jammy multiverse
+      - sourceline: deb http://archive.ubuntu.com/ubuntu/ jammy-updates multiverse
+      - sourceline: deb http://archive.ubuntu.com/ubuntu/ jammy-backports main restricted
+          universe multiverse
+      - sourceline: deb http://security.ubuntu.com/ubuntu/ jammy-security main restricted
+      - sourceline: deb http://security.ubuntu.com/ubuntu/ jammy-security universe
+      - sourceline: deb http://security.ubuntu.com/ubuntu/ jammy-security multiverse
+    include:
+      - libc6:amd64
+      - libfontconfig1
+      - libpng16-16
+      - libxcb-render0
+      - libxcursor1
+      - libxi6
+      - libx11-xcb1
+      - libxkbcommon-x11-0
+      - libxrandr2
+      - locales-all
+      - xdg-user-dirs
+      - libxrandr2
+      - libxshmfence1
+      - libxcb-sync1
+      - libxcb-present0
+      - libxcb-xfixes0
+      - libxcb-randr0
+      - libffi7
+  files:
+    exclude:
+      - usr/share/man
+      - usr/share/doc/*/README.*
+      - usr/share/doc/*/changelog.*
+      - usr/share/doc/*/NEWS.*
+      - usr/share/doc/*/TODO.*
+AppImage:
+  arch: x86_64
+  update-information: guess
+script:
+  - mkdir -p AppDir/usr/share/icons
+  - cp -f assets/neovide.svg AppDir/usr/share/icons
+  - mkdir -p AppDir/usr/share/applications
+  - cp -f assets/neovide.desktop AppDir/usr/share/applications
