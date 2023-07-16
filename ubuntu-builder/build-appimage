@@ -1,9 +1,17 @@
 #!/usr/bin/env bash
 
-run=$(dirname "$0")/run
-#$run cargo build --release
+set -e
 
-neovide=target-ubuntu/release/neovide
+run=$(dirname "$0")/run
+rm -rf target-ubuntu/AppDir
+$run cargo build
+
+neovide=target-ubuntu/debug/neovide
+
+#mkdir -p AppDir/usr/bin
+#cp $neovide AppDir/usr/bin/
+
+#$run appimage-builder
 
 $run linuxdeploy \
     --executable=$neovide \
@@ -12,4 +20,4 @@ $run linuxdeploy \
     --icon-file=assets/neovide.svg \
     --output=appimage
 
-mv Neovide_\(nvim\)-*.AppImage neovide.AppImage
+ mv Neovide_\(nvim\)-*.AppImage neovide.AppImage

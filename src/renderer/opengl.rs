@@ -1,9 +1,10 @@
-use std::ffi::{c_void, CStr};
+use std::ffi::{c_void, CStr, CString};
 use std::num::NonZeroU32;
 
 use crate::cmd_line::CmdLineSettings;
 
-use gl::MAX_RENDERBUFFER_SIZE;
+use gl::{MAX_RENDERBUFFER_SIZE,GetError};
+use glutin::context::{ContextApi, Version};
 use glutin::surface::SwapInterval;
 use glutin::{
     config::{Config, ConfigTemplateBuilder},
@@ -65,6 +66,7 @@ pub fn build_context<TE>(
     winit_window_builder: WindowBuilder,
     event_loop: &EventLoop<TE>,
 ) -> Context {
+    log::trace!("Before create window");
     let template_builder = ConfigTemplateBuilder::new()
         .with_stencil_size(8)
         .with_transparency(true);
@@ -77,6 +79,7 @@ pub fn build_context<TE>(
     let gl_display = config.display();
     let raw_window_handle = window.raw_window_handle();
 
+    log::trace!("Before clamp window");
     let size = clamp_render_buffer_size(window.inner_size());
 
     let surface_attributes = SurfaceAttributesBuilder::<WindowSurface>::new()
@@ -86,17 +89,23 @@ pub fn build_context<TE>(
             NonZeroU32::new(size.width).unwrap(),
             NonZeroU32::new(size.height).unwrap(),
         );
+    log::trace!("Before create surface {:?}", size);
     let surface = unsafe { gl_display.create_window_surface(&config, &surface_attributes) }
         .expect("Failed to create Windows Surface");
 
+    log::trace!("Before create context attributes");
     let context_attributes = ContextAttributesBuilder::new()
         .with_profile(GlProfile::Core)
+        .with_context_api(ContextApi::OpenGl(Some(Version {major: 3, minor: 3})))
+        .with_debug(true)
         .build(Some(raw_window_handle));
+    log::trace!("Before create context");
     let context = unsafe { gl_display.create_context(&config, &context_attributes) }
         .expect("Failed to create OpenGL context")
         .make_current(&surface)
         .unwrap();
 
+    log::trace!("Before swap");
     // NOTE: We don't care if these fails, the driver can override the SwapInterval in any case, so it needs to work in all cases
     let _ = if cmd_line_settings.vsync {
         surface.set_swap_interval(&context, SwapInterval::Wait(NonZeroU32::new(1).unwrap()))
@@ -104,10 +113,15 @@ pub fn build_context<TE>(
         surface.set_swap_interval(&context, SwapInterval::DontWait)
     };
 
-    Context {
+    let context = Context {
         surface,
         context,
         window,
         config,
-    }
+    };
+    gl::load_with(|s| context.get_proc_address(CString::new(s).unwrap().as_c_str()) as *const _);
+    log::trace!("Before error");
+    let error = unsafe {GetError()};
+    log::trace!("OpenGL error {error}");
+    context
 }

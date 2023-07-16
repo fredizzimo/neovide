@@ -1,4 +1,4 @@
-from ubuntu:22.04
+from ubuntu:18.04
 
 RUN DEBIAN_FRONTEND=noninteractive \
     apt update \
@@ -30,6 +30,18 @@ RUN curl -Lo linuxdeploy.AppImage https://github.com/linuxdeploy/linuxdeploy/rel
 RUN DEBIAN_FRONTEND=noninteractive \
     apt update \
     && apt install -y \
-        libfontconfig-dev file \
+        libfontconfig-dev file libpng16-16 \
     && rm -rf /var/lib/apt/lists/*
 
+RUN curl -Lo appimage-builder.AppImage https://github.com/AppImageCrafters/appimage-builder/releases/download/v0.9.2/appimage-builder-0.9.2-35e3eab-x86_64.AppImage \
+    && chmod +x appimage-builder.AppImage \
+    && ./appimage-builder.AppImage --appimage-extract \
+    && mv squashfs-root/ /opt/appimage-builder/ \
+    && ln -s /opt/appimage-builder/AppRun /usr/local/bin/appimage-builder \
+    && rm appimage-builder.AppImage
+
+RUN DEBIAN_FRONTEND=noninteractive \
+    apt update \
+    && apt install -y \
+        fakeroot \
+    && rm -rf /var/lib/apt/lists/*

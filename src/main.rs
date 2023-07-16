@@ -212,6 +212,7 @@ fn maybe_disown() {
     windows_detach_from_console();
 
     if let Ok(current_exe) = env::current_exe() {
+        trace!("Current exe {}", current_exe.to_string_lossy());
         assert!(process::Command::new(current_exe)
             .stdin(process::Stdio::null())
             .stdout(process::Stdio::null())
