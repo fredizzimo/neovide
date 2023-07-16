@@ -3,21 +3,15 @@
 set -e
 
 run=$(dirname "$0")/run
-rm -rf target-ubuntu/AppDir
-$run cargo build
+#rm -rf target-ubuntu/AppDir
+#$run cargo build --locked --release --features embed-fonts
 
-neovide=target-ubuntu/debug/neovide
-
-#mkdir -p AppDir/usr/bin
-#cp $neovide AppDir/usr/bin/
-
-#$run appimage-builder
-
+neovide=target-ubuntu/release/neovide
+export LDAI_OUTPUT=neovide.AppImage
+export LDAI_UPDATE_INFORMATION="gh-releases-zsync|neovide|neovide|latest|neovide.AppImage.zsync"
 $run linuxdeploy \
     --executable=$neovide \
     --desktop-file=assets/neovide.desktop \
     --appdir=target-ubuntu/AppDir \
     --icon-file=assets/neovide.svg \
     --output=appimage
-
- mv Neovide_\(nvim\)-*.AppImage neovide.AppImage

@@ -3,7 +3,7 @@ use std::num::NonZeroU32;
 
 use crate::cmd_line::CmdLineSettings;
 
-use gl::{MAX_RENDERBUFFER_SIZE,GetError};
+use gl::{GetError, MAX_RENDERBUFFER_SIZE};
 use glutin::context::{ContextApi, Version};
 use glutin::surface::SwapInterval;
 use glutin::{
@@ -112,7 +112,7 @@ pub fn build_context(
     log::trace!("Before create context attributes");
     let context_attributes = ContextAttributesBuilder::new()
         .with_profile(GlProfile::Core)
-        .with_context_api(ContextApi::OpenGl(Some(Version {major: 3, minor: 3})))
+        .with_context_api(ContextApi::OpenGl(Some(Version { major: 3, minor: 3 })))
         .with_debug(true)
         .build(Some(raw_window_handle));
     log::trace!("Before create context");
@@ -137,7 +137,7 @@ pub fn build_context(
     };
     gl::load_with(|s| context.get_proc_address(CString::new(s).unwrap().as_c_str()) as *const _);
     log::trace!("Before error");
-    let error = unsafe {GetError()};
+    let error = unsafe { GetError() };
     log::trace!("OpenGL error {error}");
     context
 }

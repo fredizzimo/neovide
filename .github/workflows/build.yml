@@ -27,7 +27,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macOS-11, ubuntu-latest]
+        os: [windows-latest, macOS-11, ubuntu-20.04]
         toolchain: [stable, nightly]
     runs-on: ${{ matrix.os }}
     continue-on-error: ${{ matrix.toolchain == 'nightly' }}
@@ -138,19 +138,19 @@ jobs:
       - name: Build
         run: |
           if [[ $RUNNER_OS == "Windows" ]]; then
-            cargo wix --output target/release/neovide.msi --package neovide
+            cargo wix --locked --output target/release/neovide.msi --package neovide
 
           elif [[ $RUNNER_OS == "macOS" ]]; then
             echo "MACOSX_DEPLOYMENT_TARGET=10.11" >> $GITHUB_ENV
             # x86
-            cargo build --release --target=x86_64-apple-darwin
-            cargo bundle --release --target=x86_64-apple-darwin
+            cargo build --locked --release --target=x86_64-apple-darwin
+            cargo bundle --locked --release --target=x86_64-apple-darwin
             # arch 
-            cargo build --release --target=aarch64-apple-darwin
-            cargo bundle --release --target=aarch64-apple-darwin
+            cargo build --locked --release --target=aarch64-apple-darwin
+            cargo bundle --locked --release --target=aarch64-apple-darwin
 
           elif [[ $RUNNER_OS == "Linux" ]]; then
-            cargo build --release
+            cargo build --locked --release --features embed-fonts
           fi
 
       - name: Prepare Artifacts
@@ -186,6 +186,10 @@ jobs:
             # create appimage
             curl -Lo linuxdeploy https://github.com/linuxdeploy/linuxdeploy/releases/latest/download/linuxdeploy-x86_64.AppImage
             chmod +x linuxdeploy
+            curl -Lo linuxdeploy-plugin-appimage https://github.com/linuxdeploy/linuxdeploy-plugin-appimage/releases/latest/download/linuxdeploy-plugin-appimage-x86_64.AppImage
+
+            export LDAI_OUTPUT=neovide.AppImage
+            export LDAI_UPDATE_INFORMATION="gh-releases-zsync|neovide|neovide|latest|neovide.AppImage.zsync"
             ./linuxdeploy \
               --executable=neovide \
               --desktop-file=../../assets/neovide.desktop \
@@ -193,10 +197,10 @@ jobs:
               --icon-file=../../assets/neovide.svg \
               --output=appimage
 
-            mv Neovide_\(nvim\)-*.AppImage neovide.AppImage
 
             echo "ARTIFACT=neovide-linux-x86_64.tar.gz" >> $GITHUB_ENV
             echo "ARTIFACT2=neovide.AppImage" >> $GITHUB_ENV
+            echo "ARTIFACT3=neovide.AppImage.zsync" >> $GITHUB_ENV
           fi
 
       - uses: actions/upload-artifact@v3
