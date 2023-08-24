@@ -3,11 +3,11 @@ use log::trace;
 use nvim_rs::{Handler, Neovim};
 use rmpv::Value;
 
-use crate::bridge::clipboard::{get_clipboard_contents, set_clipboard_contents};
+use crate::{bridge::clipboard::{get_clipboard_contents, set_clipboard_contents}};
 #[cfg(windows)]
 use crate::bridge::ui_commands::{ParallelCommand, UiCommand};
 use crate::{
-    bridge::{events::parse_redraw_event, NeovimWriter},
+    bridge::{events::{parse_redraw_event, parse_upload_image, parse_display_image}, NeovimWriter},
     editor::EditorCommand,
     error_handling::ResultPanicExplanation,
     event_aggregator::EVENT_AGGREGATOR,
@@ -53,6 +53,14 @@ impl Handler for NeovimHandler {
             }
             "neovide.set_clipboard" => set_clipboard_contents(&arguments[0])
                 .map_err(|_| Value::from("cannot set clipboard contents")),
+            "neovide.winsize" => {
+                Ok(Value::from(vec![
+                    (Value::from("row"), Value::from(100)),
+                    (Value::from("col"), Value::from(100)),
+                    (Value::from("xpixel"), Value::from(1000)),
+                    (Value::from("ypixel"), Value::from(1000)),
+                ]))
+            }
             _ => Ok(Value::from("rpcrequest not handled")),
         }
     }
@@ -92,6 +100,14 @@ impl Handler for NeovimHandler {
             #[cfg(windows)]
             "neovide.unregister_right_click" => {
                 EVENT_AGGREGATOR.send(UiCommand::Parallel(ParallelCommand::UnregisterRightClick));
+            }
+            "neovide.upload_image" => {
+                let upload_image = parse_upload_image(arguments).unwrap();
+                EVENT_AGGREGATOR.send(upload_image)
+            },
+            "neovide.display_image" => {
+                let display_image = parse_display_image(arguments).unwrap();
+                EVENT_AGGREGATOR.send(display_image)
             }
             _ => {}
         }

@@ -6,6 +6,7 @@ mod opengl;
 pub mod profiler;
 mod rendered_window;
 mod vsync;
+pub mod image_cache;
 
 use std::{
     cmp::Ordering,
@@ -37,6 +38,8 @@ pub use rendered_window::{
 
 pub use opengl::{build_context, build_window, Context as WindowedContext};
 pub use vsync::VSync;
+
+use self::image_cache::ImageCache;
 
 #[derive(SettingGroup, Clone)]
 pub struct RendererSettings {
@@ -94,6 +97,8 @@ pub struct Renderer {
     os_scale_factor: f64,
     user_scale_factor: f64,
     pub window_padding: WindowPadding,
+
+    pub image_cache: ImageCache,
 }
 
 /// Results of processing the draw commands from the command channel.
@@ -118,6 +123,8 @@ impl Renderer {
         let batched_draw_command_receiver = EVENT_AGGREGATOR.register_event::<Vec<DrawCommand>>();
         let profiler = profiler::Profiler::new(12.0);
 
+        let image_cache = ImageCache::new();
+
         let window_padding = WindowPadding {
             top: window_settings.padding_top,
             left: window_settings.padding_left,
@@ -136,6 +143,7 @@ impl Renderer {
             os_scale_factor,
             user_scale_factor,
             window_padding,
+            image_cache,
         }
     }
 

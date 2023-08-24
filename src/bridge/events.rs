@@ -1,5 +1,5 @@
 use std::{
-    convert::TryInto,
+   
     error,
     fmt::{self, Debug},
 };
@@ -8,7 +8,8 @@ use log::debug;
 use rmpv::Value;
 use skia_safe::Color4f;
 
-use crate::editor::{Colors, CursorMode, CursorShape, Style, UnderlineStyle};
+use crate::{window::WindowCommand, editor::{Colors, CursorMode, CursorShape, Style, UnderlineStyle}};
+
 
 #[derive(Clone, Debug)]
 pub enum ParseError {
@@ -893,3 +894,32 @@ pub fn parse_redraw_event(event_value: Value) -> Result<Vec<RedrawEvent>> {
 
     Ok(parsed_events)
 }
+
+pub fn parse_upload_image(arguments: Vec<Value>) -> Result<WindowCommand> {
+    log::info!("parse_upload {:?}", arguments);
+    let [id, data] = extract_values(arguments)?;
+    log::info!("parse_upload {id}, {data}");
+    let id = parse_u64(id)?;
+    let data = parse_string(data)?;
+
+    Ok(WindowCommand::UploadImage {
+                        id,
+                        data,
+                    }
+    )
+}
+
+pub fn parse_display_image(arguments: Vec<Value>) -> Result<WindowCommand> {
+    let [id, buffer, buffer_x, buffer_y] = extract_values(arguments)?;
+    let id = parse_u64(id)?;
+    let buffer = parse_u64(buffer)?;
+    let buffer_x = parse_u64(buffer_x)?;
+    let buffer_y = parse_u64(buffer_y)?;
+    Ok(WindowCommand::DisplayImage { 
+        id,
+        buffer,
+        buffer_x,
+        buffer_y,
+    })
+}
+

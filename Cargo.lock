@@ -1295,6 +1295,7 @@ version = "0.11.1"
 dependencies = [
  "async-trait",
  "backtrace",
+ "base64",
  "cfg-if",
  "clap",
  "cocoa",

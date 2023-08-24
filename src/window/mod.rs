@@ -61,6 +61,16 @@ pub enum WindowCommand {
     TitleChanged(String),
     SetMouseEnabled(bool),
     ListAvailableFonts,
+    UploadImage {
+        id: u64,
+        data: String,
+    },
+    DisplayImage {
+        id: u64,
+        buffer: u64,
+        buffer_x: u64,
+        buffer_y: u64,
+    }
 }
 
 #[allow(dead_code)]

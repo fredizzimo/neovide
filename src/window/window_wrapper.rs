@@ -9,7 +9,7 @@ use crate::{
     editor::EditorCommand,
     event_aggregator::EVENT_AGGREGATOR,
     profiling::{emit_frame_mark, tracy_gpu_collect, tracy_gpu_zone, tracy_zone},
-    renderer::{build_context, Renderer, VSync, WindowPadding, WindowedContext},
+    renderer::{build_context, Renderer, VSync, WindowPadding, WindowedContext, image_cache::ImageCache},
     running_tracker::RUNNING_TRACKER,
     settings::{
         load_last_window_settings, PersistentWindowSettings, DEFAULT_WINDOW_GEOMETRY, SETTINGS,
@@ -184,6 +184,19 @@ impl WinitWindowWrapper {
                     self.mouse_manager.enabled = mouse_enabled
                 }
                 WindowCommand::ListAvailableFonts => self.send_font_names(),
+                WindowCommand::UploadImage {
+                    id,
+                    data
+                }=> {
+                    self.renderer.image_cache.upload_image(id, &data);
+                },
+                WindowCommand::DisplayImage { 
+                    id,
+                    buffer,
+                    buffer_x,
+                    buffer_y,
+                } => {
+                },
             }
         }
     }
