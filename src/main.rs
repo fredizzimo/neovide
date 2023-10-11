@@ -1,4 +1,4 @@
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+#![cfg_attr(not(test), windows_subsystem = "windows")]
 // Test naming occasionally uses camelCase with underscores to separate sections of
 // the test name.
 #![cfg_attr(test, allow(non_snake_case))]
@@ -83,7 +83,6 @@ fn main() -> NeovideExitCode {
     #[cfg(target_os = "windows")]
     {
         windows_fix_dpi();
-        windows_attach_to_console();
     }
 
     let event_loop = create_event_loop();
@@ -167,6 +166,7 @@ fn setup() -> Result<(WindowSize, NeovimRuntime)> {
 
     //Will exit if -h or -v
     cmd_line::handle_command_line_arguments(args().collect())?;
+    #[cfg(not(target_os = "windows"))]
     maybe_disown();
     startup_profiler();
 
@@ -210,15 +210,16 @@ pub fn init_logger() {
     logger.start().expect("Could not start logger");
 }
 
-#[cfg(target_os = "windows")]
-fn maybe_disown_platform() {
-    windows_detach_from_console();
-}
-
 #[cfg(not(target_os = "windows"))]
-fn maybe_disown_platform() {
+fn maybe_disown() {
     use fork::{daemon, Fork};
     use std::process::exit;
+
+    let settings = SETTINGS.get::<CmdLineSettings>();
+
+    if cfg!(debug_assertions) || settings.no_fork {
+        return;
+    }
 
     let nochdir = true;
     let noclose = false;
@@ -231,16 +232,6 @@ fn maybe_disown_platform() {
             eprintln!("error in disowning process, cannot obtain the path for the current executable, continuing without disowning...");
         }
     }
-}
-
-fn maybe_disown() {
-    let settings = SETTINGS.get::<CmdLineSettings>();
-
-    if cfg!(debug_assertions) || settings.no_fork {
-        return;
-    }
-
-    maybe_disown_platform();
 }
 
 fn generate_stderr_log_message(panic_info: &PanicInfo, backtrace: &Backtrace) -> String {
