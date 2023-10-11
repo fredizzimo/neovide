@@ -210,31 +210,37 @@ pub fn init_logger() {
     logger.start().expect("Could not start logger");
 }
 
-fn maybe_disown() {
-    use std::process;
+#[cfg(target_os = "windows")]
+fn maybe_disown_platform() {
+    windows_detach_from_console();
+}
 
+#[cfg(not(target_os = "windows"))]
+fn maybe_disown_platform() {
+    use fork::{daemon, Fork};
+    use std::process::exit;
+
+    let nochdir = true;
+    let noclose = false;
+    match daemon(nochdir, noclose) {
+        Ok(Fork::Child) => {}
+        Ok(Fork::Parent(_)) => {
+            exit(0);
+        }
+        Err(_) => {
+            eprintln!("error in disowning process, cannot obtain the path for the current executable, continuing without disowning...");
+        }
+    }
+}
+
+fn maybe_disown() {
     let settings = SETTINGS.get::<CmdLineSettings>();
 
     if cfg!(debug_assertions) || settings.no_fork {
         return;
     }
 
-    #[cfg(target_os = "windows")]
-    windows_detach_from_console();
-
-    if let Ok(current_exe) = env::current_exe() {
-        assert!(process::Command::new(current_exe)
-            .stdin(process::Stdio::null())
-            .stdout(process::Stdio::null())
-            .stderr(process::Stdio::null())
-            .arg("--no-fork")
-            .args(env::args().skip(1))
-            .spawn()
-            .is_ok());
-        process::exit(0);
-    } else {
-        eprintln!("error in disowning process, cannot obtain the path for the current executable, continuing without disowning...");
-    }
+    maybe_disown_platform();
 }
 
 fn generate_stderr_log_message(panic_info: &PanicInfo, backtrace: &Backtrace) -> String {
