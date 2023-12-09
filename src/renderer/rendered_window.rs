@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, time::Instant};
 
 use skia_safe::{
     canvas::SaveLayerRec,
@@ -13,7 +13,7 @@ use crate::{
     cmd_line::CmdLineSettings,
     dimensions::Dimensions,
     editor::{AnchorInfo, Style, WindowType},
-    profiling::tracy_zone,
+    profiling::{tracy_plot, tracy_zone},
     renderer::{animation_utils::*, GridRenderer, RendererSettings},
     settings::SETTINGS,
     utils::RingBuffer,
@@ -78,6 +78,7 @@ pub struct RenderedWindow {
     scrollback_lines: RingBuffer<Option<Arc<Mutex<Line>>>>,
     actual_lines: RingBuffer<Option<Arc<Mutex<Line>>>>,
     scroll_delta: isize,
+    last_scroll_time: Instant,
 
     grid_start_position: Point,
     pub grid_current_position: Point,
@@ -120,6 +121,7 @@ impl RenderedWindow {
             actual_lines: RingBuffer::new(grid_size.height as usize, None),
             scrollback_lines: RingBuffer::new(2 * grid_size.height as usize, None),
             scroll_delta: 0,
+            last_scroll_time: Instant::now(),
 
             grid_start_position: grid_position,
             grid_current_position: grid_position,
@@ -544,6 +546,13 @@ impl RenderedWindow {
                 scroll_offset -= scroll_delta as f32;
                 scroll_offset = scroll_offset.clamp(-(max_delta as f32), max_delta as f32);
             }
+
+            let now = Instant::now();
+            let scroll_dt = (now - self.last_scroll_time).as_secs_f64();
+            let scroll_v = scroll_delta as f64 / scroll_dt;
+            self.last_scroll_time = now;
+            tracy_plot!("Scroll window veclocity", scroll_v);
+
             self.scroll_animation.position = scroll_offset;
             log::trace!("Current scroll {scroll_offset}");
         }
