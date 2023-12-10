@@ -16,7 +16,8 @@ use winit::{
 
 use crate::{
     bridge::{send_ui, SerialCommand},
-    renderer::{Renderer, WindowDrawDetails},
+    dimensions::Dimensions,
+    renderer::WindowDrawDetails,
     settings::SETTINGS,
     window::keyboard_manager::KeyboardManager,
     window::{UserEvent, WindowSettings},
@@ -106,8 +107,9 @@ impl MouseManager {
         x: i32,
         y: i32,
         keyboard_manager: &KeyboardManager,
-        renderer: &Renderer,
+        window_regions: &[WindowDrawDetails],
         window: &Window,
+        font_dimensions: Dimensions,
     ) {
         let size = window.inner_size();
         if x < 0 || x as u32 >= size.width || y < 0 || y as u32 >= size.height {
@@ -119,7 +121,7 @@ impl MouseManager {
         // If dragging, the relevant window (the one which we send all commands to) is the one
         // which the mouse drag started on. Otherwise its the top rendered window
         let relevant_window_details = if self.dragging.is_some() {
-            renderer.window_regions.iter().find(|details| {
+            window_regions.iter().find(|details| {
                 details.id
                     == self
                         .window_details_under_mouse
@@ -130,8 +132,7 @@ impl MouseManager {
         } else {
             // the rendered window regions are sorted by draw order, so the earlier windows in the
             // list are drawn under the later ones
-            renderer
-                .window_regions
+                window_regions
                 .iter()
                 .filter(|details| {
                     position.x >= details.region.left
@@ -145,26 +146,16 @@ impl MouseManager {
         let global_bounds = relevant_window_details
             .map(|details| details.region)
             .unwrap_or_else(|| Rect::from_wh(size.width as f32, size.height as f32));
-        let clamped_position = clamp_position(
-            position,
-            global_bounds,
-            renderer.grid_renderer.font_dimensions.into(),
-        );
+        let clamped_position = clamp_position(position, global_bounds, font_dimensions.into());
 
-        self.position = to_grid_coords(
-            clamped_position,
-            renderer.grid_renderer.font_dimensions.into(),
-        );
+        self.position = to_grid_coords(clamped_position, font_dimensions.into());
 
         if let Some(relevant_window_details) = relevant_window_details {
             let relative_position = PhysicalPosition::new(
                 clamped_position.x - relevant_window_details.region.left,
                 clamped_position.y - relevant_window_details.region.top,
             );
-            self.relative_position = to_grid_coords(
-                relative_position,
-                renderer.grid_renderer.font_dimensions.into(),
-            );
+            self.relative_position = to_grid_coords(relative_position, font_dimensions.into());
 
             let previous_position = self.drag_position;
             self.drag_position = self.relative_position;
@@ -316,14 +307,16 @@ impl MouseManager {
         );
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn handle_touch(
         &mut self,
         keyboard_manager: &KeyboardManager,
-        renderer: &Renderer,
+        window_regions: &[WindowDrawDetails],
         window: &Window,
         finger_id: (DeviceId, u64),
         location: PhysicalPosition<f32>,
         phase: &TouchPhase,
+        font_dimensions: Dimensions,
     ) {
         match phase {
             TouchPhase::Started => {
@@ -368,8 +361,9 @@ impl MouseManager {
                             location.x.round() as i32,
                             location.y.round() as i32,
                             keyboard_manager,
-                            renderer,
+                            window_regions,
                             window,
+                            font_dimensions,
                         );
                     }
                     // the double check might seem useless, but the if branch above might set
@@ -381,7 +375,7 @@ impl MouseManager {
                         // starting point
                         trace.last = location;
 
-                        let font_size = renderer.grid_renderer.font_dimensions.into();
+                        let font_size = font_dimensions.into();
                         self.handle_pixel_scroll(font_size, delta, keyboard_manager);
                     }
                 }
@@ -391,8 +385,9 @@ impl MouseManager {
                         location.x.round() as i32,
                         location.y.round() as i32,
                         keyboard_manager,
-                        renderer,
+                        window_regions,
                         window,
+                        font_dimensions,
                     );
                     self.handle_pointer_transition(&MouseButton::Left, true, keyboard_manager);
                 }
@@ -407,8 +402,9 @@ impl MouseManager {
                             trace.start.x.round() as i32,
                             trace.start.y.round() as i32,
                             keyboard_manager,
-                            renderer,
+                            window_regions,
                             window,
+                            font_dimensions,
                         );
                         self.handle_pointer_transition(&MouseButton::Left, true, keyboard_manager);
                         self.handle_pointer_transition(&MouseButton::Left, false, keyboard_manager);
@@ -422,8 +418,9 @@ impl MouseManager {
         &mut self,
         event: &Event<UserEvent>,
         keyboard_manager: &KeyboardManager,
-        renderer: &Renderer,
+        window_regions: &[WindowDrawDetails],
         window: &Window,
+        font_dimensions: Dimensions,
     ) {
         match event {
             Event::WindowEvent {
@@ -434,8 +431,9 @@ impl MouseManager {
                     position.x as i32,
                     position.y as i32,
                     keyboard_manager,
-                    renderer,
+                    window_regions,
                     window,
+                    font_dimensions,
                 );
                 if self.mouse_hidden {
                     window.set_cursor_visible(true);
@@ -458,7 +456,7 @@ impl MouseManager {
                     },
                 ..
             } => self.handle_pixel_scroll(
-                renderer.grid_renderer.font_dimensions.into(),
+                font_dimensions.into(),
                 (delta.x as f32, delta.y as f32),
                 keyboard_manager,
             ),
@@ -474,11 +472,12 @@ impl MouseManager {
                 ..
             } => self.handle_touch(
                 keyboard_manager,
-                renderer,
+                window_regions,
                 window,
                 (*device_id, *id),
                 location.cast(),
                 phase,
+                font_dimensions,
             ),
             Event::WindowEvent {
                 event: WindowEvent::MouseInput { button, state, .. },

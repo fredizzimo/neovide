@@ -19,7 +19,7 @@ use crate::{
 use log::trace;
 use skia_safe::{scalar, Rect};
 use winit::{
-    dpi::{PhysicalPosition, PhysicalSize, Position},
+    dpi::{PhysicalPosition, PhysicalSize},
     event::{Event, WindowEvent},
     window::{Fullscreen, Theme},
 };
@@ -34,6 +34,16 @@ pub struct WindowPadding {
 
 pub fn set_background(background: &str) {
     send_ui(ParallelCommand::SetBackground(background.to_string()));
+}
+
+/// Convert PhysicalSize to grid size.
+pub fn convert_physical_to_grid(physical: &PhysicalSize<u32>, font_dimensions: &Dimensions) -> Dimensions {
+    Dimensions::from(*physical) / *font_dimensions
+}
+
+/// Convert grid size to PhysicalSize.
+pub fn convert_grid_to_physical(grid: &Dimensions, font_dimensions: &Dimensions) -> PhysicalSize<u32> {
+    (*grid * *font_dimensions).into()
 }
 
 #[derive(PartialEq)]
@@ -80,12 +90,6 @@ impl WinitWindowWrapper {
         let saved_inner_size = window.inner_size();
 
         let skia_renderer = SkiaRenderer::new(&windowed_context);
-
-        log::info!(
-            "window created (scale_factor: {:.4}, font_dimensions: {:?})",
-            scale_factor,
-            renderer.grid_renderer.font_dimensions,
-        );
 
         let settings = SETTINGS.get::<WindowSettings>();
         let ime_enabled = settings.input_ime;
@@ -245,11 +249,13 @@ impl WinitWindowWrapper {
     pub fn handle_event(&mut self, event: Event<UserEvent>) -> bool {
         tracy_zone!("handle_event", 0);
         self.keyboard_manager.handle_event(&event);
+        let font_dimensions = self.renderer.get_font_dimensions();
         self.mouse_manager.handle_event(
             &event,
             &self.keyboard_manager,
-            &self.renderer,
+            &self.renderer.window_regions,
             self.windowed_context.window(),
+            font_dimensions,
         );
         let renderer_asks_to_be_rendered = self.renderer.handle_event(&event);
         let mut should_render = true;
@@ -368,10 +374,11 @@ impl WinitWindowWrapper {
 
     pub fn animate_frame(&mut self, dt: f32) -> bool {
         tracy_zone!("animate_frame", 0);
+        let font_dimensions = self.renderer.get_font_dimensions();
 
         let res = self.renderer.animate_frame(
-            &self.get_grid_size_from_window(0, 0),
-            &self.padding_as_grid(),
+            &self.get_grid_size_from_window(0, 0, &font_dimensions),
+            &self.padding_as_grid(&font_dimensions),
             dt,
         );
         tracy_plot!("animate_frame", res as u8 as f64);
@@ -419,6 +426,7 @@ impl WinitWindowWrapper {
 
     pub fn prepare_frame(&mut self) -> ShouldRender {
         tracy_zone!("prepare_frame", 0);
+        let font_dimensions = self.renderer.get_font_dimensions();
         let mut should_render = ShouldRender::Wait;
 
         let window_settings = SETTINGS.get::<WindowSettings>();
@@ -443,7 +451,7 @@ impl WinitWindowWrapper {
             // Resize requests (columns/lines) have priority over normal window sizing.
             // So, deal with them first and resize the window programmatically.
             // The new window size will then be processed in the following frame.
-            self.update_window_size_from_grid(&window_padding);
+            self.update_window_size_from_grid(&window_padding, &font_dimensions);
 
             // Make the window Visible only after the size is adjusted
             self.windowed_context.window().set_visible(true);
@@ -457,7 +465,7 @@ impl WinitWindowWrapper {
                 self.font_changed_last_frame = false;
                 self.saved_inner_size = new_size;
 
-                self.update_grid_size_from_window();
+                self.update_grid_size_from_window(&font_dimensions);
                 self.skia_renderer.resize(&self.windowed_context);
                 should_render = ShouldRender::Immediately;
             }
@@ -474,7 +482,11 @@ impl WinitWindowWrapper {
         self.renderer.get_grid_size()
     }
 
-    fn update_window_size_from_grid(&mut self, window_padding: &WindowPadding) {
+    fn update_window_size_from_grid(
+        &mut self,
+        window_padding: &WindowPadding,
+        font_dimensions: &Dimensions,
+    ) {
         let window = self.windowed_context.window();
 
         let window_padding_width = window_padding.left + window_padding.right;
@@ -491,10 +503,7 @@ impl WinitWindowWrapper {
             ),
         };
 
-        let mut new_size = self
-            .renderer
-            .grid_renderer
-            .convert_grid_to_physical(grid_size);
+        let mut new_size = convert_grid_to_physical(&grid_size, font_dimensions);
         new_size.width += window_padding_width;
         new_size.height += window_padding_height;
         log::info!(
@@ -505,7 +514,12 @@ impl WinitWindowWrapper {
         let _ = window.request_inner_size(new_size);
     }
 
-    fn get_grid_size_from_window(&self, min_width: u64, min_height: u64) -> Dimensions {
+    fn get_grid_size_from_window(
+        &self,
+        min_width: u64,
+        min_height: u64,
+        font_dimensions: &Dimensions,
+    ) -> Dimensions {
         let window_padding = self.window_padding;
         let window_padding_width = window_padding.left + window_padding.right;
         let window_padding_height = window_padding.top + window_padding.bottom;
@@ -515,10 +529,7 @@ impl WinitWindowWrapper {
             height: self.saved_inner_size.height - window_padding_height,
         };
 
-        let grid_size = self
-            .renderer
-            .grid_renderer
-            .convert_physical_to_grid(content_size);
+        let grid_size = convert_physical_to_grid(&content_size, font_dimensions);
 
         Dimensions {
             width: grid_size.width.max(min_width),
@@ -526,10 +537,10 @@ impl WinitWindowWrapper {
         }
     }
 
-    fn update_grid_size_from_window(&mut self) {
+    fn update_grid_size_from_window(&mut self, font_dimensions: &Dimensions) {
         let min_width = MIN_GRID_SIZE.width;
         let min_height = MIN_GRID_SIZE.height;
-        let grid_size = self.get_grid_size_from_window(min_width, min_height);
+        let grid_size = self.get_grid_size_from_window(min_width, min_height, font_dimensions);
 
         if self.saved_grid_size.as_ref() == Some(&grid_size) {
             trace!("Grid matched saved size, skip update.");
@@ -548,18 +559,12 @@ impl WinitWindowWrapper {
     }
 
     fn update_ime_position(&mut self) {
-        let font_dimensions = self.renderer.grid_renderer.font_dimensions;
-        let cursor_position = self.renderer.get_cursor_position();
-        let position = PhysicalPosition::new(
-            cursor_position.x.round() as i32,
-            cursor_position.y.round() as i32 + font_dimensions.height as i32,
-        );
+        let (position, size) = self.renderer.get_ime_rect();
         if position != self.ime_position {
             self.ime_position = position;
-            self.windowed_context.window().set_ime_cursor_area(
-                Position::Physical(position),
-                PhysicalSize::new(100, font_dimensions.height as u32),
-            );
+            self.windowed_context
+                .window()
+                .set_ime_cursor_area(position, size);
         }
     }
 
@@ -567,8 +572,7 @@ impl WinitWindowWrapper {
         self.renderer.handle_os_scale_factor_change(scale_factor);
     }
 
-    fn padding_as_grid(&self) -> Rect {
-        let font_dimensions = self.renderer.grid_renderer.font_dimensions;
+    fn padding_as_grid(&self, font_dimensions: &Dimensions) -> Rect {
         Rect {
             left: self.window_padding.left as scalar / font_dimensions.width as scalar,
             right: self.window_padding.right as scalar / font_dimensions.width as scalar,

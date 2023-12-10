@@ -14,8 +14,11 @@ use std::{
 };
 
 use log::error;
-use skia_safe::{Canvas, Point, Rect};
-use winit::event::Event;
+use skia_safe::{Canvas, Rect};
+use winit::{
+    dpi::{PhysicalPosition, PhysicalSize},
+    event::Event,
+};
 
 use crate::{
     bridge::EditorMode,
@@ -89,7 +92,7 @@ pub enum DrawCommand {
 
 pub struct Renderer {
     cursor_renderer: CursorRenderer,
-    pub grid_renderer: GridRenderer,
+    grid_renderer: GridRenderer,
     current_mode: EditorMode,
 
     rendered_windows: HashMap<u64, RenderedWindow>,
@@ -281,6 +284,22 @@ impl Renderer {
             .for_each(|(_, w)| w.prepare_lines(&mut self.grid_renderer));
     }
 
+    pub fn get_ime_rect(&self) -> (PhysicalPosition<i32>, PhysicalSize<u32>) {
+        let font_dimensions = self.grid_renderer.font_dimensions;
+        let cursor_position = self.cursor_renderer.get_current_position();
+        (
+            PhysicalPosition::new(
+                cursor_position.x.round() as i32,
+                cursor_position.y.round() as i32 + font_dimensions.height as i32,
+            ),
+            PhysicalSize::new(100, font_dimensions.height as u32),
+        )
+    }
+
+    pub fn get_font_dimensions(&self) -> Dimensions {
+        self.grid_renderer.font_dimensions
+    }
+
     fn handle_draw_command(&mut self, draw_command: DrawCommand, result: &mut DrawCommandResult) {
         match draw_command {
             DrawCommand::Window {
@@ -342,10 +361,6 @@ impl Renderer {
         self.rendered_windows
             .iter_mut()
             .for_each(|(_, w)| w.flush(renderer_settings));
-    }
-
-    pub fn get_cursor_position(&self) -> Point {
-        self.cursor_renderer.get_current_position()
     }
 
     pub fn get_grid_size(&self) -> Dimensions {

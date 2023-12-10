@@ -4,7 +4,6 @@ use log::trace;
 use skia_safe::{
     colors, dash_path_effect, BlendMode, Canvas, Color, Paint, Path, Point, Rect, HSV,
 };
-use winit::dpi::PhysicalSize;
 
 use crate::{
     dimensions::Dimensions,
@@ -20,7 +19,6 @@ pub struct GridRenderer {
     pub em_size: f32,
     pub font_dimensions: Dimensions,
     pub scale_factor: f64,
-    pub is_ready: bool,
 }
 
 /// Struct with named fields to be returned from draw_background
@@ -46,22 +44,11 @@ impl GridRenderer {
             em_size,
             font_dimensions,
             scale_factor,
-            is_ready: false,
         }
     }
 
     pub fn font_names(&self) -> Vec<String> {
         self.shaper.font_names()
-    }
-
-    /// Convert PhysicalSize to grid size.
-    pub fn convert_physical_to_grid(&self, physical: PhysicalSize<u32>) -> Dimensions {
-        Dimensions::from(physical) / self.font_dimensions
-    }
-
-    /// Convert grid size to PhysicalSize.
-    pub fn convert_grid_to_physical(&self, grid: Dimensions) -> PhysicalSize<u32> {
-        (grid * self.font_dimensions).into()
     }
 
     pub fn handle_scale_factor_update(&mut self, scale_factor: f64) {
@@ -82,7 +69,6 @@ impl GridRenderer {
     fn update_font_dimensions(&mut self) {
         self.em_size = self.shaper.current_size();
         self.font_dimensions = self.shaper.font_base_dimensions().into();
-        self.is_ready = true;
         trace!("Updated font dimensions: {:?}", self.font_dimensions,);
     }
 
