@@ -29,7 +29,7 @@ pub struct BackgroundInfo {
 
 impl GridRenderer {
     pub fn new(scale_factor: f64) -> Self {
-        let mut shaper = CachingShaper::new(scale_factor as f32);
+        let shaper = CachingShaper::new(scale_factor as f32);
         let default_style = Arc::new(Style::new(Colors::new(
             Some(colors::WHITE),
             Some(colors::BLACK),

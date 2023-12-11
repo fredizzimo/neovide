@@ -10,7 +10,7 @@ mod vsync;
 use std::{
     cmp::Ordering,
     collections::{hash_map::Entry, HashMap},
-    sync::Arc,
+    sync::{Arc, RwLock},
 };
 
 use log::error;
@@ -92,15 +92,13 @@ pub enum DrawCommand {
 
 pub struct Renderer {
     cursor_renderer: CursorRenderer,
-    grid_renderer: GridRenderer,
+    grid_renderer: Arc<RwLock<GridRenderer>>,
     current_mode: EditorMode,
 
     rendered_windows: HashMap<u64, RenderedWindow>,
     pub window_regions: Vec<WindowDrawDetails>,
 
     profiler: profiler::Profiler,
-    os_scale_factor: f64,
-    user_scale_factor: f64,
 }
 
 /// Results of processing the draw commands from the command channel.
@@ -113,10 +111,10 @@ impl Renderer {
     pub fn new(os_scale_factor: f64) -> Self {
         let window_settings = SETTINGS.get::<WindowSettings>();
 
-        let user_scale_factor = window_settings.scale_factor.into();
+        let user_scale_factor = window_settings.scale_factor as f64;
         let scale_factor = user_scale_factor * os_scale_factor;
         let cursor_renderer = CursorRenderer::new();
-        let grid_renderer = GridRenderer::new(scale_factor);
+        let grid_renderer = Arc::new(RwLock::new(GridRenderer::new(scale_factor)));
         let current_mode = EditorMode::Unknown(String::from(""));
 
         let rendered_windows = HashMap::new();
@@ -131,8 +129,6 @@ impl Renderer {
             current_mode,
             window_regions,
             profiler,
-            os_scale_factor,
-            user_scale_factor,
         }
     }
 
@@ -141,7 +137,7 @@ impl Renderer {
     }
 
     pub fn font_names(&self) -> Vec<String> {
-        self.grid_renderer.font_names()
+        self.grid_renderer.read().unwrap().font_names()
     }
 
     pub fn prepare_frame(&mut self) -> ShouldRender {
@@ -150,8 +146,9 @@ impl Renderer {
 
     pub fn draw_frame(&mut self, root_canvas: &Canvas, dt: f32) {
         tracy_zone!("renderer_draw_frame");
-        let default_background = self.grid_renderer.get_default_background();
-        let font_dimensions = self.grid_renderer.font_dimensions;
+        let grid_renderer = self.grid_renderer.read().unwrap();
+        let default_background = grid_renderer.get_default_background();
+        let font_dimensions = grid_renderer.font_dimensions;
 
         let transparency = { SETTINGS.get::<WindowSettings>().transparency };
         root_canvas.clear(default_background.with_a((255.0 * transparency) as u8));
@@ -197,8 +194,7 @@ impl Renderer {
             })
             .collect();
 
-        self.cursor_renderer
-            .draw(&mut self.grid_renderer, root_canvas);
+        self.cursor_renderer.draw(&grid_renderer, root_canvas);
 
         self.profiler.draw(root_canvas, dt);
 
@@ -237,13 +233,14 @@ impl Renderer {
         });
 
         let windows = &self.rendered_windows;
-        let font_dimensions = self.grid_renderer.font_dimensions;
+        let grid_renderer = self.grid_renderer.read().unwrap();
+        let font_dimensions = grid_renderer.font_dimensions;
         self.cursor_renderer
             .update_cursor_destination(font_dimensions.into(), windows);
 
         animating |= self
             .cursor_renderer
-            .animate(&self.current_mode, &self.grid_renderer, dt);
+            .animate(&self.current_mode, &grid_renderer, dt);
 
         animating
     }
@@ -260,32 +257,26 @@ impl Renderer {
             tracy_named_frame!("neovim draw batch processed");
         }
         self.flush(&settings);
-
-        let user_scale_factor = SETTINGS.get::<WindowSettings>().scale_factor.into();
-        if user_scale_factor != self.user_scale_factor {
-            self.user_scale_factor = user_scale_factor;
-            self.grid_renderer
-                .handle_scale_factor_update(self.os_scale_factor * self.user_scale_factor);
-            result.font_changed = true;
-        }
-
         result
     }
 
-    pub fn handle_os_scale_factor_change(&mut self, os_scale_factor: f64) {
-        self.os_scale_factor = os_scale_factor;
+    pub fn handle_scale_factor_change(&mut self, os_scale_factor: f64) {
+        let user_scale_factor = SETTINGS.get::<WindowSettings>().scale_factor as f64;
         self.grid_renderer
-            .handle_scale_factor_update(self.os_scale_factor * self.user_scale_factor);
+            .write()
+            .unwrap()
+            .handle_scale_factor_update(os_scale_factor * user_scale_factor);
     }
 
     pub fn prepare_lines(&mut self) {
+        let grid_renderer = &mut self.grid_renderer.write().unwrap();
         self.rendered_windows
             .iter_mut()
-            .for_each(|(_, w)| w.prepare_lines(&mut self.grid_renderer));
+            .for_each(|(_, w)| w.prepare_lines(grid_renderer));
     }
 
     pub fn get_ime_rect(&self) -> (PhysicalPosition<i32>, PhysicalSize<u32>) {
-        let font_dimensions = self.grid_renderer.font_dimensions;
+        let font_dimensions = self.grid_renderer.read().unwrap().font_dimensions;
         let cursor_position = self.cursor_renderer.get_current_position();
         (
             PhysicalPosition::new(
@@ -297,7 +288,7 @@ impl Renderer {
     }
 
     pub fn get_font_dimensions(&self) -> Dimensions {
-        self.grid_renderer.font_dimensions
+        self.grid_renderer.read().unwrap().font_dimensions
     }
 
     fn handle_draw_command(&mut self, draw_command: DrawCommand, result: &mut DrawCommandResult) {
@@ -337,15 +328,18 @@ impl Renderer {
                 self.cursor_renderer.update_cursor(new_cursor);
             }
             DrawCommand::FontChanged(new_font) => {
-                self.grid_renderer.update_font(&new_font);
+                self.grid_renderer.write().unwrap().update_font(&new_font);
                 result.font_changed = true;
             }
             DrawCommand::LineSpaceChanged(new_linespace) => {
-                self.grid_renderer.update_linespace(new_linespace);
+                self.grid_renderer
+                    .write()
+                    .unwrap()
+                    .update_linespace(new_linespace);
                 result.font_changed = true;
             }
             DrawCommand::DefaultStyleChanged(new_style) => {
-                self.grid_renderer.default_style = Arc::new(new_style);
+                self.grid_renderer.write().unwrap().default_style = Arc::new(new_style);
             }
             DrawCommand::ModeChanged(new_mode) => {
                 self.current_mode = new_mode;

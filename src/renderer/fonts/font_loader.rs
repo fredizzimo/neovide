@@ -1,14 +1,22 @@
-use std::sync::Arc;
+use std::{
+    collections::HashMap,
+    ops::Deref,
+    sync::{Arc, Mutex},
+};
 
 use log::trace;
-use lru::LruCache;
 use skia_safe::{
     font::Edging as SkiaEdging, Data, Font, FontHinting as SkiaHinting, FontMgr, FontStyle,
     Typeface,
 };
 
-use crate::renderer::fonts::font_options::{FontEdging, FontHinting};
-use crate::renderer::fonts::swash_font::SwashFont;
+use crate::{
+    profiling::tracy_zone,
+    renderer::fonts::{
+        font_options::{FontEdging, FontHinting},
+        swash_font::SwashFont,
+    },
+};
 
 static DEFAULT_FONT: &[u8] = include_bytes!("../../../assets/fonts/FiraCodeNerdFont-Regular.ttf");
 static LAST_RESORT_FONT: &[u8] = include_bytes!("../../../assets/fonts/LastResort-Regular.ttf");
@@ -54,9 +62,50 @@ pub struct FontKey {
     pub edging: FontEdging,
 }
 
-pub struct FontLoader {
+// FontMgr should really be sendable, but due the the reference counting it's not. Here we are
+// using just a single reference so it's OK.
+struct SendableFontMgr {
     font_mgr: FontMgr,
-    cache: LruCache<FontKey, Arc<FontPair>>,
+}
+
+impl SendableFontMgr {
+    fn new() -> Self {
+        Self {
+            font_mgr: FontMgr::new(),
+        }
+    }
+}
+
+impl Deref for SendableFontMgr {
+    type Target = FontMgr;
+    fn deref(&self) -> &Self::Target {
+        &self.font_mgr
+    }
+}
+
+unsafe impl Send for SendableFontMgr {}
+
+fn load(font_key: FontKey, font_mgr: &FontMgr, font_size: f32) -> Option<FontPair> {
+    tracy_zone!("load_font");
+    let font_style = font_style(font_key.bold, font_key.italic);
+
+    trace!("Loading font {:?}", font_key);
+    if let Some(family_name) = &font_key.family_name {
+        let typeface = font_mgr.match_family_style(family_name, font_style)?;
+        FontPair::new(font_key, Font::from_typeface(typeface, font_size))
+    } else {
+        let data = Data::new_copy(DEFAULT_FONT);
+        let typeface = Typeface::from_data(data, 0).unwrap();
+        FontPair::new(font_key, Font::from_typeface(typeface, font_size))
+    }
+}
+
+pub struct FontLoader {
+    // We never use the font_manager concurrently, but the nightly Exclusive feature is not yet
+    // available, so use a Mutex instead. NOTE that we never perform any actual locking, we allways
+    // access the font managager through get_mut.
+    font_mgr: Mutex<SendableFontMgr>,
+    cache: HashMap<FontKey, Option<Arc<FontPair>>>,
     font_size: f32,
     last_resort: Option<Arc<FontPair>>,
 }
@@ -64,39 +113,20 @@ pub struct FontLoader {
 impl FontLoader {
     pub fn new(font_size: f32) -> FontLoader {
         FontLoader {
-            font_mgr: FontMgr::new(),
-            cache: LruCache::new(20),
+            font_mgr: SendableFontMgr::new().into(),
+            cache: HashMap::new(),
             font_size,
             last_resort: None,
         }
     }
 
-    fn load(&mut self, font_key: FontKey) -> Option<FontPair> {
-        let font_style = font_style(font_key.bold, font_key.italic);
-
-        trace!("Loading font {:?}", font_key);
-        if let Some(family_name) = &font_key.family_name {
-            let typeface = self.font_mgr.match_family_style(family_name, font_style)?;
-            FontPair::new(font_key, Font::from_typeface(typeface, self.font_size))
-        } else {
-            let data = Data::new_copy(DEFAULT_FONT);
-            let typeface = Typeface::from_data(data, 0).unwrap();
-            FontPair::new(font_key, Font::from_typeface(typeface, self.font_size))
-        }
-    }
-
     pub fn get_or_load(&mut self, font_key: &FontKey) -> Option<Arc<FontPair>> {
-        if let Some(cached) = self.cache.get(font_key) {
-            return Some(cached.clone());
-        }
-
-        let loaded_font = self.load(font_key.clone())?;
-
-        let font_arc = Arc::new(loaded_font);
-
-        self.cache.put(font_key.clone(), font_arc.clone());
-
-        Some(font_arc)
+        let cache = &mut self.cache;
+        let font_mgr = self.font_mgr.get_mut().unwrap();
+        cache
+            .entry(font_key.clone())
+            .or_insert_with(|| load(font_key.clone(), font_mgr, self.font_size).map(Arc::new))
+            .clone()
     }
 
     pub fn load_font_for_character(
@@ -105,10 +135,13 @@ impl FontLoader {
         italic: bool,
         character: char,
     ) -> Option<Arc<FontPair>> {
+        tracy_zone!("load_font_for_character");
         let font_style = font_style(bold, italic);
-        let typeface =
-            self.font_mgr
-                .match_family_style_character("", font_style, &[], character as i32)?;
+        let typeface = self
+            .font_mgr
+            .get_mut()
+            .unwrap()
+            .match_family_style_character("", font_style, &[], character as i32)?;
 
         let font_key = FontKey {
             bold,
@@ -118,20 +151,19 @@ impl FontLoader {
             edging: FontEdging::default(),
         };
 
-        let font_pair = Arc::new(FontPair::new(
-            font_key.clone(),
-            Font::from_typeface(typeface, self.font_size),
-        )?);
-
-        self.cache.put(font_key, font_pair.clone());
-
-        Some(font_pair)
+        self.cache
+            .entry(font_key.clone())
+            .or_insert_with(|| {
+                FontPair::new(font_key, Font::from_typeface(typeface, self.font_size)).map(Arc::new)
+            })
+            .clone()
     }
 
     pub fn get_or_load_last_resort(&mut self) -> Arc<FontPair> {
         if let Some(last_resort) = self.last_resort.clone() {
             last_resort
         } else {
+            tracy_zone!("load_last_resort");
             let font_key = FontKey::default();
             let data = Data::new_copy(LAST_RESORT_FONT);
             let typeface = Typeface::from_data(data, 0).unwrap();
@@ -145,16 +177,8 @@ impl FontLoader {
         }
     }
 
-    pub fn loaded_fonts(&self) -> Vec<Arc<FontPair>> {
-        self.cache.iter().map(|(_, v)| v.clone()).collect()
-    }
-
-    pub fn refresh(&mut self, font_pair: &FontPair) {
-        self.cache.get(&font_pair.key);
-    }
-
-    pub fn font_names(&self) -> Vec<String> {
-        self.font_mgr.family_names().collect()
+    pub fn font_names(&mut self) -> Vec<String> {
+        self.font_mgr.get_mut().unwrap().family_names().collect()
     }
 }
 

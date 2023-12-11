@@ -132,7 +132,7 @@ impl MouseManager {
         } else {
             // the rendered window regions are sorted by draw order, so the earlier windows in the
             // list are drawn under the later ones
-                window_regions
+            window_regions
                 .iter()
                 .filter(|details| {
                     position.x >= details.region.left

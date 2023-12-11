@@ -23,7 +23,7 @@ pub trait CursorVfx {
         &self,
         settings: &CursorSettings,
         canvas: &Canvas,
-        grid_renderer: &mut GridRenderer,
+        grid_renderer: &GridRenderer,
         cursor: &Cursor,
     );
 }
@@ -131,7 +131,7 @@ impl CursorVfx for PointHighlight {
         &self,
         settings: &CursorSettings,
         canvas: &Canvas,
-        grid_renderer: &mut GridRenderer,
+        grid_renderer: &GridRenderer,
         cursor: &Cursor,
     ) {
         if (self.t - 1.0).abs() < std::f32::EPSILON {
@@ -325,7 +325,7 @@ impl CursorVfx for ParticleTrail {
         &self,
         settings: &CursorSettings,
         canvas: &Canvas,
-        grid_renderer: &mut GridRenderer,
+        grid_renderer: &GridRenderer,
         cursor: &Cursor,
     ) {
         let mut paint = Paint::new(skia_safe::colors::WHITE, None);

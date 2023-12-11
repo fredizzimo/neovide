@@ -44,11 +44,11 @@ image = { version = "0.24.1", default-features = false, features = ["ico"] }
 itertools = "0.10.5"
 lazy_static = "1.4.0"
 log = "0.4.16"
-lru = "0.7.5"
 neovide-derive = { path = "neovide-derive", version = "0.1.0" }
 num = "0.4.1"
 nvim-rs = { version = "0.6.0", features = ["use_tokio"] }
 parking_lot = "0.12.0"
+quick_cache = "0.4.0"
 rand = "0.8.5"
 raw-window-handle = "0.5.0"
 rmpv = "1.0.0"
@@ -64,6 +64,7 @@ time = "0.3.9"
 tokio = { version = "1.25.0", features = ["full"] }
 tokio-util = { version = "0.7.4", features = ["compat"] }
 toml = "0.7.3"
+thread_local = "1.1.7"
 tracy-client-sys = { version = "0.22.0", optional = true, default-features = false, features = ["broadcast", "delayed-init", "enable", "manual-lifetime", "fibers"] }
 unicode-segmentation = "1.9.0"
 which = "4.2.5"

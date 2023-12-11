@@ -279,7 +279,7 @@ impl CursorRenderer {
         self.blink_status.update_status(&self.cursor)
     }
 
-    pub fn draw(&mut self, grid_renderer: &mut GridRenderer, canvas: &Canvas) {
+    pub fn draw(&mut self, grid_renderer: &GridRenderer, canvas: &Canvas) {
         tracy_zone!("cursor_draw");
         let render = self.blink_status.should_render();
         let settings = SETTINGS.get::<CursorSettings>();

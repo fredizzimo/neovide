@@ -37,12 +37,18 @@ pub fn set_background(background: &str) {
 }
 
 /// Convert PhysicalSize to grid size.
-pub fn convert_physical_to_grid(physical: &PhysicalSize<u32>, font_dimensions: &Dimensions) -> Dimensions {
+pub fn convert_physical_to_grid(
+    physical: &PhysicalSize<u32>,
+    font_dimensions: &Dimensions,
+) -> Dimensions {
     Dimensions::from(*physical) / *font_dimensions
 }
 
 /// Convert grid size to PhysicalSize.
-pub fn convert_grid_to_physical(grid: &Dimensions, font_dimensions: &Dimensions) -> PhysicalSize<u32> {
+pub fn convert_grid_to_physical(
+    grid: &Dimensions,
+    font_dimensions: &Dimensions,
+) -> PhysicalSize<u32> {
     (*grid * *font_dimensions).into()
 }
 
@@ -207,6 +213,10 @@ impl WinitWindowWrapper {
                     self.set_ime(ime_enabled);
                 }
             }
+            WindowSettingsChanged::ScaleFactor(_) => {
+                let scale_factor = self.windowed_context.window().scale_factor();
+                self.renderer.handle_scale_factor_change(scale_factor);
+            }
             _ => {}
         }
     }
@@ -276,7 +286,7 @@ impl WinitWindowWrapper {
                 ..
             } => {
                 tracy_zone!("ScaleFactorChanged");
-                self.handle_scale_factor_update(scale_factor);
+                self.renderer.handle_scale_factor_change(scale_factor);
             }
             Event::WindowEvent {
                 event: WindowEvent::DroppedFile(path),
@@ -566,10 +576,6 @@ impl WinitWindowWrapper {
                 .window()
                 .set_ime_cursor_area(position, size);
         }
-    }
-
-    fn handle_scale_factor_update(&mut self, scale_factor: f64) {
-        self.renderer.handle_os_scale_factor_change(scale_factor);
     }
 
     fn padding_as_grid(&self, font_dimensions: &Dimensions) -> Rect {
