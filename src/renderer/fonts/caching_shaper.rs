@@ -100,17 +100,28 @@ impl CachingShaper {
         })
     }
 
+    fn get_font_key(&self, style: &StyleKey, family_name: Option<String>) -> FontKey {
+        FontKey {
+            italic: style.italic,
+            bold: style.bold,
+            family_name,
+            hinting: self.options.hinting.clone(),
+            edging: self.options.edging.clone(),
+        }
+    }
+
     fn current_font_pair(&mut self) -> Arc<FontPair> {
+        let font_key = self.get_font_key(
+            &StyleKey {
+                bold: false,
+                italic: false,
+            },
+            self.options.primary_font(),
+        );
         self.font_loader
             .get_mut()
             .unwrap()
-            .get_or_load(&FontKey {
-                italic: false,
-                bold: false,
-                family_name: self.options.primary_font(),
-                hinting: self.options.hinting.clone(),
-                edging: self.options.edging.clone(),
-            })
+            .get_or_load(&font_key)
             .unwrap_or_else(|| {
                 self.font_loader
                     .get_mut()
@@ -118,6 +129,40 @@ impl CachingShaper {
                     .get_or_load(&FontKey::default())
                     .expect("Could not load default font")
             })
+    }
+
+    fn preload_all_fonts(&mut self) {
+        let styles = [
+            StyleKey {
+                bold: false,
+                italic: false,
+            },
+            StyleKey {
+                bold: false,
+                italic: true,
+            },
+            StyleKey {
+                bold: true,
+                italic: false,
+            },
+            StyleKey {
+                bold: true,
+                italic: true,
+            },
+        ];
+
+        // Load all the configured fonts
+        for font in &self.options.font_list {
+            for style in &styles {
+                let font_key = self.get_font_key(style, Some(font.clone()));
+                self.font_loader.get_mut().unwrap().get_or_load(&font_key);
+            }
+        }
+        // Also load all default fonts
+        for style in &styles {
+            let font_key = self.get_font_key(style, None);
+            self.font_loader.get_mut().unwrap().get_or_load(&font_key);
+        }
     }
 
     pub fn current_size(&self) -> f32 {
@@ -222,7 +267,9 @@ impl CachingShaper {
             debug!("Fudged font size: {:.2}px", font_size);
             debug!("Fudged font width: {:.2}px", self.info().1);
             *self.font_loader.get_mut().unwrap() = FontLoader::new(font_size);
+            self.update_info();
         }
+        self.preload_all_fonts();
         self.thread_state = ThreadLocal::default();
         self.blob_cache = Cache::new(CACHE_SIZE);
     }
