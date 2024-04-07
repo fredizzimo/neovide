@@ -1,0 +1,331 @@
+<!DOCTYPE HTML>
+<html lang="en" class="sidebar-visible no-js ayu">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Maintainer Cookbook - Neovide</title>
+        <!-- Custom HTML head -->
+        <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+        <meta name="description" content="A Simple, No Nonsense, Cross-Platform, Graphical User Interface for Neovim">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff" />
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="highlight.css">
+        <link rel="stylesheet" href="tomorrow-night.css">
+        <link rel="stylesheet" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="theme/pagetoc.css">
+        <link rel="stylesheet" href="theme/custom.css">
+        <link rel="stylesheet" href="theme/breakpoints.css">
+    </head>
+    <body>
+        <!-- Provide site root to javascript -->
+        <script type="text/javascript">
+            var path_to_root = "";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "ayu" : "ayu";
+        </script>
+
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script type="text/javascript">
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script type="text/javascript">
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            var html = document.querySelector('html');
+            html.classList.remove('no-js')
+            html.classList.remove('ayu')
+            html.classList.add(theme);
+            html.classList.add('js');
+        </script>
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script type="text/javascript">
+            var html = document.querySelector('html');
+            var sidebar = 'hidden';
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            }
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <div class="sidebar-scrollbox">
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="index.html">Neovide</a></li><li class="spacer"></li><li class="chapter-item expanded "><a href="features.html"><strong aria-hidden="true">1.</strong> Features</a></li><li class="chapter-item expanded "><a href="installation.html"><strong aria-hidden="true">2.</strong> Installation</a></li><li class="chapter-item expanded "><a href="configuration.html"><strong aria-hidden="true">3.</strong> Configuration</a></li><li class="chapter-item expanded "><a href="commands.html"><strong aria-hidden="true">4.</strong> Commands</a></li><li class="chapter-item expanded "><a href="command-line-reference.html"><strong aria-hidden="true">5.</strong> Command Line Reference</a></li><li class="chapter-item expanded "><a href="config-file.html"><strong aria-hidden="true">6.</strong> Config File</a></li><li class="chapter-item expanded "><a href="editing-with-external-tools.html"><strong aria-hidden="true">7.</strong> Editing w/ External Tools</a></li><li class="chapter-item expanded "><a href="troubleshooting.html"><strong aria-hidden="true">8.</strong> Troubleshooting</a></li><li class="chapter-item expanded "><a href="faq.html"><strong aria-hidden="true">9.</strong> FAQ</a></li><li class="chapter-item expanded "><a href="maintainer-cookbook.html" class="active"><strong aria-hidden="true">10.</strong> Maintainer Cookbook</a></li></ol>
+            </div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky bordered">
+                    <div class="left-buttons">
+                        <button id="sidebar-toggle" class="icon-button" type="button" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </button>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu (default)</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">Neovide</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/neovide/neovide" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/neovide/neovide/edit/main/website/docs/maintainer-cookbook.md" title="Suggest an edit" aria-label="Suggest an edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script type="text/javascript">
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main><div class="sidetoc"><nav class="pagetoc"></nav></div>
+                        <h1 id="maintainer-cookbook"><a class="header" href="#maintainer-cookbook">Maintainer Cookbook</a></h1>
+<p>General notes about collaborating/doing maintenance work on Neovide.</p>
+<h2 id="how-to-keep-your-sanity"><a class="header" href="#how-to-keep-your-sanity">How to keep your sanity</a></h2>
+<ul>
+<li>
+<p>Don't think you need to solve, participate in or even notice everything
+happening.</p>
+<p>Work on such a project where most things are already done and the things left
+aren't that fun anymore can be very gruesome, even if that might not be
+directly noticeable. Just do whatever is fun, feels doable and is inspiring
+you. This is not a full-time job, it's not even a job at all. You're not
+required to answer if you don't feel like doing so or would be forcing
+yourself.</p>
+<p>In short: Do whatever you seriously want.</p>
+</li>
+<li>
+<p>Always assume the best. There's no reason to be rude.</p>
+<p>Communication is hard. Even if it might seem like someone seriously didn't
+take any look at the docs before opening the issue, it's very possible that
+they did and found it not to be matching their case, misinterpreted what's
+written, or weren't sure if they were looking at the right section. What might
+feel obvious to you could feel obscure to another person.</p>
+<p>Re-state the essential docs contents, link to the relevant section and ask how
+it could be worded better/could be found better.</p>
+</li>
+<li>
+<p>Ask for more information if you require so. Some investigation can be done by
+the user.</p>
+<p>If some case requires some special environmental information which isn't given
+in the original report, ask for it. Or if you aren't sure what you're looking
+for, state what you believe is the case and add some potentially useful
+queries. It's also completely okay to state afterwards that you still don't
+have a clue.</p>
+<p>Neovide is a frontend for an arcane text editor, it's very possible that the
+person reporting the issue has some Rust or general programming knowledge and
+could help with debugging/tracing down the original cause for an issue. Some
+people state so if they want to do that (usually by &quot;I'd be happy for any
+pointers or hints&quot; or &quot;I'm interested in contributing&quot;), but this is more art
+than science. Even if the original reporter can't seem to solve the issue,
+someone else interested in contributing might lurk around and find exactly
+those pointers.</p>
+</li>
+</ul>
+<h2 id="how-to-release"><a class="header" href="#how-to-release">How to release</a></h2>
+<p>Note: These are not a strict rulebook, but rather one <em>possible</em> way for releasing. Adjust as you
+see fit (and then update here with your findings).</p>
+<h3 id="preparing"><a class="header" href="#preparing">Preparing</a></h3>
+<ol>
+<li>Head over to <a href="https://github.com/neovide/neovide/releases">the releases page</a> and hit the <code>Draft a new release</code> button.</li>
+<li>Keep the resulting page somewhere safe open, you'll need to work with it the
+next half an hour and GitHub doesn't automatically save its contents.</li>
+<li>Create a new tag with an appropriate version number.</li>
+</ol>
+<p>We're not fully following <a href="https://semver.org/">SemVer</a> here, but as of 0.10.1 larger
+changes should be an increase in the MINOR part, while fixups should be an
+increase in the PATCH part.</p>
+<ol>
+<li>
+<p>Hit the <code>Generate release notes</code> button.</p>
+</li>
+<li>
+<p>Reformat to be similar to previous releases</p>
+<ul>
+<li>Rename the <code>What's Changed</code> section to <code>Changes</code></li>
+<li>Rewrite each line in the <code>Changes</code> section to reflect what this change means
+for the end user, linking to the relevant PR/commit</li>
+<li>Group all bug fix PRs/commits under a point named <code>Bug fixes</code></li>
+<li>Have each line reflect what platform it applies to if not irrelevant</li>
+</ul>
+</li>
+<li>
+<p>Hit the <code>Save draft</code> button</p>
+</li>
+</ol>
+<p>You can make several rounds of preparing such releases through editing the
+current draft over time, to make sure every contributor is mentioned and every
+change is included.</p>
+<h3 id="actually-releasing"><a class="header" href="#actually-releasing">Actually releasing</a></h3>
+<ol>
+<li>Announce a short period of time where last changes to be done or fixup work
+can flow in (can be anything you imagine, though 24 hours to one week might
+be enough depending on the blocker)</li>
+<li>Wait for that period to pass</li>
+<li>Have a last look over the draft to make sure every new contributor and change has
+been mentioned</li>
+</ol>
+<p>Now here's where the order becomes important:</p>
+<ol>
+<li>
+<p>Make sure the working directory is clean</p>
+</li>
+<li>
+<p>Run <code>cargo update</code> and <code>cargo build</code>, make sure both succeed</p>
+</li>
+<li>
+<p>Create a commit named <code>Run cargo update</code> or similar</p>
+</li>
+<li>
+<p>Bump the version to match the tag name everywhere</p>
+<ul>
+<li><code>Cargo.toml</code> (do note it contains the version <em>twice</em>, one time in the
+top, one time at the bottom in the bundling section)</li>
+<li><code>snap/snapcraft.yaml</code></li>
+<li><code>website/docs/*.md</code> and update <code>Unreleased yet</code> to <code>Available since $tag</code>
+(where <code>$tag</code> is the tag name)</li>
+</ul>
+</li>
+<li>
+<p>Run <code>cargo build</code> and make sure it succeeds, <strong>remember to <code>git add Cargo.lock</code> to make sure releases stay reproducible
+(<a href="https://github.com/neovide/neovide/issues/1628">#1628</a>,
+<a href="https://github.com/neovide/neovide/issues/1482">#1482</a>)</strong></p>
+</li>
+<li>
+<p>Create a commit called <code>Bump version to $tag</code></p>
+</li>
+<li>
+<p>Push and wait for CI to complete (will take around 25 minutes)</p>
+</li>
+<li>
+<p>Run <code>cargo build --frozen</code></p>
+</li>
+</ol>
+<p>In the meantime, you can look through the previous commits to see if you missed
+anything.</p>
+<ol>
+<li>
+<p>From the <code>Bump version to $tag</code> commit, download all the artifacts</p>
+</li>
+<li>
+<p>Unzip</p>
+<ul>
+<li><code>neovide.AppImage.zip</code></li>
+<li><code>neovide.AppImage.zsync.zip</code></li>
+<li><code>neovide.msi.zip</code></li>
+<li><code>neovide-linux-x86_64.tar.gz.zip</code></li>
+</ul>
+</li>
+<li>
+<p>Head to the release draft, edit it and upload the produced artifacts (using
+the unzipped versions if listed above)</p>
+</li>
+<li>
+<p>Hit <code>Publish release</code></p>
+</li>
+<li>
+<p>profit</p>
+</li>
+</ol>
+<p>Phew. Now, announce the new release anywhere you think is appropriate (like
+Reddit, Discord, whatever) <del>and go create a PR in nixpkgs</del>.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="faq.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="faq.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+        <script type="text/javascript">
+            window.playground_copyable = true;
+        </script>
+        <script src="elasticlunr.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="mark.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="searcher.js" type="text/javascript" charset="utf-8"></script>
+        <script src="clipboard.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="highlight.js" type="text/javascript" charset="utf-8"></script>
+        <script src="book.js" type="text/javascript" charset="utf-8"></script>
+
+        <!-- Custom JS scripts -->
+        <script type="text/javascript" src="theme/pagetoc.js"></script>
+        <script type="text/javascript" src="theme/custom.js"></script>
+    </body>
+</html>

@@ -1,0 +1,317 @@
+<!DOCTYPE HTML>
+<html lang="en" class="sidebar-visible no-js ayu">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Command Line Reference - Neovide</title>
+        <!-- Custom HTML head -->
+        <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+        <meta name="description" content="A Simple, No Nonsense, Cross-Platform, Graphical User Interface for Neovim">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff" />
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="highlight.css">
+        <link rel="stylesheet" href="tomorrow-night.css">
+        <link rel="stylesheet" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="theme/pagetoc.css">
+        <link rel="stylesheet" href="theme/custom.css">
+        <link rel="stylesheet" href="theme/breakpoints.css">
+    </head>
+    <body>
+        <!-- Provide site root to javascript -->
+        <script type="text/javascript">
+            var path_to_root = "";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "ayu" : "ayu";
+        </script>
+
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script type="text/javascript">
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script type="text/javascript">
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            var html = document.querySelector('html');
+            html.classList.remove('no-js')
+            html.classList.remove('ayu')
+            html.classList.add(theme);
+            html.classList.add('js');
+        </script>
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script type="text/javascript">
+            var html = document.querySelector('html');
+            var sidebar = 'hidden';
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            }
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <div class="sidebar-scrollbox">
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="index.html">Neovide</a></li><li class="spacer"></li><li class="chapter-item expanded "><a href="features.html"><strong aria-hidden="true">1.</strong> Features</a></li><li class="chapter-item expanded "><a href="installation.html"><strong aria-hidden="true">2.</strong> Installation</a></li><li class="chapter-item expanded "><a href="configuration.html"><strong aria-hidden="true">3.</strong> Configuration</a></li><li class="chapter-item expanded "><a href="commands.html"><strong aria-hidden="true">4.</strong> Commands</a></li><li class="chapter-item expanded "><a href="command-line-reference.html" class="active"><strong aria-hidden="true">5.</strong> Command Line Reference</a></li><li class="chapter-item expanded "><a href="config-file.html"><strong aria-hidden="true">6.</strong> Config File</a></li><li class="chapter-item expanded "><a href="editing-with-external-tools.html"><strong aria-hidden="true">7.</strong> Editing w/ External Tools</a></li><li class="chapter-item expanded "><a href="troubleshooting.html"><strong aria-hidden="true">8.</strong> Troubleshooting</a></li><li class="chapter-item expanded "><a href="faq.html"><strong aria-hidden="true">9.</strong> FAQ</a></li><li class="chapter-item expanded "><a href="maintainer-cookbook.html"><strong aria-hidden="true">10.</strong> Maintainer Cookbook</a></li></ol>
+            </div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky bordered">
+                    <div class="left-buttons">
+                        <button id="sidebar-toggle" class="icon-button" type="button" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </button>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu (default)</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">Neovide</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/neovide/neovide" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/neovide/neovide/edit/main/website/docs/command-line-reference.md" title="Suggest an edit" aria-label="Suggest an edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script type="text/javascript">
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main><div class="sidetoc"><nav class="pagetoc"></nav></div>
+                        <h1 id="command-line-reference"><a class="header" href="#command-line-reference">Command Line Reference</a></h1>
+<p>Neovide supports a few command line arguments for effecting things which couldn't be set using
+normal vim variables.</p>
+<p><code>$</code> in front of a word refers to it being an &quot;environment variable&quot; which is checked for, some
+settings only require it to be set in some way, some settings also use the contents.</p>
+<h2 id="information"><a class="header" href="#information">Information</a></h2>
+<h3 id="version"><a class="header" href="#version">Version</a></h3>
+<pre><code class="language-sh">--version or -V
+</code></pre>
+<p>Prints the current version of neovide.</p>
+<h3 id="help"><a class="header" href="#help">Help</a></h3>
+<pre><code class="language-sh">--help or -h
+</code></pre>
+<p>Prints details about neovide. This will be a help page eventually.</p>
+<h2 id="functionality"><a class="header" href="#functionality">Functionality</a></h2>
+<h3 id="frame"><a class="header" href="#frame">Frame</a></h3>
+<pre><code class="language-sh">--frame or $NEOVIDE_FRAME
+</code></pre>
+<p>Can be set to:</p>
+<ul>
+<li><code>full</code>: The default, all decorations.</li>
+<li><code>none</code>: No decorations at all. NOTE: Window cannot be moved nor resized after this.</li>
+<li>(macOS only) <code>transparent</code>: Transparent decorations including a transparent bar.</li>
+<li>(macOS only) <code>buttonless</code>: All decorations, but without quit, minimize or fullscreen buttons.</li>
+</ul>
+<h3 id="window-size"><a class="header" href="#window-size">Window Size</a></h3>
+<pre><code class="language-sh">--size=&lt;width&gt;x&lt;height&gt;
+</code></pre>
+<p>Sets the initial neovide window size in pixels.</p>
+<p>Can not be used together with <code>--maximized</code>, or <code>--grid</code>.</p>
+<h3 id="maximized"><a class="header" href="#maximized">Maximized</a></h3>
+<pre><code class="language-sh">--maximized or $NEOVIDE_MAXIMIZED
+</code></pre>
+<p>Maximize the window on startup, while still having decorations and the status bar of your OS
+visible.</p>
+<p>This is not the same as <code>g:neovide_fullscreen</code>, which runs Neovide in &quot;exclusive fullscreen&quot;,
+covering up the entire screen.</p>
+<p>Can not be used together with <code>--size</code>, or <code>--grid</code>.</p>
+<h3 id="grid-size"><a class="header" href="#grid-size">Grid Size</a></h3>
+<pre><code class="language-sh">--grid [&lt;columns&gt;x&lt;lines&gt;]
+
+</code></pre>
+<p><strong>Available since 0.12.0.</strong></p>
+<p>Sets the initial grid size of the window. If no value is given, it defaults to
+columns/lines from <code>init.vim/lua</code>, see
+<a href="https://neovim.io/doc/user/options.html#&#x27;columns&#x27;">columns</a> and
+<a href="https://neovim.io/doc/user/options.html#&#x27;lines&#x27;">lines</a>.</p>
+<p>If the <code>--grid</code> argument is not set then the grid size is inferred from the
+window size.</p>
+<p>Note: After the initial size has been determined and <code>init.vim/lua</code> processed,
+you can set <a href="https://neovim.io/doc/user/options.html#&#x27;columns&#x27;">columns</a> and
+<a href="https://neovim.io/doc/user/options.html#&#x27;lines&#x27;">lines</a> inside neovim
+regardless of the command line arguments used. This has to be done before any
+redraws are made, so it's recommended to put it at the start of the
+<code>init.vim/lua</code> along with <code>guifont</code> and other related settings that can affect
+the geometry.</p>
+<p>Can not be used together with <code>--size</code>, or <code>--maximized</code>.</p>
+<h3 id="log-file"><a class="header" href="#log-file">Log File</a></h3>
+<pre><code class="language-sh">--log
+</code></pre>
+<p>Enables the log file for debugging purposes. This will write a file next to the executable
+containing trace events which may help debug an issue.</p>
+<h3 id="multigrid"><a class="header" href="#multigrid">Multigrid</a></h3>
+<pre><code class="language-sh">--no-multigrid or $NEOVIDE_NO_MULTIGRID
+</code></pre>
+<p>This disables neovim's multigrid functionality which will also disable floating window blurred
+backgrounds, smooth scrolling, and window animations. This can solve some issues where neovide
+acts differently from terminal neovim.</p>
+<h3 id="no-fork"><a class="header" href="#no-fork">No Fork</a></h3>
+<pre><code class="language-sh">--no-fork or $NEOVIDE_FORK=0|1
+</code></pre>
+<p>By default, neovide detaches itself from the terminal. Instead of spawning a child process and
+leaking it, be &quot;blocking&quot; and have the shell directly as parent process.</p>
+<h3 id="no-idle"><a class="header" href="#no-idle">No Idle</a></h3>
+<pre><code class="language-sh">--no-idle or $NEOVIDE_IDLE=0|1
+</code></pre>
+<p>With idle <code>on</code> (default), neovide won't render new frames when nothing is happening.</p>
+<p>With idle <code>off</code> (e.g. with <code>--no-idle</code> flag), neovide will constantly render new frames,
+even when nothing changed. This takes more power and CPU time, but can possibly help
+with frame timing issues.</p>
+<h3 id="title-macos-only"><a class="header" href="#title-macos-only">Title (macOS Only)</a></h3>
+<pre><code class="language-sh">--title-hidden or $NEOVIDE_TITLE_HIDDEN
+</code></pre>
+<p><strong>Available since 0.12.2.</strong></p>
+<p>This sets the window title to be hidden on macOS.</p>
+<h3 id="srgb"><a class="header" href="#srgb">sRGB</a></h3>
+<pre><code class="language-sh">--no-srgb, --srgb or $NEOVIDE_SRGB=0|1
+</code></pre>
+<p>Request sRGB support on the window. Neovide does not actually render with sRGB,
+but it's still enabled by default on Windows to work around
+<a href="https://github.com/neovim/neovim/issues/907">neovim/neovim/issues/907</a>. Other
+platforms should not need it, but if you encounter either startup crashes or
+wrong colors, you can try to swap the option. The command line parameter takes
+priority over the environment variable.</p>
+<h3 id="tabs"><a class="header" href="#tabs">Tabs</a></h3>
+<pre><code class="language-sh">--no-tabs, --tabs or $NEOVIDE_TABS=0|1
+</code></pre>
+<p>By default, Neovide opens files given directly to Neovide (not NeoVim through <code>--</code>!) in multiple
+tabs to avoid confusing new users. <code>--no-tabs</code> disables this behavior.</p>
+<p>Note: Even if files are opened in tabs, they're buffers anyways. It's just about them being visible
+or not.</p>
+<h3 id="no-vsync"><a class="header" href="#no-vsync">No VSync</a></h3>
+<pre><code class="language-sh">--no-vsync, --vsync or $NEOVIDE_VSYNC=0|1
+</code></pre>
+<p><strong>Available since 0.10.2.</strong></p>
+<p>By default, Neovide requests to use VSync on the created window. <code>--no-vsync</code>
+disables this behavior. The command line parameter takes priority over the
+environment variable. If you don't enable vsync, then <code>g:neovide_refresh_rate</code>
+will be used.</p>
+<h3 id="neovim-server"><a class="header" href="#neovim-server">Neovim Server</a></h3>
+<pre><code class="language-sh">--server &lt;ADDRESS&gt;
+</code></pre>
+<p>Connects to the named pipe or socket at ADDRESS.</p>
+<h3 id="wsl"><a class="header" href="#wsl">WSL</a></h3>
+<pre><code class="language-sh">--wsl
+</code></pre>
+<p>Runs neovim from inside wsl rather than as a normal executable.</p>
+<h3 id="neovim-binary"><a class="header" href="#neovim-binary">Neovim Binary</a></h3>
+<pre><code class="language-sh">--neovim-bin or $NEOVIM_BIN
+</code></pre>
+<p>Sets where to find neovim's executable. If unset, neovide will try to find <code>nvim</code> on the <code>PATH</code>
+environment variable instead. If you're running a Unix-alike, be sure that binary has the executable
+permission bit set.</p>
+<h3 id="wayland--x11"><a class="header" href="#wayland--x11">Wayland / X11</a></h3>
+<pre><code class="language-sh">--wayland-app-id &lt;wayland_app_id&gt; or $NEOVIDE_APP_ID
+--x11-wm-class-instance &lt;x11_wm_class_instance&gt; or $NEOVIDE_WM_CLASS_INSTANCE
+--x11-wm-class &lt;x11_wm_class&gt; or $NEOVIDE_WM_CLASS
+</code></pre>
+<p>On Linux/Unix, this alters the identification of the window to either X11 or the more modern
+Wayland, depending on what you are running on.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="commands.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+                            <a rel="next" href="config-file.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="commands.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+                    <a rel="next" href="config-file.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+        <script type="text/javascript">
+            window.playground_copyable = true;
+        </script>
+        <script src="elasticlunr.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="mark.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="searcher.js" type="text/javascript" charset="utf-8"></script>
+        <script src="clipboard.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="highlight.js" type="text/javascript" charset="utf-8"></script>
+        <script src="book.js" type="text/javascript" charset="utf-8"></script>
+
+        <!-- Custom JS scripts -->
+        <script type="text/javascript" src="theme/pagetoc.js"></script>
+        <script type="text/javascript" src="theme/custom.js"></script>
+    </body>
+</html>

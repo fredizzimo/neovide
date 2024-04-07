@@ -1,0 +1,302 @@
+<!DOCTYPE HTML>
+<html lang="en" class="sidebar-visible no-js ayu">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>FAQ - Neovide</title>
+        <!-- Custom HTML head -->
+        <meta content="text/html; charset=utf-8" http-equiv="Content-Type">
+        <meta name="description" content="A Simple, No Nonsense, Cross-Platform, Graphical User Interface for Neovim">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff" />
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="highlight.css">
+        <link rel="stylesheet" href="tomorrow-night.css">
+        <link rel="stylesheet" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="theme/pagetoc.css">
+        <link rel="stylesheet" href="theme/custom.css">
+        <link rel="stylesheet" href="theme/breakpoints.css">
+    </head>
+    <body>
+        <!-- Provide site root to javascript -->
+        <script type="text/javascript">
+            var path_to_root = "";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "ayu" : "ayu";
+        </script>
+
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script type="text/javascript">
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script type="text/javascript">
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            var html = document.querySelector('html');
+            html.classList.remove('no-js')
+            html.classList.remove('ayu')
+            html.classList.add(theme);
+            html.classList.add('js');
+        </script>
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script type="text/javascript">
+            var html = document.querySelector('html');
+            var sidebar = 'hidden';
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            }
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <div class="sidebar-scrollbox">
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="index.html">Neovide</a></li><li class="spacer"></li><li class="chapter-item expanded "><a href="features.html"><strong aria-hidden="true">1.</strong> Features</a></li><li class="chapter-item expanded "><a href="installation.html"><strong aria-hidden="true">2.</strong> Installation</a></li><li class="chapter-item expanded "><a href="configuration.html"><strong aria-hidden="true">3.</strong> Configuration</a></li><li class="chapter-item expanded "><a href="commands.html"><strong aria-hidden="true">4.</strong> Commands</a></li><li class="chapter-item expanded "><a href="command-line-reference.html"><strong aria-hidden="true">5.</strong> Command Line Reference</a></li><li class="chapter-item expanded "><a href="config-file.html"><strong aria-hidden="true">6.</strong> Config File</a></li><li class="chapter-item expanded "><a href="editing-with-external-tools.html"><strong aria-hidden="true">7.</strong> Editing w/ External Tools</a></li><li class="chapter-item expanded "><a href="troubleshooting.html"><strong aria-hidden="true">8.</strong> Troubleshooting</a></li><li class="chapter-item expanded "><a href="faq.html" class="active"><strong aria-hidden="true">9.</strong> FAQ</a></li><li class="chapter-item expanded "><a href="maintainer-cookbook.html"><strong aria-hidden="true">10.</strong> Maintainer Cookbook</a></li></ol>
+            </div>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky bordered">
+                    <div class="left-buttons">
+                        <button id="sidebar-toggle" class="icon-button" type="button" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </button>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu (default)</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">Neovide</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/neovide/neovide" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+                        <a href="https://github.com/neovide/neovide/edit/main/website/docs/faq.md" title="Suggest an edit" aria-label="Suggest an edit">
+                            <i id="git-edit-button" class="fa fa-edit"></i>
+                        </a>
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script type="text/javascript">
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main><div class="sidetoc"><nav class="pagetoc"></nav></div>
+                        <h1 id="frequently-asked-questions"><a class="header" href="#frequently-asked-questions">Frequently Asked Questions</a></h1>
+<p>Commonly asked questions, or just explanations/elaborations on stuff.</p>
+<h2 id="how-can-i-use-cmd-ccmd-v-to-copy-and-paste"><a class="header" href="#how-can-i-use-cmd-ccmd-v-to-copy-and-paste">How can I use cmd-c/cmd-v to copy and paste?</a></h2>
+<p>Neovide doesn't add or remove any keybindings to neovim, it only forwards keys. Its likely that
+your terminal adds these keybindings, as neovim doesn't have them by default. We can replicate
+this behavior by adding keybindings in neovim.</p>
+<pre><code class="language-lua">if vim.g.neovide then
+  vim.keymap.set('n', '&lt;D-s&gt;', ':w&lt;CR&gt;') -- Save
+  vim.keymap.set('v', '&lt;D-c&gt;', '&quot;+y') -- Copy
+  vim.keymap.set('n', '&lt;D-v&gt;', '&quot;+P') -- Paste normal mode
+  vim.keymap.set('v', '&lt;D-v&gt;', '&quot;+P') -- Paste visual mode
+  vim.keymap.set('c', '&lt;D-v&gt;', '&lt;C-R&gt;+') -- Paste command mode
+  vim.keymap.set('i', '&lt;D-v&gt;', '&lt;ESC&gt;l&quot;+Pli') -- Paste insert mode
+end
+
+-- Allow clipboard copy paste in neovim
+vim.api.nvim_set_keymap('', '&lt;D-v&gt;', '+p&lt;CR&gt;', { noremap = true, silent = true})
+vim.api.nvim_set_keymap('!', '&lt;D-v&gt;', '&lt;C-R&gt;+', { noremap = true, silent = true})
+vim.api.nvim_set_keymap('t', '&lt;D-v&gt;', '&lt;C-R&gt;+', { noremap = true, silent = true})
+vim.api.nvim_set_keymap('v', '&lt;D-v&gt;', '&lt;C-R&gt;+', { noremap = true, silent = true})
+</code></pre>
+<h2 id="how-to-enable-floating-and-popupmenu-transparency"><a class="header" href="#how-to-enable-floating-and-popupmenu-transparency">How To Enable Floating And Popupmenu Transparency?</a></h2>
+<p>Those are controlled through the <code>winblend</code> and <code>pumblend</code> options. See their help pages for more,
+but for short: Both options can be values between <code>0</code> (opaque) and <code>100</code> (fully transparent),
+inclusively on both ends. <code>winblend</code> controls the background for floating windows, <code>pumblend</code> the
+one for the popup menu.</p>
+<p>telescope.nvim is different here though. Instead of using the global <code>winblend</code> option, it has its
+own <code>telescope.defaults.winblend</code> configuration option, see <a href="https://github.com/neovide/neovide/issues/1626#issuecomment-1701080545">this comment in #1626</a>.</p>
+<h2 id="how-can-i-dynamically-change-the-scale-at-runtime"><a class="header" href="#how-can-i-dynamically-change-the-scale-at-runtime">How Can I Dynamically Change The Scale At Runtime?</a></h2>
+<p>Neovide offers the setting <code>g:neovide_scale_factor</code>, which is multiplied with
+the OS scale factor and the font size. So using this could look like</p>
+<p>VimScript:</p>
+<pre><code class="language-vim">let g:neovide_scale_factor=1.0
+function! ChangeScaleFactor(delta)
+  let g:neovide_scale_factor = g:neovide_scale_factor * a:delta
+endfunction
+nnoremap &lt;expr&gt;&lt;C-=&gt; ChangeScaleFactor(1.25)
+nnoremap &lt;expr&gt;&lt;C--&gt; ChangeScaleFactor(1/1.25)
+</code></pre>
+<p>Lua:</p>
+<pre><code class="language-lua">vim.g.neovide_scale_factor = 1.0
+local change_scale_factor = function(delta)
+  vim.g.neovide_scale_factor = vim.g.neovide_scale_factor * delta
+end
+vim.keymap.set(&quot;n&quot;, &quot;&lt;C-=&gt;&quot;, function()
+  change_scale_factor(1.25)
+end)
+vim.keymap.set(&quot;n&quot;, &quot;&lt;C--&gt;&quot;, function()
+  change_scale_factor(1/1.25)
+end)
+</code></pre>
+<p>Credits to <a href="https://github.com/neovide/neovide/pull/1589">BHatGuy here</a>.</p>
+<h2 id="how-can-i-dynamically-change-the-transparency-at-runtime-macos"><a class="header" href="#how-can-i-dynamically-change-the-transparency-at-runtime-macos">How can I Dynamically Change The Transparency At Runtime? (macOS)</a></h2>
+<p>VimScript:</p>
+<pre><code class="language-vim">&quot; Set transparency and background color (title bar color)
+let g:neovide_transparency=0.0
+let g:neovide_transparency_point=0.8
+let g:neovide_background_color = '#0f1117'.printf('%x', float2nr(255 * g:neovide_transparency_point))
+
+&quot; Add keybinds to change transparency
+function! ChangeTransparency(delta)
+  let g:neovide_transparency_point = g:neovide_transparency_point + a:delta
+  let g:neovide_background_color = '#0f1117'.printf('%x', float2nr(255 * g:neovide_transparency_point))
+endfunction
+noremap &lt;expr&gt;&lt;D-]&gt; ChangeTransparency(0.01)
+noremap &lt;expr&gt;&lt;D-[&gt; ChangeTransparency(-0.01)
+</code></pre>
+<p>Lua:</p>
+<pre><code class="language-lua">-- Helper function for transparency formatting
+local alpha = function()
+  return string.format(&quot;%x&quot;, math.floor(255 * vim.g.neovide_transparency_point or 0.8))
+end
+-- Set transparency and background color (title bar color)
+vim.g.neovide_transparency = 0.0
+vim.g.neovide_transparency_point = 0.8
+vim.g.neovide_background_color = &quot;#0f1117&quot; .. alpha()
+-- Add keybinds to change transparency
+local change_transparency = function(delta)
+  vim.g.neovide_transparency_point = vim.g.neovide_transparency_point + delta
+  vim.g.neovide_background_color = &quot;#0f1117&quot; .. alpha()
+end
+vim.keymap.set({ &quot;n&quot;, &quot;v&quot;, &quot;o&quot; }, &quot;&lt;D-]&gt;&quot;, function()
+  change_transparency(0.01)
+end)
+vim.keymap.set({ &quot;n&quot;, &quot;v&quot;, &quot;o&quot; }, &quot;&lt;D-[&gt;&quot;, function()
+  change_transparency(-0.01)
+end)
+</code></pre>
+<h2 id="neovide-is-not-picking-up-some-shell-configured-information"><a class="header" href="#neovide-is-not-picking-up-some-shell-configured-information">Neovide Is Not Picking Up Some Shell-configured Information</a></h2>
+<p>...aka <code>nvm use</code> doesn't work, aka anything configured in <code>~/.bashrc</code>/<code>~/.zshrc</code>
+is ignored by Neovide.</p>
+<p>Neovide doesn't start the embedded neovim instance in an interactive shell, so your
+shell doesn't read part of its startup file (<code>~/.bashrc</code>/<code>~/.zshrc</code>/whatever the
+equivalent for your shell is). But depending on your shell there are other
+options for doing so, for example for zsh you can just put your relevant content
+into <code>~/.zprofile</code> or <code>~/.zlogin</code>.</p>
+<h2 id="the-terminal-displays-fallback-colorsterminal-does-not-show-my-colors"><a class="header" href="#the-terminal-displays-fallback-colorsterminal-does-not-show-my-colors">The Terminal Displays Fallback Colors/:terminal Does Not Show My Colors</a></h2>
+<p>Your colorscheme has to define <code>g:terminal_color_0</code> through
+<code>g:terminal_color_15</code> in order to have any effect on the terminal. Just setting
+any random highlights which have <code>Term</code> in name won't help.</p>
+<p>Some colorschemes think of this, some don't. Search in the documentation of
+yours, if it's your own, add it, and if you can't seem to find anything, open an
+issue in the colorscheme's repo.</p>
+<h2 id="compose-key-sequences-do-not-work"><a class="header" href="#compose-key-sequences-do-not-work">Compose key sequences do not work</a></h2>
+<p>One possible cause might be inconsistent capitalization of your locale
+settings, see <a href="https://github.com/neovide/neovide/issues/1896#issuecomment-1616421167.">#1896</a>. Possibly you're also running an outdated version of
+Neovide.</p>
+<p>Another possible cause is that you are using IME on X11. Dead keys with IME is
+not yet supported, but you can work around that either by disabling IME or
+configuring it to only be enabled in insert mode. See
+<a href="configuration.html">Configuration</a>.</p>
+<h2 id="font-size-is-weird-with-high-dpi-display-on-x11"><a class="header" href="#font-size-is-weird-with-high-dpi-display-on-x11">Font size is weird with high dpi display on x11</a></h2>
+<p>Winit looks in multiple locations for the configured dpi.
+Make sure its set in at least one of them. More details
+here: <a href="https://github.com/neovide/neovide/issues/2010#issuecomment-1704416685">#2010</a>.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="troubleshooting.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+                            <a rel="next" href="maintainer-cookbook.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="troubleshooting.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+                    <a rel="next" href="maintainer-cookbook.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+        <script type="text/javascript">
+            window.playground_copyable = true;
+        </script>
+        <script src="elasticlunr.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="mark.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="searcher.js" type="text/javascript" charset="utf-8"></script>
+        <script src="clipboard.min.js" type="text/javascript" charset="utf-8"></script>
+        <script src="highlight.js" type="text/javascript" charset="utf-8"></script>
+        <script src="book.js" type="text/javascript" charset="utf-8"></script>
+
+        <!-- Custom JS scripts -->
+        <script type="text/javascript" src="theme/pagetoc.js"></script>
+        <script type="text/javascript" src="theme/custom.js"></script>
+    </body>
+</html>
