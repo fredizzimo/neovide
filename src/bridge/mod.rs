@@ -21,8 +21,8 @@ use tokio::{
 use winit::event_loop::EventLoopProxy;
 
 use crate::{
-    cmd_line::CmdLineSettings, editor::start_editor, settings::*, units::GridSize,
-    window::UserEvent,
+    cmd_line::CmdLineSettings, editor::start_editor, renderer::cursor_renderer::CursorSettings,
+    settings::*, units::GridSize, window::UserEvent,
 };
 pub use handler::NeovimHandler;
 use session::{NeovimInstance, NeovimSession};
@@ -100,6 +100,13 @@ async fn launch(handler: NeovimHandler, grid_size: Option<GridSize<u32>>) -> Res
         "Neovide registered to nvim with channel id {}",
         api_information.channel
     );
+
+    if api_information.version.has_version(0, 11, 0) {
+        let mut settings = SETTINGS.get::<CursorSettings>();
+        settings.cmd_move_hack = false;
+        SETTINGS.set::<CursorSettings>(&settings);
+    }
+
     // This is too verbose to keep enabled all the time
     // log::info!("Api information {:#?}", api_information);
     setup_neovide_specific_state(&session.neovim, should_handle_clipboard, &api_information)

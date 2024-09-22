@@ -20,12 +20,13 @@ use skia_safe::Color4f;
 use crate::{
     bridge::{GuiOption, NeovimHandler, RedrawEvent, WindowAnchor},
     profiling::{tracy_named_frame, tracy_zone},
-    renderer::{DrawCommand, WindowDrawCommand},
+    renderer::{cursor_renderer::CursorSettings, DrawCommand, WindowDrawCommand},
+    settings::SETTINGS,
     window::{UserEvent, WindowCommand},
 };
 
 #[cfg(target_os = "macos")]
-use crate::{cmd_line::CmdLineSettings, frame::Frame, settings::SETTINGS};
+use crate::{cmd_line::CmdLineSettings, frame::Frame};
 
 pub use cursor::{Cursor, CursorMode, CursorShape};
 pub use draw_command_batcher::DrawCommandBatcher;
@@ -548,32 +549,34 @@ impl Editor {
             }
         }
 
-        if let Some(Window {
-            window_type: WindowType::Message { .. },
-            ..
-        }) = window
-        {
-            // When the user presses ":" to type a command, the cursor is sent to the gutter
-            // in position 1 (right after the ":"). In all other cases, we want to skip
-            // positioning to avoid confusing movements.
-            let intentional = grid_left == 1;
-            // If the cursor was already in this message, we can still move within it.
-            let already_there = self.cursor.parent_window_id == grid;
-            // This ^ check alone is a bit buggy though, since it fails when the cursor is
-            // technically still in the edit window but "temporarily" at the cmdline. (#1207)
-            let using_cmdline = self
-                .current_mode_index
-                .map(|current| current == MODE_CMDLINE)
-                .unwrap_or(false);
+        if SETTINGS.get::<CursorSettings>().cmd_move_hack {
+            if let Some(Window {
+                window_type: WindowType::Message { .. },
+                ..
+            }) = window
+            {
+                // When the user presses ":" to type a command, the cursor is sent to the gutter
+                // in position 1 (right after the ":"). In all other cases, we want to skip
+                // positioning to avoid confusing movements.
+                let intentional = grid_left == 1;
+                // If the cursor was already in this message, we can still move within it.
+                let already_there = self.cursor.parent_window_id == grid;
+                // This ^ check alone is a bit buggy though, since it fails when the cursor is
+                // technically still in the edit window but "temporarily" at the cmdline. (#1207)
+                let using_cmdline = self
+                    .current_mode_index
+                    .map(|current| current == MODE_CMDLINE)
+                    .unwrap_or(false);
 
-            if !intentional && !already_there && !using_cmdline {
-                trace!(
-                    "Cursor unexpectedly sent to message buffer {} ({}, {})",
-                    grid,
-                    grid_left,
-                    grid_top
-                );
-                return;
+                if !intentional && !already_there && !using_cmdline {
+                    trace!(
+                        "Cursor unexpectedly sent to message buffer {} ({}, {})",
+                        grid,
+                        grid_left,
+                        grid_top
+                    );
+                    return;
+                }
             }
         }
 

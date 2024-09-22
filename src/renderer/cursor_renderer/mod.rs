@@ -35,6 +35,8 @@ pub struct CursorSettings {
     unfocused_outline_width: f32,
     smooth_blink: bool,
 
+    pub cmd_move_hack: bool,
+
     vfx_mode: cursor_vfx::VfxMode,
     vfx_opacity: f32,
     vfx_particle_lifetime: f32,
@@ -55,6 +57,7 @@ impl Default for CursorSettings {
             trail_size: 0.7,
             unfocused_outline_width: 1.0 / 8.0,
             smooth_blink: false,
+            cmd_move_hack: true, // Actually defaults to false in Neovim 0.11.0 and greater
             vfx_mode: cursor_vfx::VfxMode::Disabled,
             vfx_opacity: 200.0,
             vfx_particle_lifetime: 1.2,
