@@ -577,12 +577,20 @@ impl Editor {
             }
         }
 
-        self.cursor.parent_window_id = grid;
-        self.cursor.grid_position = (grid_left, grid_top);
+        self.cursor.desired_grid_position = (grid_left, grid_top);
+        self.cursor.desired_parent_window_id = grid;
+        if self.cursor.enabled {
+            self.cursor.parent_window_id = grid;
+            self.cursor.grid_position = (grid_left, grid_top);
+        }
     }
 
     fn send_cursor_info(&mut self) {
         tracy_zone!("send_cursor_info");
+        if self.cursor.enabled {
+            self.cursor.parent_window_id = self.cursor.desired_parent_window_id;
+            self.cursor.grid_position = self.cursor.desired_grid_position;
+        }
         let (grid_left, grid_top) = self.cursor.grid_position;
         if let Some(window) = self.windows.get(&self.cursor.parent_window_id) {
             let (character, style, double_width) = window.get_cursor_grid_cell(grid_left, grid_top);
@@ -592,6 +600,8 @@ impl Editor {
             self.cursor.double_width = false;
             self.cursor.grid_cell = (" ".to_string(), None);
         }
+        log::info!("send_cursor_info {:#?}", self.cursor.grid_position);
+
         self.draw_command_batcher
             .queue(DrawCommand::UpdateCursor(self.cursor.clone()));
     }
