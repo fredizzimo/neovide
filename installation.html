@@ -78,7 +78,7 @@
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
             <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item expanded affix "><a href="index.html">Neovide</a></li><li class="spacer"></li><li class="chapter-item expanded "><a href="features.html"><strong aria-hidden="true">1.</strong> Features</a></li><li class="chapter-item expanded "><a href="installation.html" class="active"><strong aria-hidden="true">2.</strong> Installation</a></li><li class="chapter-item expanded "><a href="configuration.html"><strong aria-hidden="true">3.</strong> Configuration</a></li><li class="chapter-item expanded "><a href="commands.html"><strong aria-hidden="true">4.</strong> Commands</a></li><li class="chapter-item expanded "><a href="command-line-reference.html"><strong aria-hidden="true">5.</strong> Command Line Reference</a></li><li class="chapter-item expanded "><a href="config-file.html"><strong aria-hidden="true">6.</strong> Config File</a></li><li class="chapter-item expanded "><a href="editing-with-external-tools.html"><strong aria-hidden="true">7.</strong> Editing w/ External Tools</a></li><li class="chapter-item expanded "><a href="troubleshooting.html"><strong aria-hidden="true">8.</strong> Troubleshooting</a></li><li class="chapter-item expanded "><a href="faq.html"><strong aria-hidden="true">9.</strong> FAQ</a></li><li class="chapter-item expanded "><a href="maintainer-cookbook.html"><strong aria-hidden="true">10.</strong> Maintainer Cookbook</a></li></ol>
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="index.html">Neovide</a></li><li class="spacer"></li><li class="chapter-item expanded "><a href="features.html"><strong aria-hidden="true">1.</strong> Features</a></li><li class="chapter-item expanded "><a href="installation.html" class="active"><strong aria-hidden="true">2.</strong> Installation</a></li><li class="chapter-item expanded "><a href="configuration.html"><strong aria-hidden="true">3.</strong> Configuration</a></li><li class="chapter-item expanded "><a href="commands.html"><strong aria-hidden="true">4.</strong> Commands</a></li><li class="chapter-item expanded "><a href="command-line-reference.html"><strong aria-hidden="true">5.</strong> Command Line Reference</a></li><li class="chapter-item expanded "><a href="config-file.html"><strong aria-hidden="true">6.</strong> Config File</a></li><li class="chapter-item expanded "><a href="integration-with-external-tools.html"><strong aria-hidden="true">7.</strong> Integration w/ External Tools</a></li><li class="chapter-item expanded "><a href="troubleshooting.html"><strong aria-hidden="true">8.</strong> Troubleshooting</a></li><li class="chapter-item expanded "><a href="faq.html"><strong aria-hidden="true">9.</strong> FAQ</a></li><li class="chapter-item expanded "><a href="maintainer-cookbook.html"><strong aria-hidden="true">10.</strong> Maintainer Cookbook</a></li></ol>
             </div>
             <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
         </nav>
@@ -144,7 +144,7 @@
                 <div id="content" class="content">
                     <main><div class="sidetoc"><nav class="pagetoc"></nav></div>
                         <h1 id="installation"><a class="header" href="#installation">Installation</a></h1>
-<p><strong>Note</strong>: Neovide requires neovim version <code>0.6</code> <em>or greater</em>. See previous releases such as <code>0.5.0</code>
+<p><strong>Note</strong>: Neovide requires neovim version <code>0.10</code> <em>or greater</em>. See previous releases such as <code>0.5.0</code>
 if your distro is too slow with updating or you need to rely on older neovim versions.</p>
 <p>Building instructions are somewhat limited at the moment. All the libraries Neovide uses are cross
 platform and should have support for Windows, Mac, and Linux. The rendering is based on OpenGL, so a
@@ -152,7 +152,7 @@ good GPU driver will be necessary, the default drivers provided by virtual machi
 enough. On Windows this should be enabled by default if you have a relatively recent system.</p>
 <h2 id="binaries"><a class="header" href="#binaries">Binaries</a></h2>
 <p>Installing should be as simple as downloading the binary, making sure the <code>nvim</code> executable with
-version 0.6 or greater is on your <code>PATH</code> environment variable, and running it. Everything should be
+version 0.10 or greater is on your <code>PATH</code> environment variable, and running it. Everything should be
 self contained.</p>
 <p>The binaries are to be found on
 <a href="https://github.com/neovide/neovide/releases/latest">the release page</a>.</p>
@@ -223,13 +223,10 @@ line:</p>
 bundle:</p>
 </li>
 <li>
-<p><code>cargo install cargo-bundle</code></p>
+<p><code>GENERATE_BUNDLE_APP=true GENERATE_DMG=true ./macos-builder/run</code></p>
 </li>
 <li>
-<p><code>cargo bundle --release</code></p>
-</li>
-<li>
-<p><code>cp -r ./target/release/bundle/osx/Neovide.app /Applications/Neovide.app</code> and enjoy.</p>
+<p><code>open ./target/release/bundle/osx/Neovide.dmg</code></p>
 </li>
 </ol>
 <h2 id="linux"><a class="header" href="#linux">Linux</a></h2>
@@ -258,11 +255,6 @@ just want to try it out in a transient shell, you can use this command.</p>
 <p>Just add <code>neovide</code> from nixpkgs to your <code>environment.systemPackages</code> in <code>configuration.nix</code>.</p>
 <pre><code class="language-nix">environment.systemPackages = with pkgs; [neovide];
 </code></pre>
-<h3 id="snap"><a class="header" href="#snap">Snap</a></h3>
-<p>Neovide is also available in the Snap Store. You can install it using the command below.</p>
-<pre><code class="language-sh">snap install neovide
-</code></pre>
-<p><a href="https://snapcraft.io/neovide"><img src="https://snapcraft.io/static/images/badges/en/snap-store-white.svg" alt="Get it from the Snap Store" /></a></p>
 <h3 id="linux-source"><a class="header" href="#linux-source">Linux Source</a></h3>
 <ol>
 <li>

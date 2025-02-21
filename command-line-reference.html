@@ -78,7 +78,7 @@
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
             <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item expanded affix "><a href="index.html">Neovide</a></li><li class="spacer"></li><li class="chapter-item expanded "><a href="features.html"><strong aria-hidden="true">1.</strong> Features</a></li><li class="chapter-item expanded "><a href="installation.html"><strong aria-hidden="true">2.</strong> Installation</a></li><li class="chapter-item expanded "><a href="configuration.html"><strong aria-hidden="true">3.</strong> Configuration</a></li><li class="chapter-item expanded "><a href="commands.html"><strong aria-hidden="true">4.</strong> Commands</a></li><li class="chapter-item expanded "><a href="command-line-reference.html" class="active"><strong aria-hidden="true">5.</strong> Command Line Reference</a></li><li class="chapter-item expanded "><a href="config-file.html"><strong aria-hidden="true">6.</strong> Config File</a></li><li class="chapter-item expanded "><a href="editing-with-external-tools.html"><strong aria-hidden="true">7.</strong> Editing w/ External Tools</a></li><li class="chapter-item expanded "><a href="troubleshooting.html"><strong aria-hidden="true">8.</strong> Troubleshooting</a></li><li class="chapter-item expanded "><a href="faq.html"><strong aria-hidden="true">9.</strong> FAQ</a></li><li class="chapter-item expanded "><a href="maintainer-cookbook.html"><strong aria-hidden="true">10.</strong> Maintainer Cookbook</a></li></ol>
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="index.html">Neovide</a></li><li class="spacer"></li><li class="chapter-item expanded "><a href="features.html"><strong aria-hidden="true">1.</strong> Features</a></li><li class="chapter-item expanded "><a href="installation.html"><strong aria-hidden="true">2.</strong> Installation</a></li><li class="chapter-item expanded "><a href="configuration.html"><strong aria-hidden="true">3.</strong> Configuration</a></li><li class="chapter-item expanded "><a href="commands.html"><strong aria-hidden="true">4.</strong> Commands</a></li><li class="chapter-item expanded "><a href="command-line-reference.html" class="active"><strong aria-hidden="true">5.</strong> Command Line Reference</a></li><li class="chapter-item expanded "><a href="config-file.html"><strong aria-hidden="true">6.</strong> Config File</a></li><li class="chapter-item expanded "><a href="integration-with-external-tools.html"><strong aria-hidden="true">7.</strong> Integration w/ External Tools</a></li><li class="chapter-item expanded "><a href="troubleshooting.html"><strong aria-hidden="true">8.</strong> Troubleshooting</a></li><li class="chapter-item expanded "><a href="faq.html"><strong aria-hidden="true">9.</strong> FAQ</a></li><li class="chapter-item expanded "><a href="maintainer-cookbook.html"><strong aria-hidden="true">10.</strong> Maintainer Cookbook</a></li></ol>
             </div>
             <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
         </nav>
@@ -148,6 +148,9 @@
 normal vim variables.</p>
 <p><code>$</code> in front of a word refers to it being an &quot;environment variable&quot; which is checked for, some
 settings only require it to be set in some way, some settings also use the contents.</p>
+<p>Note: On macOS, it's not easy to specify command line arguments when launching Apps, you can use
+<a href="config-file.html">Neovide Config File</a> or <code>launchctl setenv NEOVIDE_FRAME transparent</code> to
+apply those setting.</p>
 <h2 id="information"><a class="header" href="#information">Information</a></h2>
 <h3 id="version"><a class="header" href="#version">Version</a></h3>
 <pre><code class="language-sh">--version or -V
@@ -211,11 +214,11 @@ containing trace events which may help debug an issue.</p>
 <p>This disables neovim's multigrid functionality which will also disable floating window blurred
 backgrounds, smooth scrolling, and window animations. This can solve some issues where neovide
 acts differently from terminal neovim.</p>
-<h3 id="no-fork"><a class="header" href="#no-fork">No Fork</a></h3>
-<pre><code class="language-sh">--no-fork or $NEOVIDE_FORK=0|1
+<h3 id="fork"><a class="header" href="#fork">Fork</a></h3>
+<pre><code class="language-sh">--fork or $NEOVIDE_FORK=0|1
 </code></pre>
-<p>By default, neovide detaches itself from the terminal. Instead of spawning a child process and
-leaking it, be &quot;blocking&quot; and have the shell directly as parent process.</p>
+<p>Detach from the terminal instead of waiting for the Neovide process to
+terminate. This parameter has no effect when launching from a GUI.</p>
 <h3 id="no-idle"><a class="header" href="#no-idle">No Idle</a></h3>
 <pre><code class="language-sh">--no-idle or $NEOVIDE_IDLE=0|1
 </code></pre>
@@ -223,6 +226,16 @@ leaking it, be &quot;blocking&quot; and have the shell directly as parent proces
 <p>With idle <code>off</code> (e.g. with <code>--no-idle</code> flag), neovide will constantly render new frames,
 even when nothing changed. This takes more power and CPU time, but can possibly help
 with frame timing issues.</p>
+<h3 id="mouse-cursor-icon"><a class="header" href="#mouse-cursor-icon">Mouse Cursor Icon</a></h3>
+<pre><code class="language-sh">--mouse-cursor-icon or $NEOVIDE_MOUSE_CURSOR_ICON=&quot;arrow|i-beam&quot;
+</code></pre>
+<p><strong>Available since 0.14.</strong></p>
+<p>This sets the mouse cursor icon to be used in the window.</p>
+<p>TLDR; Neovim has not yet implemented the
+<a href="https://github.com/neovim/neovim/issues/21458">'mouseshape'</a> feature, meaning that
+the cursor will not be reactive respecting the context of any Neovim element such as tabs,
+buttons and dividers. For that reason, the Arrow cursor has been taken as the default due
+to its generalistic purpose.</p>
 <h3 id="title-macos-only"><a class="header" href="#title-macos-only">Title (macOS Only)</a></h3>
 <pre><code class="language-sh">--title-hidden or $NEOVIDE_TITLE_HIDDEN
 </code></pre>
@@ -231,12 +244,24 @@ with frame timing issues.</p>
 <h3 id="srgb"><a class="header" href="#srgb">sRGB</a></h3>
 <pre><code class="language-sh">--no-srgb, --srgb or $NEOVIDE_SRGB=0|1
 </code></pre>
-<p>Request sRGB support on the window. Neovide does not actually render with sRGB,
-but it's still enabled by default on Windows to work around
-<a href="https://github.com/neovim/neovim/issues/907">neovim/neovim/issues/907</a>. Other
-platforms should not need it, but if you encounter either startup crashes or
-wrong colors, you can try to swap the option. The command line parameter takes
-priority over the environment variable.</p>
+<p>Request sRGB support on the window. The command line parameter takes priority
+over the environment variable.</p>
+<p>On Windows, Neovide does not actually render with sRGB, but it's still enabled
+by default to work around
+<a href="https://github.com/neovim/neovim/issues/907">neovim/neovim/issues/907</a>.</p>
+<p>On macOS, this option works as expected to switch sRGB color space. The
+default is <code>--no-srgb</code> to keep the behavior of previous versions. If you want
+to enable srgb, please use <code>--srgb</code>.</p>
+<p>Other platforms should not need it, but if you encounter either startup crashes
+or wrong colors, you can try to swap the option.</p>
+<p>Notes on macOS: Traditional terminals do not use sRGB by default. This is how
+most terminals on Windows and Linux do. Neovide follows this rule. However,
+Terminal of macOS changes the default to sRGB. Other terminal emulators, like
+Alacritty, Kitty, may follow Apple and use sRGB. Some may offer no function
+to switch it off currently. So you might get different color of the same value
+in Neovide surprisingly. Please read
+<a href="https://github.com/neovide/neovide/issues/1102">neovide/neovide/issues/1102</a>
+for more details.</p>
 <h3 id="tabs"><a class="header" href="#tabs">Tabs</a></h3>
 <pre><code class="language-sh">--no-tabs, --tabs or $NEOVIDE_TABS=0|1
 </code></pre>
@@ -244,6 +269,11 @@ priority over the environment variable.</p>
 tabs to avoid confusing new users. <code>--no-tabs</code> disables this behavior.</p>
 <p>Note: Even if files are opened in tabs, they're buffers anyways. It's just about them being visible
 or not.</p>
+<h3 id="opengl-renderer"><a class="header" href="#opengl-renderer">OpenGL Renderer</a></h3>
+<pre><code class="language-sh">--opengl or $NEOVIDE_OPENGL=1
+</code></pre>
+<p>By default, Neovide uses D3D on Windows and Metal on macOS as renderer. You
+can use <code>--opengl</code> to force OpenGL when you meet some problems of D3D/Metal.</p>
 <h3 id="no-vsync"><a class="header" href="#no-vsync">No VSync</a></h3>
 <pre><code class="language-sh">--no-vsync, --vsync or $NEOVIDE_VSYNC=0|1
 </code></pre>
