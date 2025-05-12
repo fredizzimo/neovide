@@ -10,6 +10,7 @@ pub mod profiler;
 mod rendered_layer;
 mod rendered_window;
 mod vsync;
+pub mod nvim_image;
 
 #[cfg(target_os = "windows")]
 pub mod d3d;
