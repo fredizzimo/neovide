@@ -1,66 +1,81 @@
-use serde::{Deserialize};
+use serde::Deserialize;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone, Debug, PartialEq)]
 pub struct Image {
     /// unique id associated with the image
-    id: i64,
+    pub id: u32,
     /// bytes of the image loaded into memory
-    bytes: Option<Vec<u8>>,
+    #[serde(with = "serde_bytes")]
+    pub bytes: Option<Vec<u8>>,
     /// path to the image on disk
-    filename: String,
+    pub filename: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "lowercase")]
 pub enum Relative {
-    win,
-    cursor,
-    mouse,
+    Win,
+    Cursor,
+    Mouse,
+    Placement,
 }
 
-/// vim.ui.img.Unit 
-#[derive(Deserialize)]
-pub enum Unit
-{
-    cell,
-    pixel,
+/// vim.ui.img.Unit
+#[derive(Deserialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum Unit {
+    Cell,
+    Pixel,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone, Debug, PartialEq)]
 pub struct Region {
     pos1: Position,
     pos2: Position,
 }
 
-
 /// vim.ui.img.utils.Position
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone, Debug, PartialEq)]
 pub struct Position {
-    x: i32,
-    y: i32,
-    unit: Unit, 
+    pub x: i32,
+    pub y: i32,
+    pub unit: Unit,
 }
 
-
 /// vim.ui.img.utils.Size
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone, Debug, PartialEq)]
 pub struct Size {
-    width: i32,
-    height: i32,
-    unit: Unit,
+    pub width: i32,
+    pub height: i32,
+    pub unit: Unit,
 }
 
 /// class vim.ui.img.Opts
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone, Debug, PartialEq)]
 pub struct Opts {
-    relative: Option<Relative>,
+    pub relative: Option<Relative>,
     /// portion of image to display
-    crop: Option<Region>,
+    pub crop: Option<Region>,
     ///  upper-left position of image within editor
-    pos: Option<Position>,
+    pub pos: Option<Position>,
     /// explicit size to scale the image
-    size: Option<Size>,
+    pub size: Option<Size>,
     /// window to use when `relative` is `win`
-    win: Option<i32>,
+    pub win: Option<i32>,
     /// z-index of the image with lower values being drawn before higher values
-    z: Option<i32> 
+    pub z: Option<i32>,
+}
+
+#[derive(Deserialize, Clone, Debug, PartialEq)]
+pub struct UploadImage {
+    pub img: Image,
+    pub more_chunks: bool,
+    pub base64: bool,
+}
+
+#[derive(Deserialize, Clone, Debug, PartialEq)]
+pub struct ShowImage {
+    pub opts: Opts,
+    pub image_id: u32,
+    pub placement_id: u32,
 }

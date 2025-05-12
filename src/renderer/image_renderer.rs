@@ -11,14 +11,12 @@ use bytemuck::cast_ref;
 use glamour::{Matrix3, Matrix4};
 use serde::Deserialize;
 use skia_safe::{
-    canvas::SrcRectConstraint, matrix::Member, AlphaType, BlendMode, Canvas, ColorSpace, ColorType,
-    Data, FilterMode, ISize, Image, ImageInfo, Matrix, MipmapMode, Paint, RSXform, Rect,
-    SamplingOptions, M44,
+    canvas::SrcRectConstraint, matrix::Member, BlendMode, Canvas, Data, FilterMode, Image, Matrix,
+    MipmapMode, Paint, RSXform, Rect, SamplingOptions, M44,
 };
 use std::{collections::HashMap, ops::Range};
 
-use super::kitty_image::{Display, ImageFormat};
-use super::{KittyImage, Transmit};
+use super::nvim_image as image;
 use crate::units::{GridRect, PixelVec};
 
 /// Don't add padding when encoding, and allow input with or without padding when decoding.
@@ -32,10 +30,10 @@ pub const STANDARD_NO_PAD_INDIFFERENT: GeneralPurpose =
     GeneralPurpose::new(&alphabet::STANDARD, NO_PAD_INDIFFERENT);
 
 pub struct ImageRenderer {
-    loaded_images: HashMap<u64, Image>,
-    visible_images: Vec<(u64, ImageRenderOpts)>,
-    in_progress_image: Option<Transmit>,
-    displayed_images: HashMap<(u32, u32), Display>,
+    loaded_images: HashMap<u32, Image>,
+    visible_images: Vec<(u32, image::Opts)>,
+    in_progress_image: Option<image::UploadImage>,
+    displayed_images: HashMap<(u32, u32), image::Opts>,
 }
 
 #[derive(Clone)]
@@ -122,80 +120,54 @@ impl ImageRenderer {
         }
     }
 
-    pub fn upload_image(&mut self, id: u64, data: &String) {
+    pub fn upload_image(&mut self, opts: image::UploadImage) {
         log::info!("upload image");
-        let image_data = STANDARD_NO_PAD_INDIFFERENT.decode(data).unwrap();
+        //let image_data = STANDARD_NO_PAD_INDIFFERENT.decode(data).unwrap();
         // TODO: don't copy
-        let image_data = Data::new_copy(&image_data);
-        let image = Image::from_encoded(image_data).unwrap();
-        log::info!("Image loaded {:?}", image);
-        self.loaded_images.insert(id, image);
+
+        let opts = if let Some(in_progress) = &mut self.in_progress_image {
+            in_progress
+                .img
+                .bytes
+                .as_mut()
+                .unwrap()
+                .extend(opts.img.bytes.unwrap());
+            if opts.more_chunks {
+                return;
+            }
+            in_progress
+        } else if opts.more_chunks {
+            self.in_progress_image = Some(opts);
+            return;
+        } else {
+            &opts
+        };
+
+        let raw_data = opts.img.bytes.as_ref().unwrap();
+        let image_data = {
+            if opts.base64 {
+                let image_data = STANDARD_NO_PAD_INDIFFERENT.decode(raw_data).unwrap();
+                Data::new_copy(&image_data)
+            } else {
+                Data::new_copy(raw_data)
+            }
+        };
+
+        // Assume png for now
+        let skia_image = Image::from_encoded(image_data).unwrap();
+        self.loaded_images.insert(opts.img.id, skia_image);
+        self.in_progress_image = None;
     }
 
-    pub fn kitty_image(&mut self, opts: KittyImage) {
-        match opts {
-            KittyImage::Transmit(opts) => {
-                let opts = if let Some(in_progress) = &mut self.in_progress_image {
-                    in_progress.data += &opts.data;
-                    if opts.more_chunks {
-                        return;
-                    }
-                    in_progress
-                } else if opts.more_chunks {
-                    self.in_progress_image = Some(opts);
-                    return;
-                } else {
-                    &opts
-                };
-
-                let image_data = STANDARD_NO_PAD_INDIFFERENT.decode(&opts.data).unwrap();
-                // TODO: don't copy
-                let image_data = Data::new_copy(&image_data);
-                let dimensions = ISize::new(opts.width as i32, opts.height as i32);
-                let image = match opts.format {
-                    ImageFormat::Png => Image::from_encoded(image_data).unwrap(),
-                    ImageFormat::Rgb => {
-                        let image_info = ImageInfo::new(
-                            dimensions,
-                            ColorType::RGB888x,
-                            AlphaType::Opaque,
-                            Some(ColorSpace::new_srgb()),
-                        );
-                        skia_safe::images::raster_from_data(
-                            &image_info,
-                            image_data,
-                            dimensions.width as usize * 3,
-                        )
-                        .unwrap()
-                    }
-                    ImageFormat::Rgba => {
-                        let image_info = ImageInfo::new(
-                            dimensions,
-                            ColorType::RGBA8888,
-                            AlphaType::Premul,
-                            Some(ColorSpace::new_srgb()),
-                        );
-                        skia_safe::images::raster_from_data(
-                            &image_info,
-                            image_data,
-                            dimensions.width as usize * 4,
-                        )
-                        .unwrap()
-                    }
-                };
-                self.loaded_images.insert(opts.id.into(), image);
-                self.in_progress_image = None;
-            }
-            KittyImage::Delete => {}
-            KittyImage::Display(opts) => {
+    pub fn show_image(&mut self, opts: image::ShowImage) {
+        match opts.opts.relative {
+            None => self.visible_images.push((opts.image_id, opts.opts)),
+            Some(image::Relative::Placement) => {
                 self.displayed_images
-                    .insert((opts.id, opts.placement_id), opts);
+                    .insert((opts.image_id, opts.placement_id), opts.opts);
             }
+            _ => {}
         }
-    }
-
-    pub fn show_image(&mut self, id: u64, opts: ImageRenderOpts) {
-        self.visible_images.push((id, opts));
     }
 
     pub fn draw_frame(&self, canvas: &Canvas, grid_scale: GridScale) {
@@ -204,17 +176,14 @@ impl ImageRenderer {
                 let pos = opts
                     .pos
                     .as_ref()
-                    .map_or(GridPos::default(), |pos| pos.into())
+                    .map_or(GridPos::default(), |pos| (pos.x, pos.y).into())
                     * grid_scale;
-                let size = opts.size.as_ref().map_or_else(
-                    || {
-                        let image_dimensons = image.dimensions();
-                        PixelSize::new(image_dimensons.width as f32, image_dimensons.height as f32)
-                    },
-                    |size| GridSize::from(size) * grid_scale,
-                );
+                let size = {
+                    let image_dimensons = image.dimensions();
+                    PixelSize::new(image_dimensons.width as f32, image_dimensons.height as f32)
+                };
                 let dst = PixelRect::from_origin_and_size(pos, size);
-                let crop = opts.crop.as_ref().map(|crop| (to_skia_rect(&crop.into())));
+                let crop = None;
                 let src = crop.as_ref().map(|crop| (crop, SrcRectConstraint::Strict));
                 let paint = Paint::default();
                 canvas.draw_image_rect(image, src, to_skia_rect(&dst), &paint);
@@ -253,17 +222,19 @@ impl<'a> FragmentRenderer<'a> {
                     let image = self
                         .renderer
                         .loaded_images
-                        .get(&(fragment.image_id as u64))
+                        .get(&(fragment.image_id))
                         .unwrap();
-                    let x_scale = (display.columns as f32 * scale.width()) / image.width() as f32;
-                    let y_scale = (display.rows as f32 * scale.height()) / image.height() as f32;
+                    let columns = display.size.as_ref().unwrap().width;
+                    let rows = display.size.as_ref().unwrap().height;
+                    let x_scale = (columns as f32 * scale.width()) / image.width() as f32;
+                    let y_scale = (rows as f32 * scale.height()) / image.height() as f32;
                     let matrix = Matrix3::from_scale((x_scale, y_scale).into());
                     let inv_matrix = matrix.inverse();
                     let skia_matrix = Matrix4::<f32>::from_mat3(matrix);
                     let skia_matrix = M44::col_major(cast_ref(skia_matrix.as_ref()));
                     let image_scale = GridScale::new(PixelSize::new(
-                        image.width() as f32 / display.columns as f32,
-                        image.height() as f32 / display.rows as f32,
+                        image.width() as f32 / columns as f32,
+                        image.height() as f32 / rows as f32,
                     ));
                     VisibleImage {
                         image,

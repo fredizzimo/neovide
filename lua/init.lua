@@ -185,9 +185,6 @@ M.private.set_info = function(info)
 end
 
 M.kitty_image = function(data)
-    if not data.a then
-        data.a = "t"
-    end
     rpcnotify("neovide.kitty_image", data)
 end
 

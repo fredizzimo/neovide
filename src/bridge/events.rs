@@ -5,15 +5,11 @@ use std::{
 };
 
 use log::{debug, warn};
-use rmpv::ext::from_value;
 use rmpv::Value;
 use skia_safe::Color4f;
 use strum::AsRefStr;
 
-use crate::{
-    editor::{Colors, CursorMode, CursorShape, Style, UnderlineStyle},
-    renderer::{ImageRenderOpts, KittyImage},
-};
+use crate::editor::{Colors, CursorMode, CursorShape, Style, UnderlineStyle};
 
 #[derive(Clone, Debug)]
 pub enum ParseError {
@@ -953,25 +949,4 @@ pub fn parse_redraw_event(event_value: Value) -> Result<Vec<RedrawEvent>> {
     }
 
     Ok(parsed_events)
-}
-
-pub fn parse_upload_image(arguments: Vec<Value>) -> Result<(u64, String)> {
-    let [id, data] = extract_values(arguments)?;
-    Ok((parse_u64(id)?, parse_string(data)?))
-}
-
-pub fn parse_show_image(arguments: Vec<Value>) -> Result<(u64, ImageRenderOpts)> {
-    let ([id], [opts]) = extract_values_with_optional(arguments)?;
-    let mut ret = ImageRenderOpts::default();
-    if let Some(opts) = opts {
-        if opts.is_map() {
-            ret = from_value(opts)?;
-        }
-    }
-    Ok((parse_u64(id)?, ret))
-}
-
-pub fn parse_kitty_image(arguments: Vec<Value>) -> Result<KittyImage> {
-    let [opts] = extract_values(arguments)?;
-    Ok(from_value(opts)?)
 }

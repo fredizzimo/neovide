@@ -36,14 +36,15 @@ use winit::platform::macos::EventLoopBuilderExtMacOS;
 #[cfg(target_os = "macos")]
 use macos::register_file_handler;
 
-use image::{load_from_memory, GenericImageView, Pixel};
+use ::image::{load_from_memory, GenericImageView, Pixel};
 use keyboard_manager::KeyboardManager;
 use mouse_manager::MouseManager;
 
+use crate::renderer::nvim_image as image;
 use crate::{
     cmd_line::{CmdLineSettings, GeometryArgs},
     frame::Frame,
-    renderer::{build_window_config, DrawCommand, ImageRenderOpts, KittyImage, WindowConfig},
+    renderer::{build_window_config, DrawCommand, WindowConfig},
     settings::{
         clamped_grid_size, load_last_window_settings, save_window_size, HotReloadConfigs,
         PersistentWindowSettings, Settings, SettingsChanged,
@@ -78,9 +79,8 @@ pub enum WindowCommand {
     ListAvailableFonts,
     FocusWindow,
     Minimize,
-    UploadImage(u64, String),
-    ShowImage(u64, ImageRenderOpts),
-    KittyImage(KittyImage),
+    UploadImage(image::UploadImage),
+    ShowImage(image::ShowImage),
     #[allow(dead_code)] // Theme change is only used on macOS right now
     ThemeChanged(Option<Theme>),
     #[cfg(windows)]

@@ -5,12 +5,12 @@ pub mod fonts;
 pub mod grid_renderer;
 mod image_renderer;
 mod kitty_image;
+pub mod nvim_image;
 pub mod opengl;
 pub mod profiler;
 mod rendered_layer;
 mod rendered_window;
 mod vsync;
-pub mod nvim_image;
 
 #[cfg(target_os = "windows")]
 pub mod d3d;

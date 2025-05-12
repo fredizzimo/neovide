@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex};
 use async_trait::async_trait;
 use log::trace;
 use nvim_rs::{Handler, Neovim};
+use rmpv::ext::from_value;
 use rmpv::Value;
 use tokio::sync::mpsc::UnboundedSender;
 use winit::event_loop::EventLoopProxy;
@@ -10,7 +11,7 @@ use winit::event_loop::EventLoopProxy;
 use crate::{
     bridge::{
         clipboard::{get_clipboard_contents, set_clipboard_contents},
-        events::{parse_kitty_image, parse_redraw_event, parse_show_image, parse_upload_image},
+        events::parse_redraw_event,
         send_ui, NeovimWriter, ParallelCommand, RedrawEvent,
     },
     error_handling::ResultPanicExplanation,
@@ -128,32 +129,23 @@ impl Handler for NeovimHandler {
             "neovide.exec_detach_handler" => {
                 send_ui(ParallelCommand::Quit);
             }
-            "neovide.upload_image" => {
-                let (id, data) = parse_upload_image(arguments)
+            "neovide.img.upload" => {
+                let (opts,) = from_value(Value::Array(arguments))
                     .unwrap_or_explained_panic("Failed to parse upload image event");
                 let _ = self
                     .proxy
                     .lock()
                     .unwrap()
-                    .send_event(WindowCommand::UploadImage(id, data).into());
+                    .send_event(WindowCommand::UploadImage(opts).into());
             }
-            "neovide.show_image" => {
-                let (id, opts) = parse_show_image(arguments)
+            "neovide.img.show" => {
+                let (opts,) = from_value(Value::Array(arguments))
                     .unwrap_or_explained_panic("Failed to parse show image event");
                 let _ = self
                     .proxy
                     .lock()
                     .unwrap()
-                    .send_event(WindowCommand::ShowImage(id, opts).into());
-            }
-            "neovide.kitty_image" => {
-                let opts = parse_kitty_image(arguments)
-                    .unwrap_or_explained_panic("Failed to parse kitty image event");
-                let _ = self
-                    .proxy
-                    .lock()
-                    .unwrap()
-                    .send_event(WindowCommand::KittyImage(opts).into());
+                    .send_event(WindowCommand::ShowImage(opts).into());
             }
             _ => {}
         }
