@@ -7,18 +7,14 @@ local LOADED_IMAGES = {}
 local next_placement_id = 1
 
 if vim.ui.img then
-    vim.ui.img.providers['neovide'] = vim.ui.img.providers.new({
-        --- @param self vim.ui.img.Provider
-        on_unload = function(self)
+    vim.ui.img.providers["neovide"] = vim.ui.img.providers.new({
+        unload = function() end,
+        load = function() end,
+        supported = function()
+            -- TODO: should be optional
+            return true
         end,
-        --- @param self vim.ui.img.Provider
-        on_load = function(self)
-        end,
-        --- @param self vim.ui.img.Provider
-        --- @param img vim.ui.Image
-        --- @param opts? vim.ui.img.Opts
-        --- @return integer
-        on_show = function(self, img, opts)
+        show = function(img, opts, on_shown)
             if not LOADED_IMAGES[img.id] then
                 rpcnotify("neovide.img.upload", {
                     img = img,
@@ -34,19 +30,12 @@ if vim.ui.img then
                 opts = opts,
             })
             next_placement_id = next_placement_id + 1
-            return next_placement_id
+            on_shown(nil, placement_id)
         end,
-        --- @param self vim.ui.img.Provider
-        --- @param ids integer[]
-        on_hide = function(self, ids)
-        end,
-        --- @param self vim.ui.img.Provider
-        --- @param id integer
-        --- @param opts? vim.ui.img.Opts
-        --- @return integer
-        on_update = function(self, id, opts)
+        hide = function(ids) end,
+        update = function(id, opts)
             return id
-        end
+        end,
     })
 end
 
@@ -63,17 +52,17 @@ local function get_crop(kitty_image)
         local x2 = x1 + w
         local y2 = y1 + h
         return {
-                pos1 = {
-                    x = x1,
-                    y = y1,
-                    unit = "pixel",
-                },
-                pos2 = {
-                    x = x2,
-                    y = y2,
-                    unit = "pixel",
-                }
-            }
+            pos1 = {
+                x = x1,
+                y = y1,
+                unit = "pixel",
+            },
+            pos2 = {
+                x = x2,
+                y = y2,
+                unit = "pixel",
+            },
+        }
     else
         return nil
     end
@@ -86,7 +75,7 @@ local function get_size(kitty_image)
         return {
             width = c,
             height = r,
-            unit = "cell"
+            unit = "cell",
         }
     else
         return nil
@@ -123,6 +112,5 @@ neovide.img.kitty_image = function(data)
         })
     end
 end
-
 
 local M = {}
