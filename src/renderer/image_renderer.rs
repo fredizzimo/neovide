@@ -9,6 +9,7 @@ use base64::{
 };
 use bytemuck::cast_ref;
 use glamour::{Matrix3, Matrix4};
+use itertools::Itertools;
 use serde::Deserialize;
 use skia_safe::{
     canvas::SrcRectConstraint, matrix::Member, BlendMode, Canvas, Data, FilterMode, Image, Matrix,
@@ -182,9 +183,31 @@ impl ImageRenderer {
                     .as_ref()
                     .map_or(GridPos::default(), |pos| (pos.x, pos.y).into())
                     * grid_scale;
-                let size = {
-                    let image_dimensons = image.dimensions();
-                    PixelSize::new(image_dimensons.width as f32, image_dimensons.height as f32)
+
+                let image_dimensions = image.dimensions();
+                let image_dimensions = PixelSize::new(
+                    image_dimensions.width as f32,
+                    image_dimensions.height as f32,
+                );
+                let image_aspect = image_dimensions.width / image_dimensions.height;
+                let size = match &opts.size {
+                    None => image_dimensions,
+                    Some(size) => {
+                        let size = GridSize::new(size.width, size.height) * grid_scale;
+                        match (size.width, size.height) {
+                            (0.0, 0.0) => PixelSize::default(),
+                            (x, 0.0) => PixelSize::new(x, x / image_aspect),
+                            (0.0, y) => PixelSize::new(y * image_aspect, y),
+                            (x, y) => {
+                                let grid_aspect = x / y;
+                                if image_aspect >= 1.0 && grid_aspect >= 1.0 {
+                                    PixelSize::new(x, x / image_aspect)
+                                } else {
+                                    PixelSize::new(y * image_aspect, y)
+                                }
+                            }
+                        }
+                    }
                 };
                 let dst = PixelRect::from_origin_and_size(pos, size);
                 let crop = None;
