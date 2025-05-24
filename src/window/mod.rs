@@ -81,6 +81,7 @@ pub enum WindowCommand {
     Minimize,
     UploadImage(image::UploadImage),
     ShowImage(image::ShowImage),
+    HideImages(Vec<u32>),
     #[allow(dead_code)] // Theme change is only used on macOS right now
     ThemeChanged(Option<Theme>),
     #[cfg(windows)]

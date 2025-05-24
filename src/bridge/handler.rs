@@ -147,6 +147,15 @@ impl Handler for NeovimHandler {
                     .unwrap()
                     .send_event(WindowCommand::ShowImage(opts).into());
             }
+            "neovide.img.hide" => {
+                let (opts,) = from_value(Value::Array(arguments))
+                    .unwrap_or_explained_panic("Failed to parse hide image event");
+                let _ = self
+                    .proxy
+                    .lock()
+                    .unwrap()
+                    .send_event(WindowCommand::HideImages(opts).into());
+            }
             _ => {}
         }
     }

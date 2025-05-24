@@ -31,7 +31,7 @@ pub const STANDARD_NO_PAD_INDIFFERENT: GeneralPurpose =
 
 pub struct ImageRenderer {
     loaded_images: HashMap<u32, Image>,
-    visible_images: Vec<(u32, image::Opts)>,
+    visible_images: Vec<((u32, u32), image::Opts)>,
     in_progress_image: Option<image::UploadImage>,
     displayed_images: HashMap<(u32, u32), image::Opts>,
 }
@@ -161,7 +161,7 @@ impl ImageRenderer {
 
     pub fn show_image(&mut self, opts: image::ShowImage) {
         match opts.opts.relative {
-            None => self.visible_images.push((opts.image_id, opts.opts)),
+            None => self.visible_images.push(((opts.image_id, opts.placement_id), opts.opts)),
             Some(image::Relative::Placement) => {
                 self.displayed_images
                     .insert((opts.image_id, opts.placement_id), opts.opts);
@@ -170,8 +170,12 @@ impl ImageRenderer {
         }
     }
 
+    pub fn hide_images(&mut self, images: Vec<u32>) {
+        self.visible_images.retain(|((_, placement_id), _)| !images.iter().contains(placement_id));
+    }
+
     pub fn draw_frame(&self, canvas: &Canvas, grid_scale: GridScale) {
-        for (id, opts) in &self.visible_images {
+        for ((id, _), opts) in &self.visible_images {
             if let Some(image) = self.loaded_images.get(id) {
                 let pos = opts
                     .pos

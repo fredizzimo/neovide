@@ -32,7 +32,9 @@ if vim.ui.img then
             next_placement_id = next_placement_id + 1
             on_shown(nil, placement_id)
         end,
-        hide = function(ids) end,
+        hide = function(ids)
+            rpcnotify("neovide.img.hide", ids)
+        end,
         update = function(id, opts)
             return id
         end,
