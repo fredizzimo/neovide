@@ -39,6 +39,12 @@ if vim.ui.img then
             return id
         end,
     })
+
+    local original_load = vim.ui.img.providers.load
+
+    vim.ui.img.providers.load = function(name, ...)
+        return original_load("neovide")
+    end
 end
 
 neovide.img = {}
