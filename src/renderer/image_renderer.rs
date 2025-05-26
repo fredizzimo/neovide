@@ -129,10 +129,10 @@ impl ImageRenderer {
         let opts = if let Some(in_progress) = &mut self.in_progress_image {
             in_progress
                 .img
-                .bytes
+                .data
                 .as_mut()
                 .unwrap()
-                .extend(opts.img.bytes.unwrap());
+                .extend(opts.img.data.unwrap());
             if opts.more_chunks {
                 return;
             }
@@ -144,7 +144,7 @@ impl ImageRenderer {
             &opts
         };
 
-        let raw_data = opts.img.bytes.as_ref().unwrap();
+        let raw_data = opts.img.data.as_ref().unwrap();
         let image_data = {
             if opts.base64 {
                 let image_data = STANDARD_NO_PAD_INDIFFERENT.decode(raw_data).unwrap();
@@ -162,7 +162,9 @@ impl ImageRenderer {
 
     pub fn show_image(&mut self, opts: image::ShowImage) {
         match opts.opts.relative {
-            None => self.visible_images.push(((opts.image_id, opts.placement_id), opts.opts)),
+            None => self
+                .visible_images
+                .push(((opts.image_id, opts.placement_id), opts.opts)),
             Some(image::Relative::Placement) => {
                 self.displayed_images
                     .insert((opts.image_id, opts.placement_id), opts.opts);
@@ -172,17 +174,18 @@ impl ImageRenderer {
     }
 
     pub fn hide_images(&mut self, images: Vec<u32>) {
-        self.visible_images.retain(|((_, placement_id), _)| !images.iter().contains(placement_id));
+        self.visible_images
+            .retain(|((_, placement_id), _)| !images.iter().contains(placement_id));
     }
 
     pub fn draw_frame(&self, canvas: &Canvas, grid_scale: GridScale) {
         for ((id, _), opts) in &self.visible_images {
             if let Some(image) = self.loaded_images.get(id) {
-                let pos = opts
-                    .pos
-                    .as_ref()
-                    .map_or(GridPos::default(), |pos| (pos.x, pos.y).into())
-                    * grid_scale;
+                // The position is 1-indexed
+                let pos = ((GridPos::new(opts.col.unwrap_or(1), opts.row.unwrap_or(1))
+                    - GridPos::new(1, 1))
+                    * grid_scale)
+                    .into();
 
                 let image_dimensions = image.dimensions();
                 let image_dimensions = PixelSize::new(
@@ -251,8 +254,8 @@ impl<'a> FragmentRenderer<'a> {
                         .loaded_images
                         .get(&(fragment.image_id))
                         .unwrap();
-                    let columns = display.size.as_ref().unwrap().width;
-                    let rows = display.size.as_ref().unwrap().height;
+                    let columns = display.width.unwrap_or(0);
+                    let rows = display.height.unwrap_or(0);
                     let x_scale = (columns as f32 * scale.width()) / image.width() as f32;
                     let y_scale = (rows as f32 * scale.height()) / image.height() as f32;
                     let matrix = Matrix3::from_scale((x_scale, y_scale).into());
