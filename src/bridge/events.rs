@@ -6,10 +6,14 @@ use std::{
 
 use log::{debug, warn};
 use rmpv::Value;
+use rmpv::ext::from_value;
 use skia_safe::Color4f;
 use strum::AsRefStr;
 
-use crate::editor::{Colors, CursorMode, CursorShape, Style, UnderlineStyle};
+use crate::{
+    editor::{Colors, CursorMode, CursorShape, Style, UnderlineStyle},
+    renderer::nvim_image,
+};
 
 #[derive(Clone, Debug)]
 pub enum ParseError {
@@ -311,6 +315,7 @@ pub enum RedrawEvent {
         entries: Vec<(MessageKind, StyledContent)>,
     },
     Suspend,
+    ImgAdd(nvim_image::ImgAdd)
 }
 
 fn unpack_color(packed_color: u64) -> Color4f {
@@ -878,6 +883,11 @@ fn parse_msg_history_show(msg_history_show_arguments: Vec<Value>) -> Result<Redr
     })
 }
 
+fn parse_img_add(args: Vec<Value>) -> Result<RedrawEvent> {
+    let opts = from_value(Value::Array(args))?;
+    Ok(RedrawEvent::ImgAdd(opts))
+}
+
 pub fn parse_redraw_event(event_value: Value) -> Result<Vec<RedrawEvent>> {
     let mut event_contents = parse_array(event_value)?.into_iter();
     let event_name = event_contents
@@ -932,6 +942,7 @@ pub fn parse_redraw_event(event_value: Value) -> Result<Vec<RedrawEvent>> {
             "msg_ruler" => Some(parse_msg_ruler(event_parameters)),
             "msg_history_show" => Some(parse_msg_history_show(event_parameters)),
             "suspend" => Some(Ok(RedrawEvent::Suspend)),
+            "img_add" => Some(parse_img_add(event_parameters)),
             _ => None,
         };
 

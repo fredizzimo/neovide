@@ -363,6 +363,9 @@ impl Editor {
                     .event_loop_proxy
                     .send_event(WindowCommand::Minimize.into());
             }
+            RedrawEvent::ImgAdd(opts) => {
+                self.draw_command_batcher.queue(DrawCommand::ImgAdd(opts));
+            }
             _ => {}
         };
     }

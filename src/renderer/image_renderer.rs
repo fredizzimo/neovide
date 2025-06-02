@@ -30,11 +30,16 @@ pub const NO_PAD_INDIFFERENT: GeneralPurposeConfig = GeneralPurposeConfig::new()
 pub const STANDARD_NO_PAD_INDIFFERENT: GeneralPurpose =
     GeneralPurpose::new(&alphabet::STANDARD, NO_PAD_INDIFFERENT);
 
+struct DisplayedImage {
+    width: u32,
+    height: u32,
+}
+
 pub struct ImageRenderer {
     loaded_images: HashMap<u32, Image>,
     visible_images: Vec<((u32, u32), image::Opts)>,
     in_progress_image: Option<image::UploadImage>,
-    displayed_images: HashMap<(u32, u32), image::Opts>,
+    displayed_images: HashMap<(u32, u32), DisplayedImage>,
 }
 
 #[derive(Clone)]
@@ -160,17 +165,28 @@ impl ImageRenderer {
         self.in_progress_image = None;
     }
 
+    pub fn add_image(&mut self, opts: image::ImgAdd) {
+        let image_data = {
+            Data::new_copy(&opts.data)
+        };
+
+        // Assume png for now
+        let skia_image = Image::from_encoded(image_data).unwrap();
+        self.loaded_images.insert(opts.id, skia_image);
+        self.displayed_images.insert((opts.id, 1), DisplayedImage { width: opts.width, height: opts.height });
+    }
+
     pub fn show_image(&mut self, opts: image::ShowImage) {
-        match opts.opts.relative {
-            None => self
-                .visible_images
-                .push(((opts.image_id, opts.placement_id), opts.opts)),
-            Some(image::Relative::Placement) => {
-                self.displayed_images
-                    .insert((opts.image_id, opts.placement_id), opts.opts);
-            }
-            _ => {}
-        }
+        // match opts.opts.relative {
+        //     None => self
+        //         .visible_images
+        //         .push(((opts.image_id, opts.placement_id), opts.opts)),
+        //     Some(image::Relative::Placement) => {
+        //         self.displayed_images
+        //             .insert((opts.image_id, opts.placement_id), opts.opts);
+        //     }
+        //     _ => {}
+        // }
     }
 
     pub fn hide_images(&mut self, images: Vec<u32>) {
@@ -251,8 +267,8 @@ impl<'a> FragmentRenderer<'a> {
                         .loaded_images
                         .get(&(fragment.image_id))
                         .unwrap();
-                    let columns = display.width.unwrap_or(0);
-                    let rows = display.height.unwrap_or(0);
+                    let columns = display.width;
+                    let rows = display.height;
                     let x_scale = (columns as f32 * scale.width()) / image.width() as f32;
                     let y_scale = (rows as f32 * scale.height()) / image.height() as f32;
                     let matrix = Matrix3::from_scale((x_scale, y_scale).into());

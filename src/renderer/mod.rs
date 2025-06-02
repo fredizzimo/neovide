@@ -151,6 +151,7 @@ pub enum DrawCommand {
         command: WindowDrawCommand,
     },
     CloseWindow(u64),
+    ImgAdd(nvim_image::ImgAdd),
 }
 
 pub struct Renderer {
@@ -497,6 +498,9 @@ impl Renderer {
             }
             DrawCommand::UIReady => {
                 result.should_show = true;
+            }
+            DrawCommand::ImgAdd(opts) => {
+                self.image_renderer.add_image(opts);
             }
             _ => {}
         }

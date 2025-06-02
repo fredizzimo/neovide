@@ -51,3 +51,12 @@ pub struct ShowImage {
     pub image_id: u32,
     pub placement_id: u32,
 }
+
+#[derive(Deserialize, Clone, Debug, PartialEq)]
+pub struct ImgAdd {
+    pub id: u32,
+    #[serde(with = "serde_bytes")]
+    pub data: Vec<u8>,
+    pub width: u32,
+    pub height: u32,
+}
