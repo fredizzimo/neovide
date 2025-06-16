@@ -2,12 +2,17 @@ use std::sync::Arc;
 
 use crate::{editor::style::Style, utils::RingBuffer};
 
-pub type GridCell = (String, Option<Arc<Style>>);
+#[derive(Debug, Clone, PartialEq)]
+pub struct ImageCell {
+    pub id: u32,
+    pub index: u32,
+}
+pub type GridCell = (String, Option<Arc<Style>>, Option<ImageCell>);
 
 #[macro_export]
 macro_rules! default_cell {
     () => {
-        (" ".to_owned(), None)
+        (" ".to_owned(), None, None)
     };
 }
 

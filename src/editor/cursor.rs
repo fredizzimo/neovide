@@ -68,7 +68,7 @@ impl Cursor {
             blinkoff: None,
             enabled: true,
             double_width: false,
-            grid_cell: (" ".to_string(), None),
+            grid_cell: (" ".to_string(), None, None),
         }
     }
 

@@ -9,6 +9,7 @@ use rmpv::Value;
 use rmpv::ext::from_value;
 use skia_safe::Color4f;
 use strum::AsRefStr;
+use serde::Deserialize;
 
 use crate::{
     editor::{Colors, CursorMode, CursorShape, Style, UnderlineStyle},
@@ -61,11 +62,17 @@ impl From<rmpv::ext::Error> for ParseError {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct GridLineCell {
     pub text: String,
+    #[serde(default)]
     pub highlight_id: Option<u64>,
+    #[serde(default)]
     pub repeat: Option<u64>,
+    #[serde(default)]
+    pub image_id: Option<u64>,
+    #[serde(default)]
+    pub image_cell: Option<u64>
 }
 
 pub type StyledContent = Vec<(u64, String)>;
@@ -315,7 +322,8 @@ pub enum RedrawEvent {
         entries: Vec<(MessageKind, StyledContent)>,
     },
     Suspend,
-    ImgAdd(nvim_image::ImgAdd)
+    ImgAdd(nvim_image::ImgAdd),
+    ImgShow(nvim_image::ImgShow)
 }
 
 fn unpack_color(packed_color: u64) -> Color4f {
@@ -574,33 +582,7 @@ fn parse_hl_attr_define(hl_attr_define_arguments: Vec<Value>) -> Result<RedrawEv
 }
 
 fn parse_grid_line_cell(grid_line_cell: Value) -> Result<GridLineCell> {
-    fn take_value(val: &mut Value) -> Value {
-        std::mem::replace(val, Value::Nil)
-    }
-
-    let mut cell_contents = parse_array(grid_line_cell)?;
-
-    let text_value = cell_contents
-        .first_mut()
-        .map(take_value)
-        .ok_or_else(|| ParseError::Format(format!("{cell_contents:?}")))?;
-
-    let highlight_id = cell_contents
-        .get_mut(1)
-        .map(take_value)
-        .map(parse_u64)
-        .transpose()?;
-    let repeat = cell_contents
-        .get_mut(2)
-        .map(take_value)
-        .map(parse_u64)
-        .transpose()?;
-
-    Ok(GridLineCell {
-        text: parse_string(text_value)?,
-        highlight_id,
-        repeat,
-    })
+    Ok(from_value(grid_line_cell)?)
 }
 
 fn parse_grid_line(grid_line_arguments: Vec<Value>) -> Result<RedrawEvent> {
@@ -888,6 +870,11 @@ fn parse_img_add(args: Vec<Value>) -> Result<RedrawEvent> {
     Ok(RedrawEvent::ImgAdd(opts))
 }
 
+fn parse_img_show(args: Vec<Value>) -> Result<RedrawEvent> {
+    let opts = from_value(Value::Array(args))?;
+    Ok(RedrawEvent::ImgShow(opts))
+}
+
 pub fn parse_redraw_event(event_value: Value) -> Result<Vec<RedrawEvent>> {
     let mut event_contents = parse_array(event_value)?.into_iter();
     let event_name = event_contents
@@ -943,6 +930,7 @@ pub fn parse_redraw_event(event_value: Value) -> Result<Vec<RedrawEvent>> {
             "msg_history_show" => Some(parse_msg_history_show(event_parameters)),
             "suspend" => Some(Ok(RedrawEvent::Suspend)),
             "img_add" => Some(parse_img_add(event_parameters)),
+            "img_show" => Some(parse_img_show(event_parameters)),
             _ => None,
         };
 

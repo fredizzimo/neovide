@@ -8,7 +8,7 @@ use crate::{
     profiling::{tracy_plot, tracy_zone},
     renderer::{
         animation_utils::*,
-        image_renderer::{ImageFragment, ImageRenderer},
+        image_renderer::{ImageRenderer},
         GridRenderer, RendererSettings,
     },
     settings::Settings,
@@ -17,11 +17,18 @@ use crate::{
 };
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct ImageFragment {
+    pub id: u32,
+    pub index: u32,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct LineFragment {
     pub text: String,
     pub window_left: u64,
     pub width: u64,
     pub style: Option<Arc<Style>>,
+    pub image_fragment: Option<ImageFragment>
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -72,7 +79,6 @@ struct Line {
     background_picture: Option<Picture>,
     foreground_picture: Option<Picture>,
     boxchar_picture: Option<(Picture, PixelPos<f32>)>,
-    image_fragments: Vec<ImageFragment>,
     has_transparency: bool,
     is_valid: bool,
 }
@@ -270,7 +276,7 @@ impl RenderedWindow {
             if let Some(foreground_picture) = &line.foreground_picture {
                 canvas.draw_picture(foreground_picture, Some(&matrix), None);
             }
-            fragment_renderer.draw(&line.image_fragments, &matrix, &grid_scale);
+            fragment_renderer.draw(&line.line_fragments, &matrix, &grid_scale);
         }
         fragment_renderer.flush(canvas);
         canvas.save();
@@ -281,7 +287,7 @@ impl RenderedWindow {
             if let Some(foreground_picture) = &line.foreground_picture {
                 canvas.draw_picture(foreground_picture, Some(&matrix), None);
             }
-            fragment_renderer.draw(&line.image_fragments, &matrix, &grid_scale);
+            fragment_renderer.draw(&line.line_fragments, &matrix, &grid_scale);
         }
         fragment_renderer.flush(canvas);
         canvas.restore();
@@ -422,7 +428,6 @@ impl RenderedWindow {
                     background_picture: None,
                     foreground_picture: None,
                     boxchar_picture: None,
-                    image_fragments: Vec::new(),
                     has_transparency: false,
                     is_valid: false,
                 };
@@ -650,7 +655,6 @@ impl RenderedWindow {
             let line_size = GridSize::new(self.grid_size.width, 1) * grid_scale;
             let grid_rect = Rect::from_wh(line_size.width, line_size.height);
             let canvas = recorder.begin_recording(grid_rect, None);
-            line.image_fragments.clear();
 
             let mut has_transparency = false;
             let mut custom_background = false;
@@ -688,21 +692,24 @@ impl RenderedWindow {
                     window_left,
                     width,
                     style,
+                    image_fragment,
                 } = line_fragment;
                 let grid_position = (i32::try_from(*window_left).unwrap(), 0).into();
 
-                let (frag_text_drawn, frag_box_drawn) = grid_renderer.draw_foreground(
-                    text_canvas,
-                    boxchar_canvas,
-                    text,
-                    grid_position,
-                    i32::try_from(*width).unwrap(),
-                    style,
-                    position,
-                    &mut line.image_fragments,
-                );
-                text_drawn |= frag_text_drawn;
-                boxchar_drawn |= frag_box_drawn;
+                if image_fragment.is_none() {
+                    let (frag_text_drawn, frag_box_drawn) = grid_renderer.draw_foreground(
+                        text_canvas,
+                        boxchar_canvas,
+                        text,
+                        grid_position,
+                        i32::try_from(*width).unwrap(),
+                        style,
+                        position,
+                    );
+                    text_drawn |= frag_text_drawn;
+                    boxchar_drawn |= frag_box_drawn;
+                }
+
             }
             let foreground_picture =
                 text_drawn.then_some(recorder.finish_recording_as_picture(None).unwrap());

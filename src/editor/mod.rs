@@ -366,6 +366,9 @@ impl Editor {
             RedrawEvent::ImgAdd(opts) => {
                 self.draw_command_batcher.queue(DrawCommand::ImgAdd(opts));
             }
+            RedrawEvent::ImgShow(opts) => {
+                self.draw_command_batcher.queue(DrawCommand::ImgShow(opts));
+            }
             _ => {}
         };
     }
@@ -615,11 +618,11 @@ impl Editor {
         let (grid_left, grid_top) = self.cursor.grid_position;
         if let Some(window) = self.windows.get(&self.cursor.parent_window_id) {
             let (character, style, double_width) = window.get_cursor_grid_cell(grid_left, grid_top);
-            self.cursor.grid_cell = (character, style);
+            self.cursor.grid_cell = (character, style, None);
             self.cursor.double_width = double_width;
         } else {
             self.cursor.double_width = false;
-            self.cursor.grid_cell = (" ".to_string(), None);
+            self.cursor.grid_cell = (" ".to_string(), None, None);
         }
         self.draw_command_batcher
             .queue(DrawCommand::UpdateCursor(self.cursor.clone()));

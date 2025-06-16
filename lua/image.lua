@@ -6,7 +6,7 @@ end
 local LOADED_IMAGES = {}
 local next_placement_id = 1
 
-if vim.ui.img then
+if vim.ui.img and vim.ui.img.providers then
     vim.ui.img.providers["neovide"] = vim.ui.img.providers.new({
         unload = function() end,
         load = function() end,

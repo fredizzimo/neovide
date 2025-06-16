@@ -129,33 +129,6 @@ impl Handler for NeovimHandler {
             "neovide.exec_detach_handler" => {
                 send_ui(ParallelCommand::Quit);
             }
-            "neovide.img.upload" => {
-                let (opts,) = from_value(Value::Array(arguments))
-                    .unwrap_or_explained_panic("Failed to parse upload image event");
-                let _ = self
-                    .proxy
-                    .lock()
-                    .unwrap()
-                    .send_event(WindowCommand::UploadImage(opts).into());
-            }
-            "neovide.img.show" => {
-                let (opts,) = from_value(Value::Array(arguments))
-                    .unwrap_or_explained_panic("Failed to parse show image event");
-                let _ = self
-                    .proxy
-                    .lock()
-                    .unwrap()
-                    .send_event(WindowCommand::ShowImage(opts).into());
-            }
-            "neovide.img.hide" => {
-                let (opts,) = from_value(Value::Array(arguments))
-                    .unwrap_or_explained_panic("Failed to parse hide image event");
-                let _ = self
-                    .proxy
-                    .lock()
-                    .unwrap()
-                    .send_event(WindowCommand::HideImages(opts).into());
-            }
             _ => {}
         }
     }

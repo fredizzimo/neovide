@@ -1,3 +1,8 @@
+use std::{
+    rc::Rc,
+    cell::RefCell,
+};
+
 use crate::units::{to_skia_rect, GridPos, GridScale, GridSize, PixelRect, PixelSize};
 use base64::{
     alphabet,
@@ -17,7 +22,7 @@ use skia_safe::{
 };
 use std::{collections::HashMap, ops::Range};
 
-use super::nvim_image as image;
+use super::{nvim_image as image, rendered_window::ImageFragment, LineFragment};
 use crate::units::{GridRect, PixelVec};
 
 /// Don't add padding when encoding, and allow input with or without padding when decoding.
@@ -35,33 +40,43 @@ struct DisplayedImage {
     height: u32,
 }
 
+// struct VisibleImageFragment {
+//     xform: Vec<RSXform>,
+//     tex: Vec<Rect>,
+//     inv_matrix: Matrix3<f32>,
+//     skia_matrix: M44,
+//     image_scale: GridScale,
+// }
+
+struct LoadedImage {
+    skia_image: Image,
+    xform: RefCell<Vec<RSXform>>,
+    tex: RefCell<Vec<Rect>>,
+}
+
+struct VisibleImage {
+    loaded_image: Rc<LoadedImage>, 
+    placement: image::ImgShow,
+}
+
 pub struct ImageRenderer {
-    loaded_images: HashMap<u32, Image>,
-    visible_images: Vec<((u32, u32), image::Opts)>,
+    loaded_images: HashMap<u32, Rc<LoadedImage>>,
+    visible_images: HashMap<u32, VisibleImage>,
     in_progress_image: Option<image::UploadImage>,
-    displayed_images: HashMap<(u32, u32), DisplayedImage>,
+    //displayed_images: HashMap<(u32, u32), DisplayedImage>,
 }
 
-#[derive(Clone)]
-pub struct ImageFragment {
-    pub dst_col: u32,
-    pub src_row: u32,
-    pub src_range: Range<u32>,
-    pub image_id: u32,
-    pub placement_id: u32,
-}
-
-struct VisibleImage<'a> {
-    image: &'a Image,
-    xform: Vec<RSXform>,
-    tex: Vec<Rect>,
-    inv_matrix: Matrix3<f32>,
-    skia_matrix: M44,
-    image_scale: GridScale,
-}
+// #[derive(Clone)]
+// pub struct ImageFragment {
+//     pub dst_col: u32,
+//     pub src_row: u32,
+//     pub src_range: Range<u32>,
+//     pub image_id: u32,
+//     pub placement_id: u32,
+// }
 
 pub struct FragmentRenderer<'a> {
-    visible_images: HashMap<(u32, u32), VisibleImage<'a>>,
+    visible_images: Vec<Rc<LoadedImage>>,
     renderer: &'a ImageRenderer,
 }
 
@@ -120,49 +135,9 @@ impl ImageRenderer {
     pub fn new() -> Self {
         Self {
             loaded_images: HashMap::new(),
-            visible_images: Vec::new(),
+            visible_images: HashMap::new(),
             in_progress_image: None,
-            displayed_images: HashMap::new(),
         }
-    }
-
-    pub fn upload_image(&mut self, opts: image::UploadImage) {
-        log::info!("upload image");
-        //let image_data = STANDARD_NO_PAD_INDIFFERENT.decode(data).unwrap();
-        // TODO: don't copy
-
-        let opts = if let Some(in_progress) = &mut self.in_progress_image {
-            in_progress
-                .img
-                .data
-                .as_mut()
-                .unwrap()
-                .extend(opts.img.data.unwrap());
-            if opts.more_chunks {
-                return;
-            }
-            in_progress
-        } else if opts.more_chunks {
-            self.in_progress_image = Some(opts);
-            return;
-        } else {
-            &opts
-        };
-
-        let raw_data = opts.img.data.as_ref().unwrap();
-        let image_data = {
-            if opts.base64 {
-                let image_data = STANDARD_NO_PAD_INDIFFERENT.decode(raw_data).unwrap();
-                Data::new_copy(&image_data)
-            } else {
-                Data::new_copy(raw_data)
-            }
-        };
-
-        // Assume png for now
-        let skia_image = Image::from_encoded(image_data).unwrap();
-        self.loaded_images.insert(opts.img.id, skia_image);
-        self.in_progress_image = None;
     }
 
     pub fn add_image(&mut self, opts: image::ImgAdd) {
@@ -172,66 +147,76 @@ impl ImageRenderer {
 
         // Assume png for now
         let skia_image = Image::from_encoded(image_data).unwrap();
-        self.loaded_images.insert(opts.id, skia_image);
-        self.displayed_images.insert((opts.id, 1), DisplayedImage { width: opts.width, height: opts.height });
+        self.loaded_images.insert(opts.id, Rc::new(LoadedImage {
+            skia_image,
+            xform: RefCell::new(Vec::new()),
+            tex: RefCell::new(Vec::new()),
+        }));
+        //self.displayed_images.insert((opts.id, 1), DisplayedImage { width: opts.width, height: opts.height });
     }
 
-    pub fn show_image(&mut self, opts: image::ShowImage) {
-        // match opts.opts.relative {
-        //     None => self
-        //         .visible_images
-        //         .push(((opts.image_id, opts.placement_id), opts.opts)),
-        //     Some(image::Relative::Placement) => {
-        //         self.displayed_images
-        //             .insert((opts.image_id, opts.placement_id), opts.opts);
-        //     }
-        //     _ => {}
-        // }
+    pub fn show_image(&mut self, placement: image::ImgShow) {
+        if let Some(loaded_image) = self.loaded_images.get(&placement.img_id) {
+            self.visible_images.insert(placement.id, VisibleImage {
+                loaded_image: Rc::clone(loaded_image),
+                placement,
+            });
+        }
+            // match opts.opts.relative {
+            //     None => self
+            //         .visible_images
+            //         .push(((opts.image_id, opts.placement_id), opts.opts)),
+            //     Some(image::Relative::Placement) => {
+            //         self.displayed_images
+            //             .insert((opts.image_id, opts.placement_id), opts.opts);
+            //     }
+            //     _ => {}
+            // }
     }
 
     pub fn hide_images(&mut self, images: Vec<u32>) {
-        self.visible_images
-            .retain(|((_, placement_id), _)| !images.iter().contains(placement_id));
+        // self.visible_images
+        //     .retain(|((_, placement_id), _)| !images.iter().contains(placement_id));
     }
 
     pub fn draw_frame(&self, canvas: &Canvas, grid_scale: GridScale) {
-        for ((id, _), opts) in &self.visible_images {
-            if let Some(image) = self.loaded_images.get(id) {
-                // The position is 1-indexed
-                let pos = ((GridPos::new(opts.col.unwrap_or(1), opts.row.unwrap_or(1))
-                    - GridPos::new(1, 1))
-                    * grid_scale)
-                    .into();
-
-                let image_dimensions = image.dimensions();
-                let image_dimensions = PixelSize::new(
-                    image_dimensions.width as f32,
-                    image_dimensions.height as f32,
-                );
-                let image_aspect = image_dimensions.width / image_dimensions.height;
-
-                let size =
-                    GridSize::new(opts.width.unwrap_or(0), opts.height.unwrap_or(0)) * grid_scale;
-                let size = match (size.width, size.height) {
-                    (0.0, 0.0) => PixelSize::default(),
-                    (x, 0.0) => PixelSize::new(x, x / image_aspect),
-                    (0.0, y) => PixelSize::new(y * image_aspect, y),
-                    (x, y) => {
-                        let grid_aspect = x / y;
-                        if image_aspect >= grid_aspect {
-                            PixelSize::new(x, x / image_aspect)
-                        } else {
-                            PixelSize::new(y * image_aspect, y)
-                        }
-                    }
-                };
-                let dst = PixelRect::from_origin_and_size(pos, size);
-                let crop = None;
-                let src = crop.as_ref().map(|crop| (crop, SrcRectConstraint::Strict));
-                let paint = Paint::default();
-                canvas.draw_image_rect(image, src, to_skia_rect(&dst), &paint);
-            }
-        }
+        // for ((id, _), opts) in &self.visible_images {
+        //     if let Some(image) = self.loaded_images.get(id) {
+        //         // The position is 1-indexed
+        //         let pos = ((GridPos::new(opts.col.unwrap_or(1), opts.row.unwrap_or(1))
+        //             - GridPos::new(1, 1))
+        //             * grid_scale)
+        //             .into();
+        //
+        //         let image_dimensions = image.dimensions();
+        //         let image_dimensions = PixelSize::new(
+        //             image_dimensions.width as f32,
+        //             image_dimensions.height as f32,
+        //         );
+        //         let image_aspect = image_dimensions.width / image_dimensions.height;
+        //
+        //         let size =
+        //             GridSize::new(opts.width.unwrap_or(0), opts.height.unwrap_or(0)) * grid_scale;
+        //         let size = match (size.width, size.height) {
+        //             (0.0, 0.0) => PixelSize::default(),
+        //             (x, 0.0) => PixelSize::new(x, x / image_aspect),
+        //             (0.0, y) => PixelSize::new(y * image_aspect, y),
+        //             (x, y) => {
+        //                 let grid_aspect = x / y;
+        //                 if image_aspect >= grid_aspect {
+        //                     PixelSize::new(x, x / image_aspect)
+        //                 } else {
+        //                     PixelSize::new(y * image_aspect, y)
+        //                 }
+        //             }
+        //         };
+        //         let dst = PixelRect::from_origin_and_size(pos, size);
+        //         let crop = None;
+        //         let src = crop.as_ref().map(|crop| (crop, SrcRectConstraint::Strict));
+        //         let paint = Paint::default();
+        //         canvas.draw_image_rect(image, src, to_skia_rect(&dst), &paint);
+        //     }
+        // }
     }
 
     pub fn begin_draw_image_fragments(&self) -> FragmentRenderer {
@@ -239,88 +224,95 @@ impl ImageRenderer {
     }
 }
 
+// TODO: move directly into the image renderer
 impl<'a> FragmentRenderer<'a> {
+    // TODO: Image renderer should be mutable to indicate that we temporarily modify it
     pub fn new(renderer: &'a ImageRenderer) -> Self {
         Self {
-            visible_images: HashMap::new(),
+            visible_images: Vec::new(),
             renderer,
         }
     }
 
-    pub fn draw(&mut self, fragments: &Vec<ImageFragment>, matrix: &Matrix, scale: &GridScale) {
-        for fragment in fragments {
-            let image = self
-                .visible_images
-                .entry((fragment.image_id, fragment.placement_id))
-                .or_insert_with(|| {
-                    // TODO: allow failures somehow
-                    let display = self
-                        .renderer
-                        .displayed_images
-                        .get(&(fragment.image_id, fragment.placement_id))
-                        .unwrap();
-                    // HACK: A bit of a hack use 32 bit ids
-                    // Might be final if we drop the support for non-kitty images,
-                    // Otherwise we can decide that kitty has some fixed upper bit id
-                    let image = self
-                        .renderer
-                        .loaded_images
-                        .get(&(fragment.image_id))
-                        .unwrap();
-                    let columns = display.width;
-                    let rows = display.height;
-                    let x_scale = (columns as f32 * scale.width()) / image.width() as f32;
-                    let y_scale = (rows as f32 * scale.height()) / image.height() as f32;
-                    let matrix = Matrix3::from_scale((x_scale, y_scale).into());
-                    let inv_matrix = matrix.inverse();
-                    let skia_matrix = Matrix4::<f32>::from_mat3(matrix);
-                    let skia_matrix = M44::col_major(cast_ref(skia_matrix.as_ref()));
-                    let image_scale = GridScale::new(PixelSize::new(
-                        image.width() as f32 / columns as f32,
-                        image.height() as f32 / rows as f32,
-                    ));
-                    VisibleImage {
-                        image,
-                        xform: Vec::new(),
-                        tex: Vec::new(),
-                        skia_matrix,
-                        inv_matrix,
-                        image_scale,
-                    }
-                });
-            let dest_pos = GridPos::new(fragment.dst_col, 0) * *scale
-                + PixelVec::new(matrix[Member::TransX], matrix[Member::TransY]);
-            let dest_pos = image.inv_matrix.transform_point2(dest_pos.to_untyped());
-            image
-                .xform
-                .push(RSXform::new(1.0, 0.0, (dest_pos.x, dest_pos.y)));
+    pub fn draw(&mut self, fragments: &Vec<LineFragment>, matrix: &Matrix, scale: &GridScale) {
+        for fragment in fragments.iter().filter(|fragment| fragment.image_fragment.is_some()) {
+            let image_fragment = fragment.image_fragment.as_ref().unwrap();
+            let visible_image = self.renderer.visible_images.get(&image_fragment.id);
+            if visible_image.is_none() {
+                continue;
+            }
+            let visible_image = visible_image.unwrap();
+            let image = &visible_image.loaded_image;
+            let skia_image = &image.skia_image;
+            // TODO these can be part of the placement, and re-calculated when the scale changes
+            let columns = visible_image.placement.width;
+            let rows = visible_image.placement.height;
+            let x_scale = (columns as f32 * scale.width()) / skia_image.width() as f32;
+            let y_scale = (rows as f32 * scale.height()) / skia_image.height() as f32;
+            let matrix = Matrix3::from_scale((x_scale, y_scale).into());
+            let inv_matrix = matrix.inverse();
+            let skia_matrix = Matrix4::<f32>::from_mat3(matrix);
+            let skia_matrix = M44::col_major(cast_ref(skia_matrix.as_ref()));
+            let image_scale = GridScale::new(PixelSize::new(
+                skia_image.width() as f32 / columns as f32,
+                skia_image.height() as f32 / rows as f32,
+            ));
 
-            let src_min = GridPos::new(fragment.src_range.start, fragment.src_row);
-            let src_max = GridPos::new(fragment.src_range.end, fragment.src_row + 1);
-            let src_rect = GridRect::new(src_min, src_max) * image.image_scale;
-            image.tex.push(to_skia_rect(&src_rect));
+            //         VisibleImage {
+            //             image,
+            //             xform: Vec::new(),
+            //             tex: Vec::new(),
+            //             skia_matrix,
+            //             inv_matrix,
+            //             image_scale,
+            //         }
+            //     });
+
+            // let dest_pos = GridPos::new(fragment.window_left, 0) * *scale
+            //     + PixelVec::new(matrix[Member::TransX], matrix[Member::TransY]);
+            // let dest_pos = inv_matrix.transform_point2(dest_pos.to_untyped());
+            let mut xform = image.xform.borrow_mut();
+            if xform.is_empty() {
+                self.visible_images.push(Rc::clone(&image));
+            }
+            xform.push(RSXform::new(1.0, 0.0, (0.0, 0.0)));
+
+            let cell = image_fragment.index; 
+            let column = cell % visible_image.placement.width;
+            let row = cell / visible_image.placement.width;
+
+            let src_min = GridPos::new(column, row);
+            let src_max = GridPos::new(column + fragment.width as u32, row + 1);
+            let src_rect = GridRect::new(src_min, src_max) * image_scale;
+            let mut tex = image.tex.borrow_mut();
+            tex.push(to_skia_rect(&src_rect));
         }
     }
 
     pub fn flush(self, canvas: &Canvas) {
-        for image in self.visible_images.values() {
+        for image in &self.visible_images {
             let paint = Paint::default();
             // Kitty uses Linear filtering, so use that here as well
             // It does not look very good when upscaling some images like logos though
             let sampling_options = SamplingOptions::new(FilterMode::Linear, MipmapMode::Linear);
             canvas.save();
-            canvas.set_matrix(&image.skia_matrix);
+            //canvas.set_matrix(&image.skia_matrix);
+            let mut xform = image.xform.borrow_mut();
+            let mut tex = image.tex.borrow_mut();
             canvas.draw_atlas(
-                image.image,
-                &image.xform,
-                &image.tex,
+                &image.skia_image,
+                &xform,
+                &tex,
                 None,
                 BlendMode::Src,
                 sampling_options,
                 None,
                 &paint,
             );
+            xform.clear();
+            tex.clear();
             canvas.restore();
         }
     }
 }
+

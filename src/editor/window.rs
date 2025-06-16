@@ -6,7 +6,7 @@ use unicode_segmentation::UnicodeSegmentation;
 use crate::{
     bridge::GridLineCell,
     editor::{grid::CharacterGrid, style::Style, AnchorInfo, DrawCommand, DrawCommandBatcher},
-    renderer::{box_drawing, LineFragment, WindowDrawCommand, IMAGE_PLACEHOLDER},
+    renderer::{box_drawing, LineFragment, WindowDrawCommand},
     units::{GridRect, GridSize},
 };
 
@@ -72,14 +72,14 @@ impl Window {
         let grid_cell = self
             .grid
             .get_cell(window_left as usize, window_top as usize)
-            .map_or((" ".to_string(), None), |(character, style)| {
-                (character.clone(), style.clone())
+            .map_or((" ".to_string(), None, None), |cell| {
+                cell.clone()
             });
 
         let double_width = self
             .grid
             .get_cell(window_left as usize + 1, window_top as usize)
-            .map(|(character, _)| character.is_empty())
+            .map(|(character, _, _)| character.is_empty())
             .unwrap_or_default();
 
         (grid_cell.0, grid_cell.1, double_width)
@@ -131,30 +131,24 @@ impl Window {
             None => previous_style.clone(),
         };
 
-        // Compute text.
-        let mut text = cell.text;
-        if let Some(times) = cell.repeat {
-            // Repeats of zero times should be ignored, they are mostly useful for terminal Neovim
-            // to distinguish between empty lines and lines ending with spaces.
-            if times == 0 {
-                return;
-            }
-            text = text.repeat(times as usize);
+        let repeat = cell.repeat.unwrap_or(1);
+        // Repeats of zero times should be ignored, they are mostly useful for terminal Neovim
+        // to distinguish between empty lines and lines ending with spaces.
+        if repeat == 0 {
+            return;
         }
 
-        // Insert the contents of the cell into the grid.
-        if text.is_empty() {
+        if let (Some(image_id), Some(image_cell)) = (cell.image_id, cell.image_cell) {
+            
+        }
+
+        let text = cell.text;
+
+        for _ in 0..repeat {
             if let Some(cell) = self.grid.get_cell_mut(*column_pos, row_index) {
-                *cell = (text, style.clone());
+                *cell = (text.clone(), style.clone(), None);
             }
             *column_pos += 1;
-        } else {
-            for character in text.graphemes(true) {
-                if let Some(cell) = self.grid.get_cell_mut(*column_pos, row_index) {
-                    *cell = (character.to_string(), style.clone());
-                }
-                *column_pos += 1;
-            }
         }
 
         *previous_style = style;
@@ -165,21 +159,22 @@ impl Window {
     fn build_line_fragment(&self, row_index: usize, start: usize) -> (usize, LineFragment) {
         let row = self.grid.row(row_index).unwrap();
 
-        let (start_char, style) = &row[start];
-        let is_image = start_char.starts_with(IMAGE_PLACEHOLDER);
+        let (_, start_style, start_image) = &row[start];
+        let start_image_id = start_image.as_ref().map(|image| image.id);
 
         let mut text = String::new();
         let mut width = 0;
         let mut last_box_char = None;
 
-        for (character, possible_end_style) in row.iter().take(self.grid.width).skip(start) {
+        for (character, style, image) in row.iter().take(self.grid.width).skip(start) {
             // Style doesn't match. Draw what we've got.
-            if style != possible_end_style {
+            if start_style != style {
                 break;
             }
-            if is_image != character.starts_with(IMAGE_PLACEHOLDER) {
-                break;
+            if start_image_id != image.as_ref().map(|image| image.id) {
+                break
             }
+
 
             // Box drawing characters are rendered specially; break up the segment such that
             // repeated box drawing characters are in a segment by themselves
@@ -212,7 +207,8 @@ impl Window {
             text,
             window_left: start as u64,
             width: width as u64,
-            style: style.clone(),
+            style: start_style.clone(),
+            image_fragment: None,
         };
 
         (start + width, line_fragment)

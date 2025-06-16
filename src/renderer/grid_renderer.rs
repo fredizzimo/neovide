@@ -8,7 +8,7 @@ use crate::{
     profiling::tracy_zone,
     renderer::{
         box_drawing::{self},
-        parse_kitty_image_placeholder, CachingShaper, ImageFragment, RendererSettings,
+        CachingShaper, RendererSettings,
     },
     settings::*,
     units::{
@@ -191,7 +191,6 @@ impl GridRenderer {
         fragment_width: i32,
         style: &Option<Arc<Style>>,
         window_position: PixelPos<f32>,
-        image_fragments: &mut Vec<ImageFragment>,
     ) -> (bool, bool) {
         tracy_zone!("draw_foreground");
         let pos = grid_position * self.grid_scale;
@@ -200,17 +199,7 @@ impl GridRenderer {
 
         let style = style.as_ref().unwrap_or(&self.default_style);
         let foreground_color = style.foreground(&self.default_style.colors);
-        let underline_color = style.special(&self.default_style.colors);
         let mut text_drawn = false;
-        if parse_kitty_image_placeholder(
-            text,
-            grid_position.x.try_into().unwrap(),
-            foreground_color.to_bytes(),
-            underline_color.to_bytes(),
-            image_fragments,
-        ) {
-            return (false, false);
-        }
         let foreground_color = foreground_color.to_color();
 
         if let Some(underline_style) = style.underline {
