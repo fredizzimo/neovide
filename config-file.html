@@ -78,7 +78,7 @@
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
             <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item expanded affix "><a href="index.html">Neovide</a></li><li class="spacer"></li><li class="chapter-item expanded "><a href="features.html"><strong aria-hidden="true">1.</strong> Features</a></li><li class="chapter-item expanded "><a href="installation.html"><strong aria-hidden="true">2.</strong> Installation</a></li><li class="chapter-item expanded "><a href="configuration.html"><strong aria-hidden="true">3.</strong> Configuration</a></li><li class="chapter-item expanded "><a href="commands.html"><strong aria-hidden="true">4.</strong> Commands</a></li><li class="chapter-item expanded "><a href="command-line-reference.html"><strong aria-hidden="true">5.</strong> Command Line Reference</a></li><li class="chapter-item expanded "><a href="config-file.html" class="active"><strong aria-hidden="true">6.</strong> Config File</a></li><li class="chapter-item expanded "><a href="integration-with-external-tools.html"><strong aria-hidden="true">7.</strong> Integration w/ External Tools</a></li><li class="chapter-item expanded "><a href="troubleshooting.html"><strong aria-hidden="true">8.</strong> Troubleshooting</a></li><li class="chapter-item expanded "><a href="faq.html"><strong aria-hidden="true">9.</strong> FAQ</a></li><li class="chapter-item expanded "><a href="maintainer-cookbook.html"><strong aria-hidden="true">10.</strong> Maintainer Cookbook</a></li></ol>
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="index.html">Neovide</a></li><li class="spacer"></li><li class="chapter-item expanded "><a href="features.html"><strong aria-hidden="true">1.</strong> Features</a></li><li class="chapter-item expanded "><a href="installation.html"><strong aria-hidden="true">2.</strong> Installation</a></li><li class="chapter-item expanded "><a href="configuration.html"><strong aria-hidden="true">3.</strong> Configuration</a></li><li class="chapter-item expanded "><a href="commands.html"><strong aria-hidden="true">4.</strong> Commands</a></li><li class="chapter-item expanded "><a href="command-line-reference.html"><strong aria-hidden="true">5.</strong> Command Line Reference</a></li><li class="chapter-item expanded "><a href="config-file.html" class="active"><strong aria-hidden="true">6.</strong> Config File</a></li><li class="chapter-item expanded "><a href="api.html"><strong aria-hidden="true">7.</strong> API</a></li><li class="chapter-item expanded "><a href="integration-with-external-tools.html"><strong aria-hidden="true">8.</strong> Integration w/ External Tools</a></li><li class="chapter-item expanded "><a href="troubleshooting.html"><strong aria-hidden="true">9.</strong> Troubleshooting</a></li><li class="chapter-item expanded "><a href="faq.html"><strong aria-hidden="true">10.</strong> FAQ</a></li><li class="chapter-item expanded "><a href="maintainer-cookbook.html"><strong aria-hidden="true">11.</strong> Maintainer Cookbook</a></li></ol>
             </div>
             <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
         </nav>
@@ -160,6 +160,9 @@ by command line arguments.</li>
 <tr><td>Windows</td><td><code>{FOLDERID_RoamingAppData}/neovide/config.toml</code></td><td><code>C:\Users\Alice\AppData\Roaming/neovide/config.toml</code></td></tr>
 </tbody></table>
 </div>
+<p>You may use a different location by modifying the <code>$NEOVIDE_CONFIG</code> environment variable to be
+a full path to a <code>config.toml</code> file (doesn't explicitly have to be called <code>config.toml</code>
+however.)</p>
 <h2 id="available-settings"><a class="header" href="#available-settings">Available settings</a></h2>
 <p>Settings currently available in the config file with default values:</p>
 <pre><code class="language-toml">backtraces_path = &quot;/path/to/neovide_backtraces.log&quot; # see below for the default platform specific location
@@ -170,16 +173,23 @@ maximized = false
 mouse-cursor-icon = &quot;arrow&quot;
 neovim-bin = &quot;/usr/bin/nvim&quot; # in reality found dynamically on $PATH if unset
 no-multigrid = false
-srgb = false
+srgb = false # platform-specific: false (Linux/macOS) or true (Windows)
 tabs = true
 theme = &quot;auto&quot;
-title-hidden = true
+title-hidden = false
 vsync = true
 wsl = false
 
 [font]
 normal = [] # Will use the bundled Fira Code Nerd Font by default
 size = 14.0
+
+[box-drawing]
+# &quot;font-glyph&quot;, &quot;native&quot; or &quot;selected-native&quot;
+mode = &quot;font-glyph&quot;
+
+[box-drawing.sizes]
+default = [2, 4]  # Thin and thick values respectively, for all sizes
 </code></pre>
 <p>Refer to <a href="command-line-reference.html">Command Line Reference</a> for details about the config settings
 listed above.</p>
@@ -271,6 +281,49 @@ style = &quot;W600&quot;
 family = &quot;Noto Sans CJK SC&quot;
 style = &quot;Bold&quot;
 </code></pre>
+<h4 id="box-drawing"><a class="header" href="#box-drawing">Box Drawing</a></h4>
+<p>The Unicode standard defines several code points that are useful to draw <a href="https://en.wikipedia.org/wiki/Box_Drawing">boxes, diagrams or are
+otherwise decorations</a>. A font file can include graphical
+representation for several of these code points (glyphs). For example, <a href="https://www.nerdfonts.com/">Nerd
+Fonts</a> is a collection of font faces that have been patched to include
+glyphs for several box drawing code points (and many other use-cases).</p>
+<p>When Neovide renders these glyphs, some glyphs might not line up correctly or might have gaps
+between adjacent cells, breaking visual continuity. This is especially pronounced when using the
+<a href="./configuration.html#line-spacing">linespace</a> configuration option to add spacing between lines.</p>
+<p>Neovide has support for native rendering (i.e ignore the glyph data in the font) for a subset of
+these glyphs to avoid this problem. You can configure this via:</p>
+<pre><code class="language-toml">[box-drawing]
+# &quot;font-glyph&quot;, &quot;native&quot; or &quot;selected-native&quot;
+mode = &quot;native&quot;
+# selected = &quot;🮐🮑🮒&quot;
+</code></pre>
+<ul>
+<li><code>font-glyph</code> uses the glyph data in the font file.</li>
+<li><code>native</code> (default) turns on native rendering for all supported box drawing glyphs.</li>
+<li><code>selected-native</code> turns on native rendering for only code points specified in the <code>selected</code>
+setting.</li>
+</ul>
+<p>The width of the lines drawn can be further controlled using the following settings:</p>
+<pre><code class="language-toml">[box-drawing.sizes]
+default = [1, 3]  # Thin and thick values respectively, below 12px
+12 = [1, 2]       # 12px to 13.9999px
+14 = [2, 4]
+18 = [3, 6]
+</code></pre>
+<p>The <code>sizes</code> settings maps font sizes the thickness (in pixels) for thin and thick lines
+respectively. For example, if you are using a font with size 15px and with the above settings,
+Neovide to draw thin lines with width 2px and thick lines with width 4px. These settings only needs
+changing if you find that at certain font sizes the box characters seem too thick or too thin to
+your liking. Only <code>default</code> is required and overrides for specific sizes is optional.</p>
+<p><strong>NOTE:</strong> The sizes are specified in pixels unlike font size, which is specified in points. The
+reason for that, is to give a more controllable configuration when you are using different DPI
+settings. To convert from pt to pixels you can use the following formula <code>pt_size * (96/72) * scale</code>, so if you are using a 10.5 pt size font with a scale factor of 1.5, then it will become
+<code>10.5 pt * (96/72) * 1.5 = 21 px</code>. You also have to add the <code>linespace</code> setting if you use that.</p>
+<p>The default is 2 pixels for thin and 4 pixels for thick lines regardless of the font size, which
+corresponds to the settings below.</p>
+<pre><code class="language-toml">[box-drawing.sizes]
+default = [2, 4]  # Thin and thick values respectively, for all sizes
+</code></pre>
 <h4 id="backtraces_path"><a class="header" href="#backtraces_path">backtraces_path</a></h4>
 <p><strong>Available since 0.14.0.</strong></p>
 <p>If Neovide crashes, it will write a file named <code>neovide_backtraces.log</code> into
@@ -291,7 +344,7 @@ useful if the crash happens before the config file is read for example.</p>
                             <a rel="prev" href="command-line-reference.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <i class="fa fa-angle-left"></i>
                             </a>
-                            <a rel="next" href="integration-with-external-tools.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next" href="api.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
                         <div style="clear: both"></div>
@@ -303,7 +356,7 @@ useful if the crash happens before the config file is read for example.</p>
                     <a rel="prev" href="command-line-reference.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <i class="fa fa-angle-left"></i>
                     </a>
-                    <a rel="next" href="integration-with-external-tools.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next" href="api.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
             </nav>

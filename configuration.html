@@ -78,7 +78,7 @@
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
             <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item expanded affix "><a href="index.html">Neovide</a></li><li class="spacer"></li><li class="chapter-item expanded "><a href="features.html"><strong aria-hidden="true">1.</strong> Features</a></li><li class="chapter-item expanded "><a href="installation.html"><strong aria-hidden="true">2.</strong> Installation</a></li><li class="chapter-item expanded "><a href="configuration.html" class="active"><strong aria-hidden="true">3.</strong> Configuration</a></li><li class="chapter-item expanded "><a href="commands.html"><strong aria-hidden="true">4.</strong> Commands</a></li><li class="chapter-item expanded "><a href="command-line-reference.html"><strong aria-hidden="true">5.</strong> Command Line Reference</a></li><li class="chapter-item expanded "><a href="config-file.html"><strong aria-hidden="true">6.</strong> Config File</a></li><li class="chapter-item expanded "><a href="integration-with-external-tools.html"><strong aria-hidden="true">7.</strong> Integration w/ External Tools</a></li><li class="chapter-item expanded "><a href="troubleshooting.html"><strong aria-hidden="true">8.</strong> Troubleshooting</a></li><li class="chapter-item expanded "><a href="faq.html"><strong aria-hidden="true">9.</strong> FAQ</a></li><li class="chapter-item expanded "><a href="maintainer-cookbook.html"><strong aria-hidden="true">10.</strong> Maintainer Cookbook</a></li></ol>
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="index.html">Neovide</a></li><li class="spacer"></li><li class="chapter-item expanded "><a href="features.html"><strong aria-hidden="true">1.</strong> Features</a></li><li class="chapter-item expanded "><a href="installation.html"><strong aria-hidden="true">2.</strong> Installation</a></li><li class="chapter-item expanded "><a href="configuration.html" class="active"><strong aria-hidden="true">3.</strong> Configuration</a></li><li class="chapter-item expanded "><a href="commands.html"><strong aria-hidden="true">4.</strong> Commands</a></li><li class="chapter-item expanded "><a href="command-line-reference.html"><strong aria-hidden="true">5.</strong> Command Line Reference</a></li><li class="chapter-item expanded "><a href="config-file.html"><strong aria-hidden="true">6.</strong> Config File</a></li><li class="chapter-item expanded "><a href="api.html"><strong aria-hidden="true">7.</strong> API</a></li><li class="chapter-item expanded "><a href="integration-with-external-tools.html"><strong aria-hidden="true">8.</strong> Integration w/ External Tools</a></li><li class="chapter-item expanded "><a href="troubleshooting.html"><strong aria-hidden="true">9.</strong> Troubleshooting</a></li><li class="chapter-item expanded "><a href="faq.html"><strong aria-hidden="true">10.</strong> FAQ</a></li><li class="chapter-item expanded "><a href="maintainer-cookbook.html"><strong aria-hidden="true">11.</strong> Maintainer Cookbook</a></li></ol>
             </div>
             <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
         </nav>
@@ -241,7 +241,9 @@ should Hack fail to contain any glyph.</li>
 <p>Lua:</p>
 <pre><code class="language-lua">vim.opt.linespace = 0
 </code></pre>
-<p>Controls spacing between lines, may also be negative.</p>
+<p>Controls spacing between lines, may also be negative. Setting <code>linespace</code> can result in vertical gaps
+when rendering <a href="https://en.wikipedia.org/wiki/Box_Drawing">box drawing</a> characters, see <a href="./config-file.html#box-drawing">Box
+Drawing</a> section on how to fix this.</p>
 <h4 id="scale"><a class="header" href="#scale">Scale</a></h4>
 <p>VimScript:</p>
 <pre><code class="language-vim">let g:neovide_scale_factor = 1.0
@@ -288,11 +290,11 @@ background color instead.</p>
 <h4 id="background-color-deprecated-currently-macos-only"><a class="header" href="#background-color-deprecated-currently-macos-only">Background Color (<strong>Deprecated</strong>, Currently macOS only)</a></h4>
 <p>This configuration is deprecated now and might be removed in the future. In
 <a href="https://github.com/neovide/neovide/issues/2168">#2168</a>, we have made Neovide control the title bar
-color itself. The color of title bar now honors <a href="#transparency"><code>neovide_transparency</code></a>. If you want
-a transparent title bar, setting <code>neovide_transparency</code> is sufficient.</p>
+color itself. The color of title bar now honors <a href="#transparency"><code>neovide_opacity</code></a>. If you want
+a transparent title bar, setting <code>neovide_opacity</code> is sufficient.</p>
 <p>VimScript:</p>
-<pre><code class="language-vim">&quot; g:neovide_transparency should be 0 if you want to unify transparency of content and title bar.
-let g:neovide_transparency = 0.0
+<pre><code class="language-vim">&quot; g:neovide_opacity should be 0 if you want to unify transparency of content and title bar.
+let g:neovide_opacity = 0.0
 let g:transparency = 0.8
 let g:neovide_background_color = '#0f1117'.printf('%x', float2nr(255 * g:transparency))
 </code></pre>
@@ -301,8 +303,8 @@ let g:neovide_background_color = '#0f1117'.printf('%x', float2nr(255 * g:transpa
 local alpha = function()
   return string.format(&quot;%x&quot;, math.floor(255 * vim.g.transparency or 0.8))
 end
--- g:neovide_transparency should be 0 if you want to unify transparency of content and title bar.
-vim.g.neovide_transparency = 0.0
+-- g:neovide_opacity should be 0 if you want to unify transparency of content and title bar.
+vim.g.neovide_opacity = 0.0
 vim.g.transparency = 0.8
 vim.g.neovide_background_color = &quot;#0f1117&quot; .. alpha()
 </code></pre>
@@ -312,7 +314,7 @@ vim.g.neovide_background_color = &quot;#0f1117&quot; .. alpha()
 <p>Setting <code>g:neovide_background_color</code> to a value that can be parsed by
 <a href="https://github.com/mazznoer/csscolorparser-rs">csscolorparser-rs</a> will set the color of the whole
 window to that value.</p>
-<p>Note that <code>g:neovide_transparency</code> should be 0 if you want to unify transparency of content and
+<p>Note that <code>g:neovide_opacity</code> should be 0 if you want to unify transparency of content and
 title bar.</p>
 <h4 id="title-bar-color-currently-windows-only"><a class="header" href="#title-bar-color-currently-windows-only">Title Bar Color (Currently Windows only)</a></h4>
 <p><strong>Available since 0.14.0.</strong></p>
@@ -341,7 +343,7 @@ vim.g.neovide_title_text_color = &quot;pink&quot;
 </code></pre>
 <p><strong>Available since 0.12.</strong></p>
 <p>Setting <code>g:neovide_window_blurred</code> toggles the window blur state.</p>
-<p>The blurred level respects the <code>g:neovide_transparency</code> value between 0.0 and 1.0.</p>
+<p>The blurred level respects the <code>g:neovide_opacity</code> value between 0.0 and 1.0.</p>
 <h4 id="floating-blur-amount"><a class="header" href="#floating-blur-amount">Floating Blur Amount</a></h4>
 <p>VimScript:</p>
 <pre><code class="language-vim">let g:neovide_floating_blur_amount_x = 2.0
@@ -386,16 +388,16 @@ The other variables configure the shadow in various ways:</p>
 floating_corner_radius ranges from 0.0 to 1.0, representing a percentage of the line height.</p>
 <h4 id="transparency"><a class="header" href="#transparency">Transparency</a></h4>
 <p>VimScript:</p>
-<pre><code class="language-vim">let g:neovide_transparency = 0.8
+<pre><code class="language-vim">let g:neovide_opacity = 0.8
 let g:neovide_normal_opacity = 0.8
 </code></pre>
 <p>Lua:</p>
-<pre><code class="language-lua">vim.g.neovide_transparency = 0.8
+<pre><code class="language-lua">vim.g.neovide_opacity = 0.8
 vim.g.neovide_normal_opacity = 0.8
 </code></pre>
 <p><strong>Available since 0.14.0.</strong></p>
 <p><img src="assets/Transparency.png" alt="Transparency" /></p>
-<p>Setting <code>g:neovide_transparency</code> to a value between 0.0 and 1.0 will set the opacity of the window
+<p>Setting <code>g:neovide_opacity</code> to a value between 0.0 and 1.0 will set the opacity of the window
 to that value.</p>
 <p><code>g:neovide_normal_opacity</code> sets the opacity for the normal background color.
 Set it to 1 to disable.</p>
@@ -545,6 +547,16 @@ entirely.</p>
 <p>Setting <code>g:neovide_fullscreen</code> to a boolean value will set whether the app should take up the entire
 screen. This uses the so called &quot;windowed fullscreen&quot; mode that is sometimes used in games which
 want quick window switching.</p>
+<h4 id="simple-fullscreen-macos-only"><a class="header" href="#simple-fullscreen-macos-only">Simple Fullscreen (MacOS only)</a></h4>
+<p>VimScript:</p>
+<pre><code class="language-vim">let g:neovide_macos_simple_fullscreen = v:true
+</code></pre>
+<p>Lua:</p>
+<pre><code class="language-lua">vim.g.neovide_macos_simple_fullscreen = true
+</code></pre>
+<p><strong>Available since 0.15.1.</strong></p>
+<p>Setting <code>neovide_macos_simple_fullscreen</code> will hide the dock and menu bar for MacOS.</p>
+<p>This won’t work if the window was already in the native fullscreen.</p>
 <h4 id="remember-previous-window-size"><a class="header" href="#remember-previous-window-size">Remember Previous Window Size</a></h4>
 <p>VimScript:</p>
 <pre><code class="language-vim">let g:neovide_remember_window_size = v:true
@@ -564,6 +576,18 @@ from the previous session or the default size will be used on startup. The comma
 </code></pre>
 <p>Setting this to <code>v:true</code> enables the profiler, which shows a frametime graph in the upper left
 corner.</p>
+<h4 id="cursor-hack"><a class="header" href="#cursor-hack">Cursor hack</a></h4>
+<p>VimScript:</p>
+<pre><code class="language-vim">let g:neovide_cursor_hack = v:true
+</code></pre>
+<p>Lua:</p>
+<pre><code class="language-lua">vim.g.neovide_cursor_hack = true
+</code></pre>
+<p>Prevents the cursor from flickering to the command line when it shouldn't. This will be disabled by
+default when Neovim properly sends the UI busy events and the hack is no longer needed. NOTE: In
+some cases the hack itself is buggy and prevents the cursor from moving to the command line when it
+should. In that case you can try to disable it, especially if you are not using cursor animations
+and the flickering does not bother as much.</p>
 <h3 id="input-settings"><a class="header" href="#input-settings">Input Settings</a></h3>
 <h4 id="macos-option-key-is-meta"><a class="header" href="#macos-option-key-is-meta">macOS Option Key is Meta</a></h4>
 <p>Possible values are <code>both</code>, <code>only_left</code>, <code>only_right</code>, <code>none</code>. Set to <code>none</code> by default.</p>
@@ -650,13 +674,22 @@ this happens too often accidentally to you, set this to a higher value like <cod
   <img alt="Long Cursor Animation Length", src="./assets/LongCursorAnimationLength.gif" width="47%">
 </p>
 <p>VimScript:</p>
-<pre><code class="language-vim">let g:neovide_cursor_animation_length = 0.13
+<pre><code class="language-vim">let g:neovide_cursor_animation_length = 0.150
 </code></pre>
 <p>Lua:</p>
-<pre><code class="language-lua">vim.g.neovide_cursor_animation_length = 0.13
+<pre><code class="language-lua">vim.g.neovide_cursor_animation_length = 0.150
 </code></pre>
 <p>Setting <code>g:neovide_cursor_animation_length</code> determines the time it takes for the cursor to complete
-it's animation in seconds. Set to <code>0</code> to disable.</p>
+its animation in seconds. Set to <code>0</code> to disable.</p>
+<h4 id="short-animation-length"><a class="header" href="#short-animation-length">Short Animation Length</a></h4>
+<p>VimScript:</p>
+<pre><code class="language-vim">let g:neovide_cursor_short_animation_length = 0.04
+</code></pre>
+<p>Lua:</p>
+<pre><code class="language-lua">vim.g.neovide_cursor_short_animation_length = 0.04
+</code></pre>
+<p>Setting <code>g:neovide_cursor_short_animation_length</code> determines the time it takes for the cursor to complete
+its animation in seconds for short horizontal travels of one or two characters, like when typing.</p>
 <h4 id="animation-trail-size"><a class="header" href="#animation-trail-size">Animation Trail Size</a></h4>
 <p align="center">
   <img alt="Short Cursor Trail Length", src="./assets/ShortCursorTrailLength.gif" width="47%">
@@ -664,13 +697,15 @@ it's animation in seconds. Set to <code>0</code> to disable.</p>
   <img alt="Long Cursor Trail Length", src="./assets/LongCursorTrailLength.gif" width="47%">
 </p>
 <p>VimScript:</p>
-<pre><code class="language-vim">let g:neovide_cursor_trail_size = 0.8
+<pre><code class="language-vim">let g:neovide_cursor_trail_size = 1.0
 </code></pre>
 <p>Lua:</p>
-<pre><code class="language-lua">vim.g.neovide_cursor_trail_size = 0.8
+<pre><code class="language-lua">vim.g.neovide_cursor_trail_size = 1.0
 </code></pre>
-<p>Setting <code>g:neovide_cursor_trail_size</code> determines how much the trail of the cursor lags behind the
-front edge.</p>
+<p>Range 0.0 to 1.0</p>
+<p>Setting <code>g:neovide_cursor_trail_size</code> changes how much the back of the cursor trails the front. Set
+to 1.0 to make the front jump to the destination immediately with a maximum trail size. A lower
+value makes a smoother animation, with a shorter trail, but also adds lag.</p>
 <h4 id="antialiasing"><a class="header" href="#antialiasing">Antialiasing</a></h4>
 <p>VimScript:</p>
 <pre><code class="language-vim">let g:neovide_cursor_antialiasing = v:true
@@ -721,13 +756,21 @@ The built in <code>guicursor</code> neovim option needs to be configured to enab
 set for both <code>blinkoff</code>, <code>blinkon</code> and <code>blinkwait</code> for this setting to apply.</p>
 <h3 id="cursor-particles"><a class="header" href="#cursor-particles">Cursor Particles</a></h3>
 <p>There are a number of vfx modes you can enable which produce particles behind the cursor. These are
-enabled by setting <code>g:neovide_cursor_vfx_mode</code> to one of the following constants.</p>
+enabled by setting <code>g:neovide_cursor_vfx_mode</code> to one <code>string</code> or an <code>array</code> of the following constants.</p>
 <h4 id="none-at-all"><a class="header" href="#none-at-all">None at all</a></h4>
 <p>VimScript:</p>
-<pre><code class="language-vim">let g:neovide_cursor_vfx_mode = &quot;&quot;
+<pre><code class="language-vim">&quot; a string
+let g:neovide_cursor_vfx_mode = &quot;&quot;
+
+&quot; or an array
+let g:neovide_cursor_vfx_mode = [&quot;&quot;, &quot;&quot;]
 </code></pre>
 <p>Lua:</p>
-<pre><code class="language-lua">vim.g.neovide_cursor_vfx_mode = &quot;&quot;
+<pre><code class="language-lua">&lt;!-- a string --&gt;
+vim.g.neovide_cursor_vfx_mode = &quot;&quot;
+
+&lt;!-- or an array --&gt;
+vim.g.neovide_cursor_vfx_mode = {&quot;&quot;, &quot;&quot;}
 </code></pre>
 <p>The default, no particles at all.</p>
 <h4 id="railgun"><a class="header" href="#railgun">Railgun</a></h4>
@@ -790,20 +833,27 @@ enabled by setting <code>g:neovide_cursor_vfx_mode</code> to one of the followin
 <p>Sets the transparency of the generated particles.</p>
 <h4 id="particle-lifetime"><a class="header" href="#particle-lifetime">Particle Lifetime</a></h4>
 <p>VimScript:</p>
-<pre><code class="language-vim">let g:neovide_cursor_vfx_particle_lifetime = 1.2
+<pre><code class="language-vim">let g:neovide_cursor_vfx_particle_lifetime = 0.5
+let g:neovide_cursor_vfx_particle_highlight_lifetime = 0.2
 </code></pre>
 <p>Lua:</p>
-<pre><code class="language-lua">vim.g.neovide_cursor_vfx_particle_lifetime = 1.2
+<pre><code class="language-lua">vim.g.neovide_cursor_vfx_particle_lifetime = 0.5
+vim.g.neovide_cursor_vfx_particle_highlight_lifetime = 0.2
 </code></pre>
 <p>Sets the amount of time the generated particles should survive.</p>
+<p><code>neovide_cursor_vfx_particle_highlight_lifetime</code> applies to <code>sonicboom</code>, <code>ripple</code> and <code>wireframe</code>,
+and the rest to <code>neovide_cursor_vfx_particle_lifetime</code></p>
+<p>If <code>neovide_cursor_vfx_particle_highlight_lifetime</code> is set to <code>0</code> then
+<code>neovide_cursor_vfx_particle_lifetime</code> is used.</p>
 <h4 id="particle-density"><a class="header" href="#particle-density">Particle Density</a></h4>
 <p>VimScript:</p>
-<pre><code class="language-vim">let g:neovide_cursor_vfx_particle_density = 7.0
+<pre><code class="language-vim">let g:neovide_cursor_vfx_particle_density = 0.7
 </code></pre>
 <p>Lua:</p>
-<pre><code class="language-lua">vim.g.neovide_cursor_vfx_particle_density = 7.0
+<pre><code class="language-lua">vim.g.neovide_cursor_vfx_particle_density = 0.7
 </code></pre>
-<p>Sets the number of generated particles.</p>
+<p>Sets the number of generated particles. The unit is the amount of particles per lines of
+travel.</p>
 <h4 id="particle-speed"><a class="header" href="#particle-speed">Particle Speed</a></h4>
 <p>VimScript:</p>
 <pre><code class="language-vim">let g:neovide_cursor_vfx_particle_speed = 10.0
@@ -811,7 +861,7 @@ enabled by setting <code>g:neovide_cursor_vfx_mode</code> to one of the followin
 <p>Lua:</p>
 <pre><code class="language-lua">vim.g.neovide_cursor_vfx_particle_speed = 10.0
 </code></pre>
-<p>Sets the speed of particle movement.</p>
+<p>Sets the speed of particle movement in pixels / second.</p>
 <h4 id="particle-phase"><a class="header" href="#particle-phase">Particle Phase</a></h4>
 <p>VimScript:</p>
 <pre><code class="language-vim">let g:neovide_cursor_vfx_particle_phase = 1.5

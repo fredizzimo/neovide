@@ -79,7 +79,7 @@
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
             <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item expanded affix "><a href="index.html">Neovide</a></li><li class="spacer"></li><li class="chapter-item expanded "><a href="features.html"><strong aria-hidden="true">1.</strong> Features</a></li><li class="chapter-item expanded "><a href="installation.html"><strong aria-hidden="true">2.</strong> Installation</a></li><li class="chapter-item expanded "><a href="configuration.html"><strong aria-hidden="true">3.</strong> Configuration</a></li><li class="chapter-item expanded "><a href="commands.html"><strong aria-hidden="true">4.</strong> Commands</a></li><li class="chapter-item expanded "><a href="command-line-reference.html"><strong aria-hidden="true">5.</strong> Command Line Reference</a></li><li class="chapter-item expanded "><a href="config-file.html"><strong aria-hidden="true">6.</strong> Config File</a></li><li class="chapter-item expanded "><a href="integration-with-external-tools.html"><strong aria-hidden="true">7.</strong> Integration w/ External Tools</a></li><li class="chapter-item expanded "><a href="troubleshooting.html"><strong aria-hidden="true">8.</strong> Troubleshooting</a></li><li class="chapter-item expanded "><a href="faq.html"><strong aria-hidden="true">9.</strong> FAQ</a></li><li class="chapter-item expanded "><a href="maintainer-cookbook.html"><strong aria-hidden="true">10.</strong> Maintainer Cookbook</a></li></ol>
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="index.html">Neovide</a></li><li class="spacer"></li><li class="chapter-item expanded "><a href="features.html"><strong aria-hidden="true">1.</strong> Features</a></li><li class="chapter-item expanded "><a href="installation.html"><strong aria-hidden="true">2.</strong> Installation</a></li><li class="chapter-item expanded "><a href="configuration.html"><strong aria-hidden="true">3.</strong> Configuration</a></li><li class="chapter-item expanded "><a href="commands.html"><strong aria-hidden="true">4.</strong> Commands</a></li><li class="chapter-item expanded "><a href="command-line-reference.html"><strong aria-hidden="true">5.</strong> Command Line Reference</a></li><li class="chapter-item expanded "><a href="config-file.html"><strong aria-hidden="true">6.</strong> Config File</a></li><li class="chapter-item expanded "><a href="api.html"><strong aria-hidden="true">7.</strong> API</a></li><li class="chapter-item expanded "><a href="integration-with-external-tools.html"><strong aria-hidden="true">8.</strong> Integration w/ External Tools</a></li><li class="chapter-item expanded "><a href="troubleshooting.html"><strong aria-hidden="true">9.</strong> Troubleshooting</a></li><li class="chapter-item expanded "><a href="faq.html"><strong aria-hidden="true">10.</strong> FAQ</a></li><li class="chapter-item expanded "><a href="maintainer-cookbook.html"><strong aria-hidden="true">11.</strong> Maintainer Cookbook</a></li></ol>
             </div>
             <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
         </nav>
@@ -424,8 +424,8 @@ stuff is already installed, just try building and see)</p>
 </li>
 <li>
 <p>Fedora</p>
-<pre><code class="language-sh">sudo dnf install fontconfig-devel freetype-devel libX11-xcb libX11-devel libstdc++-static libstdc++-devel
-sudo dnf groupinstall &quot;Development Tools&quot; &quot;Development Libraries&quot;
+<pre><code class="language-sh">sudo dnf install fontconfig-devel freetype-devel @development-tools \
+    libstdc++-static libstdc++-devel
 </code></pre>
 </li>
 <li>
@@ -548,7 +548,9 @@ should Hack fail to contain any glyph.</li>
 <p>Lua:</p>
 <pre><code class="language-lua">vim.opt.linespace = 0
 </code></pre>
-<p>Controls spacing between lines, may also be negative.</p>
+<p>Controls spacing between lines, may also be negative. Setting <code>linespace</code> can result in vertical gaps
+when rendering <a href="https://en.wikipedia.org/wiki/Box_Drawing">box drawing</a> characters, see <a href="./config-file.html#box-drawing">Box
+Drawing</a> section on how to fix this.</p>
 <h4 id="scale"><a class="header" href="#scale">Scale</a></h4>
 <p>VimScript:</p>
 <pre><code class="language-vim">let g:neovide_scale_factor = 1.0
@@ -595,11 +597,11 @@ background color instead.</p>
 <h4 id="background-color-deprecated-currently-macos-only"><a class="header" href="#background-color-deprecated-currently-macos-only">Background Color (<strong>Deprecated</strong>, Currently macOS only)</a></h4>
 <p>This configuration is deprecated now and might be removed in the future. In
 <a href="https://github.com/neovide/neovide/issues/2168">#2168</a>, we have made Neovide control the title bar
-color itself. The color of title bar now honors <a href="configuration.html#transparency"><code>neovide_transparency</code></a>. If you want
-a transparent title bar, setting <code>neovide_transparency</code> is sufficient.</p>
+color itself. The color of title bar now honors <a href="configuration.html#transparency"><code>neovide_opacity</code></a>. If you want
+a transparent title bar, setting <code>neovide_opacity</code> is sufficient.</p>
 <p>VimScript:</p>
-<pre><code class="language-vim">&quot; g:neovide_transparency should be 0 if you want to unify transparency of content and title bar.
-let g:neovide_transparency = 0.0
+<pre><code class="language-vim">&quot; g:neovide_opacity should be 0 if you want to unify transparency of content and title bar.
+let g:neovide_opacity = 0.0
 let g:transparency = 0.8
 let g:neovide_background_color = '#0f1117'.printf('%x', float2nr(255 * g:transparency))
 </code></pre>
@@ -608,8 +610,8 @@ let g:neovide_background_color = '#0f1117'.printf('%x', float2nr(255 * g:transpa
 local alpha = function()
   return string.format(&quot;%x&quot;, math.floor(255 * vim.g.transparency or 0.8))
 end
--- g:neovide_transparency should be 0 if you want to unify transparency of content and title bar.
-vim.g.neovide_transparency = 0.0
+-- g:neovide_opacity should be 0 if you want to unify transparency of content and title bar.
+vim.g.neovide_opacity = 0.0
 vim.g.transparency = 0.8
 vim.g.neovide_background_color = &quot;#0f1117&quot; .. alpha()
 </code></pre>
@@ -619,7 +621,7 @@ vim.g.neovide_background_color = &quot;#0f1117&quot; .. alpha()
 <p>Setting <code>g:neovide_background_color</code> to a value that can be parsed by
 <a href="https://github.com/mazznoer/csscolorparser-rs">csscolorparser-rs</a> will set the color of the whole
 window to that value.</p>
-<p>Note that <code>g:neovide_transparency</code> should be 0 if you want to unify transparency of content and
+<p>Note that <code>g:neovide_opacity</code> should be 0 if you want to unify transparency of content and
 title bar.</p>
 <h4 id="title-bar-color-currently-windows-only"><a class="header" href="#title-bar-color-currently-windows-only">Title Bar Color (Currently Windows only)</a></h4>
 <p><strong>Available since 0.14.0.</strong></p>
@@ -648,7 +650,7 @@ vim.g.neovide_title_text_color = &quot;pink&quot;
 </code></pre>
 <p><strong>Available since 0.12.</strong></p>
 <p>Setting <code>g:neovide_window_blurred</code> toggles the window blur state.</p>
-<p>The blurred level respects the <code>g:neovide_transparency</code> value between 0.0 and 1.0.</p>
+<p>The blurred level respects the <code>g:neovide_opacity</code> value between 0.0 and 1.0.</p>
 <h4 id="floating-blur-amount"><a class="header" href="#floating-blur-amount">Floating Blur Amount</a></h4>
 <p>VimScript:</p>
 <pre><code class="language-vim">let g:neovide_floating_blur_amount_x = 2.0
@@ -693,16 +695,16 @@ The other variables configure the shadow in various ways:</p>
 floating_corner_radius ranges from 0.0 to 1.0, representing a percentage of the line height.</p>
 <h4 id="transparency"><a class="header" href="#transparency">Transparency</a></h4>
 <p>VimScript:</p>
-<pre><code class="language-vim">let g:neovide_transparency = 0.8
+<pre><code class="language-vim">let g:neovide_opacity = 0.8
 let g:neovide_normal_opacity = 0.8
 </code></pre>
 <p>Lua:</p>
-<pre><code class="language-lua">vim.g.neovide_transparency = 0.8
+<pre><code class="language-lua">vim.g.neovide_opacity = 0.8
 vim.g.neovide_normal_opacity = 0.8
 </code></pre>
 <p><strong>Available since 0.14.0.</strong></p>
 <p><img src="assets/Transparency.png" alt="Transparency" /></p>
-<p>Setting <code>g:neovide_transparency</code> to a value between 0.0 and 1.0 will set the opacity of the window
+<p>Setting <code>g:neovide_opacity</code> to a value between 0.0 and 1.0 will set the opacity of the window
 to that value.</p>
 <p><code>g:neovide_normal_opacity</code> sets the opacity for the normal background color.
 Set it to 1 to disable.</p>
@@ -852,6 +854,16 @@ entirely.</p>
 <p>Setting <code>g:neovide_fullscreen</code> to a boolean value will set whether the app should take up the entire
 screen. This uses the so called &quot;windowed fullscreen&quot; mode that is sometimes used in games which
 want quick window switching.</p>
+<h4 id="simple-fullscreen-macos-only"><a class="header" href="#simple-fullscreen-macos-only">Simple Fullscreen (MacOS only)</a></h4>
+<p>VimScript:</p>
+<pre><code class="language-vim">let g:neovide_macos_simple_fullscreen = v:true
+</code></pre>
+<p>Lua:</p>
+<pre><code class="language-lua">vim.g.neovide_macos_simple_fullscreen = true
+</code></pre>
+<p><strong>Available since 0.15.1.</strong></p>
+<p>Setting <code>neovide_macos_simple_fullscreen</code> will hide the dock and menu bar for MacOS.</p>
+<p>This won’t work if the window was already in the native fullscreen.</p>
 <h4 id="remember-previous-window-size"><a class="header" href="#remember-previous-window-size">Remember Previous Window Size</a></h4>
 <p>VimScript:</p>
 <pre><code class="language-vim">let g:neovide_remember_window_size = v:true
@@ -871,6 +883,18 @@ from the previous session or the default size will be used on startup. The comma
 </code></pre>
 <p>Setting this to <code>v:true</code> enables the profiler, which shows a frametime graph in the upper left
 corner.</p>
+<h4 id="cursor-hack"><a class="header" href="#cursor-hack">Cursor hack</a></h4>
+<p>VimScript:</p>
+<pre><code class="language-vim">let g:neovide_cursor_hack = v:true
+</code></pre>
+<p>Lua:</p>
+<pre><code class="language-lua">vim.g.neovide_cursor_hack = true
+</code></pre>
+<p>Prevents the cursor from flickering to the command line when it shouldn't. This will be disabled by
+default when Neovim properly sends the UI busy events and the hack is no longer needed. NOTE: In
+some cases the hack itself is buggy and prevents the cursor from moving to the command line when it
+should. In that case you can try to disable it, especially if you are not using cursor animations
+and the flickering does not bother as much.</p>
 <h3 id="input-settings"><a class="header" href="#input-settings">Input Settings</a></h3>
 <h4 id="macos-option-key-is-meta"><a class="header" href="#macos-option-key-is-meta">macOS Option Key is Meta</a></h4>
 <p>Possible values are <code>both</code>, <code>only_left</code>, <code>only_right</code>, <code>none</code>. Set to <code>none</code> by default.</p>
@@ -957,13 +981,22 @@ this happens too often accidentally to you, set this to a higher value like <cod
   <img alt="Long Cursor Animation Length", src="./assets/LongCursorAnimationLength.gif" width="47%">
 </p>
 <p>VimScript:</p>
-<pre><code class="language-vim">let g:neovide_cursor_animation_length = 0.13
+<pre><code class="language-vim">let g:neovide_cursor_animation_length = 0.150
 </code></pre>
 <p>Lua:</p>
-<pre><code class="language-lua">vim.g.neovide_cursor_animation_length = 0.13
+<pre><code class="language-lua">vim.g.neovide_cursor_animation_length = 0.150
 </code></pre>
 <p>Setting <code>g:neovide_cursor_animation_length</code> determines the time it takes for the cursor to complete
-it's animation in seconds. Set to <code>0</code> to disable.</p>
+its animation in seconds. Set to <code>0</code> to disable.</p>
+<h4 id="short-animation-length"><a class="header" href="#short-animation-length">Short Animation Length</a></h4>
+<p>VimScript:</p>
+<pre><code class="language-vim">let g:neovide_cursor_short_animation_length = 0.04
+</code></pre>
+<p>Lua:</p>
+<pre><code class="language-lua">vim.g.neovide_cursor_short_animation_length = 0.04
+</code></pre>
+<p>Setting <code>g:neovide_cursor_short_animation_length</code> determines the time it takes for the cursor to complete
+its animation in seconds for short horizontal travels of one or two characters, like when typing.</p>
 <h4 id="animation-trail-size"><a class="header" href="#animation-trail-size">Animation Trail Size</a></h4>
 <p align="center">
   <img alt="Short Cursor Trail Length", src="./assets/ShortCursorTrailLength.gif" width="47%">
@@ -971,13 +1004,15 @@ it's animation in seconds. Set to <code>0</code> to disable.</p>
   <img alt="Long Cursor Trail Length", src="./assets/LongCursorTrailLength.gif" width="47%">
 </p>
 <p>VimScript:</p>
-<pre><code class="language-vim">let g:neovide_cursor_trail_size = 0.8
+<pre><code class="language-vim">let g:neovide_cursor_trail_size = 1.0
 </code></pre>
 <p>Lua:</p>
-<pre><code class="language-lua">vim.g.neovide_cursor_trail_size = 0.8
+<pre><code class="language-lua">vim.g.neovide_cursor_trail_size = 1.0
 </code></pre>
-<p>Setting <code>g:neovide_cursor_trail_size</code> determines how much the trail of the cursor lags behind the
-front edge.</p>
+<p>Range 0.0 to 1.0</p>
+<p>Setting <code>g:neovide_cursor_trail_size</code> changes how much the back of the cursor trails the front. Set
+to 1.0 to make the front jump to the destination immediately with a maximum trail size. A lower
+value makes a smoother animation, with a shorter trail, but also adds lag.</p>
 <h4 id="antialiasing"><a class="header" href="#antialiasing">Antialiasing</a></h4>
 <p>VimScript:</p>
 <pre><code class="language-vim">let g:neovide_cursor_antialiasing = v:true
@@ -1028,13 +1063,21 @@ The built in <code>guicursor</code> neovim option needs to be configured to enab
 set for both <code>blinkoff</code>, <code>blinkon</code> and <code>blinkwait</code> for this setting to apply.</p>
 <h3 id="cursor-particles"><a class="header" href="#cursor-particles">Cursor Particles</a></h3>
 <p>There are a number of vfx modes you can enable which produce particles behind the cursor. These are
-enabled by setting <code>g:neovide_cursor_vfx_mode</code> to one of the following constants.</p>
+enabled by setting <code>g:neovide_cursor_vfx_mode</code> to one <code>string</code> or an <code>array</code> of the following constants.</p>
 <h4 id="none-at-all"><a class="header" href="#none-at-all">None at all</a></h4>
 <p>VimScript:</p>
-<pre><code class="language-vim">let g:neovide_cursor_vfx_mode = &quot;&quot;
+<pre><code class="language-vim">&quot; a string
+let g:neovide_cursor_vfx_mode = &quot;&quot;
+
+&quot; or an array
+let g:neovide_cursor_vfx_mode = [&quot;&quot;, &quot;&quot;]
 </code></pre>
 <p>Lua:</p>
-<pre><code class="language-lua">vim.g.neovide_cursor_vfx_mode = &quot;&quot;
+<pre><code class="language-lua">&lt;!-- a string --&gt;
+vim.g.neovide_cursor_vfx_mode = &quot;&quot;
+
+&lt;!-- or an array --&gt;
+vim.g.neovide_cursor_vfx_mode = {&quot;&quot;, &quot;&quot;}
 </code></pre>
 <p>The default, no particles at all.</p>
 <h4 id="railgun-1"><a class="header" href="#railgun-1">Railgun</a></h4>
@@ -1097,20 +1140,27 @@ enabled by setting <code>g:neovide_cursor_vfx_mode</code> to one of the followin
 <p>Sets the transparency of the generated particles.</p>
 <h4 id="particle-lifetime"><a class="header" href="#particle-lifetime">Particle Lifetime</a></h4>
 <p>VimScript:</p>
-<pre><code class="language-vim">let g:neovide_cursor_vfx_particle_lifetime = 1.2
+<pre><code class="language-vim">let g:neovide_cursor_vfx_particle_lifetime = 0.5
+let g:neovide_cursor_vfx_particle_highlight_lifetime = 0.2
 </code></pre>
 <p>Lua:</p>
-<pre><code class="language-lua">vim.g.neovide_cursor_vfx_particle_lifetime = 1.2
+<pre><code class="language-lua">vim.g.neovide_cursor_vfx_particle_lifetime = 0.5
+vim.g.neovide_cursor_vfx_particle_highlight_lifetime = 0.2
 </code></pre>
 <p>Sets the amount of time the generated particles should survive.</p>
+<p><code>neovide_cursor_vfx_particle_highlight_lifetime</code> applies to <code>sonicboom</code>, <code>ripple</code> and <code>wireframe</code>,
+and the rest to <code>neovide_cursor_vfx_particle_lifetime</code></p>
+<p>If <code>neovide_cursor_vfx_particle_highlight_lifetime</code> is set to <code>0</code> then
+<code>neovide_cursor_vfx_particle_lifetime</code> is used.</p>
 <h4 id="particle-density"><a class="header" href="#particle-density">Particle Density</a></h4>
 <p>VimScript:</p>
-<pre><code class="language-vim">let g:neovide_cursor_vfx_particle_density = 7.0
+<pre><code class="language-vim">let g:neovide_cursor_vfx_particle_density = 0.7
 </code></pre>
 <p>Lua:</p>
-<pre><code class="language-lua">vim.g.neovide_cursor_vfx_particle_density = 7.0
+<pre><code class="language-lua">vim.g.neovide_cursor_vfx_particle_density = 0.7
 </code></pre>
-<p>Sets the number of generated particles.</p>
+<p>Sets the number of generated particles. The unit is the amount of particles per lines of
+travel.</p>
 <h4 id="particle-speed"><a class="header" href="#particle-speed">Particle Speed</a></h4>
 <p>VimScript:</p>
 <pre><code class="language-vim">let g:neovide_cursor_vfx_particle_speed = 10.0
@@ -1118,7 +1168,7 @@ enabled by setting <code>g:neovide_cursor_vfx_mode</code> to one of the followin
 <p>Lua:</p>
 <pre><code class="language-lua">vim.g.neovide_cursor_vfx_particle_speed = 10.0
 </code></pre>
-<p>Sets the speed of particle movement.</p>
+<p>Sets the speed of particle movement in pixels / second.</p>
 <h4 id="particle-phase"><a class="header" href="#particle-phase">Particle Phase</a></h4>
 <p>VimScript:</p>
 <pre><code class="language-vim">let g:neovide_cursor_vfx_particle_phase = 1.5
@@ -1334,6 +1384,9 @@ by command line arguments.</li>
 <tr><td>Windows</td><td><code>{FOLDERID_RoamingAppData}/neovide/config.toml</code></td><td><code>C:\Users\Alice\AppData\Roaming/neovide/config.toml</code></td></tr>
 </tbody></table>
 </div>
+<p>You may use a different location by modifying the <code>$NEOVIDE_CONFIG</code> environment variable to be
+a full path to a <code>config.toml</code> file (doesn't explicitly have to be called <code>config.toml</code>
+however.)</p>
 <h2 id="available-settings"><a class="header" href="#available-settings">Available settings</a></h2>
 <p>Settings currently available in the config file with default values:</p>
 <pre><code class="language-toml">backtraces_path = &quot;/path/to/neovide_backtraces.log&quot; # see below for the default platform specific location
@@ -1344,16 +1397,23 @@ maximized = false
 mouse-cursor-icon = &quot;arrow&quot;
 neovim-bin = &quot;/usr/bin/nvim&quot; # in reality found dynamically on $PATH if unset
 no-multigrid = false
-srgb = false
+srgb = false # platform-specific: false (Linux/macOS) or true (Windows)
 tabs = true
 theme = &quot;auto&quot;
-title-hidden = true
+title-hidden = false
 vsync = true
 wsl = false
 
 [font]
 normal = [] # Will use the bundled Fira Code Nerd Font by default
 size = 14.0
+
+[box-drawing]
+# &quot;font-glyph&quot;, &quot;native&quot; or &quot;selected-native&quot;
+mode = &quot;font-glyph&quot;
+
+[box-drawing.sizes]
+default = [2, 4]  # Thin and thick values respectively, for all sizes
 </code></pre>
 <p>Refer to <a href="command-line-reference.html">Command Line Reference</a> for details about the config settings
 listed above.</p>
@@ -1445,6 +1505,49 @@ style = &quot;W600&quot;
 family = &quot;Noto Sans CJK SC&quot;
 style = &quot;Bold&quot;
 </code></pre>
+<h4 id="box-drawing"><a class="header" href="#box-drawing">Box Drawing</a></h4>
+<p>The Unicode standard defines several code points that are useful to draw <a href="https://en.wikipedia.org/wiki/Box_Drawing">boxes, diagrams or are
+otherwise decorations</a>. A font file can include graphical
+representation for several of these code points (glyphs). For example, <a href="https://www.nerdfonts.com/">Nerd
+Fonts</a> is a collection of font faces that have been patched to include
+glyphs for several box drawing code points (and many other use-cases).</p>
+<p>When Neovide renders these glyphs, some glyphs might not line up correctly or might have gaps
+between adjacent cells, breaking visual continuity. This is especially pronounced when using the
+<a href="./configuration.html#line-spacing">linespace</a> configuration option to add spacing between lines.</p>
+<p>Neovide has support for native rendering (i.e ignore the glyph data in the font) for a subset of
+these glyphs to avoid this problem. You can configure this via:</p>
+<pre><code class="language-toml">[box-drawing]
+# &quot;font-glyph&quot;, &quot;native&quot; or &quot;selected-native&quot;
+mode = &quot;native&quot;
+# selected = &quot;🮐🮑🮒&quot;
+</code></pre>
+<ul>
+<li><code>font-glyph</code> uses the glyph data in the font file.</li>
+<li><code>native</code> (default) turns on native rendering for all supported box drawing glyphs.</li>
+<li><code>selected-native</code> turns on native rendering for only code points specified in the <code>selected</code>
+setting.</li>
+</ul>
+<p>The width of the lines drawn can be further controlled using the following settings:</p>
+<pre><code class="language-toml">[box-drawing.sizes]
+default = [1, 3]  # Thin and thick values respectively, below 12px
+12 = [1, 2]       # 12px to 13.9999px
+14 = [2, 4]
+18 = [3, 6]
+</code></pre>
+<p>The <code>sizes</code> settings maps font sizes the thickness (in pixels) for thin and thick lines
+respectively. For example, if you are using a font with size 15px and with the above settings,
+Neovide to draw thin lines with width 2px and thick lines with width 4px. These settings only needs
+changing if you find that at certain font sizes the box characters seem too thick or too thin to
+your liking. Only <code>default</code> is required and overrides for specific sizes is optional.</p>
+<p><strong>NOTE:</strong> The sizes are specified in pixels unlike font size, which is specified in points. The
+reason for that, is to give a more controllable configuration when you are using different DPI
+settings. To convert from pt to pixels you can use the following formula <code>pt_size * (96/72) * scale</code>, so if you are using a 10.5 pt size font with a scale factor of 1.5, then it will become
+<code>10.5 pt * (96/72) * 1.5 = 21 px</code>. You also have to add the <code>linespace</code> setting if you use that.</p>
+<p>The default is 2 pixels for thin and 4 pixels for thick lines regardless of the font size, which
+corresponds to the settings below.</p>
+<pre><code class="language-toml">[box-drawing.sizes]
+default = [2, 4]  # Thin and thick values respectively, for all sizes
+</code></pre>
 <h4 id="backtraces_path"><a class="header" href="#backtraces_path">backtraces_path</a></h4>
 <p><strong>Available since 0.14.0.</strong></p>
 <p>If Neovide crashes, it will write a file named <code>neovide_backtraces.log</code> into
@@ -1457,7 +1560,36 @@ useful if the crash happens before the config file is read for example.</p>
 <tr><td>macOS</td><td><code>$HOME/Library/Application Support/neovide</code></td><td><code>/Users/Alice/Library/Application Support/neovide</code></td></tr>
 <tr><td>Windows</td><td><code>{FOLDERID_LocalAppData}\neovide</code></td><td><code>C:\Users\Alice\AppData\Local\neovide</code></td></tr>
 </tbody></table>
-</div><div style="break-before: page; page-break-before: always;"></div><h1 id="integration-w-external-tools"><a class="header" href="#integration-w-external-tools">Integration w/ External Tools</a></h1>
+</div><div style="break-before: page; page-break-before: always;"></div><h1 id="api"><a class="header" href="#api">API</a></h1>
+<p>The API fuctions are always available without any imports as long as Neovide is connected.</p>
+<h2 id="redraw-control"><a class="header" href="#redraw-control">Redraw Control</a></h2>
+<p><code>neovide.disable_redraw()</code>
+<code>neovide.enable_redraw()</code></p>
+<p>These can be used to by plugins to temporarily disable redrawing while performing some update. They
+can for exapmple, be used to prevent the cursor from temporarily moving to the wrong location, or to
+atomically spawn a group of windows together. The animations are still updated even when the
+re-drawing is disabled, but no new updates from Neovim will be visible.</p>
+<p>This is a temporary API, until support for this has been added natively to Neovim.</p>
+<p>It's recommended to use the following pattern with <code>pcall</code> to ensure that <code>enable_redraw()</code> is
+always called even when there are errors. And also checking for the existence of the functions.</p>
+<pre><code class="language-lua">if neovide and neovide.disable_redraw then neovide.disable_redraw() end
+local success, ret = pcall(actual_function_that_does_something, param1, param2)
+if neovide and neovide.enable_redraw then neovide.enable_redraw() end
+if success then
+    -- do something with the result
+else
+    -- propagate the error (or ignore it)
+    error(ret)
+end
+</code></pre>
+<p>Or if you don't care about the result</p>
+<pre><code class="language-lua">if neovide and neovide.disable_redraw then neovide.disable_redraw() end
+pcall(actual_function_that_does_something, param1, param2)
+if neovide and neovide.enable_redraw then neovide.enable_redraw() end
+</code></pre>
+<p><strong>Don't call these functions as a regular user, since you won't see any updates on the screen until
+the redrawing is enabled again, so it might be hard to type in the command.</strong></p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="integration-w-external-tools"><a class="header" href="#integration-w-external-tools">Integration w/ External Tools</a></h1>
 <p>You can use Neovide in other programs as editor, this page aims to document some quirks. Support for
 that, however, is only possible as far as reasonably debuggable.</p>
 <p><em>Note: We do not endorse nor disrecommend usage of all programs listed here. All usage happens on
@@ -1668,14 +1800,14 @@ end)
 <h2 id="how-can-i-dynamically-change-the-transparency-at-runtime-macos"><a class="header" href="#how-can-i-dynamically-change-the-transparency-at-runtime-macos">How can I Dynamically Change The Transparency At Runtime? (macOS)</a></h2>
 <p>VimScript:</p>
 <pre><code class="language-vim">&quot; Set transparency and background color (title bar color)
-let g:neovide_transparency=0.0
-let g:neovide_transparency_point=0.8
-let g:neovide_background_color = '#0f1117'.printf('%x', float2nr(255 * g:neovide_transparency_point))
+let g:neovide_opacity=0.0
+let g:neovide_opacity_point=0.8
+let g:neovide_background_color = '#0f1117'.printf('%x', float2nr(255 * g:neovide_opacity_point))
 
 &quot; Add keybinds to change transparency
 function! ChangeTransparency(delta)
-  let g:neovide_transparency_point = g:neovide_transparency_point + a:delta
-  let g:neovide_background_color = '#0f1117'.printf('%x', float2nr(255 * g:neovide_transparency_point))
+  let g:neovide_opacity_point = g:neovide_opacity_point + a:delta
+  let g:neovide_background_color = '#0f1117'.printf('%x', float2nr(255 * g:neovide_opacity_point))
 endfunction
 noremap &lt;expr&gt;&lt;D-]&gt; ChangeTransparency(0.01)
 noremap &lt;expr&gt;&lt;D-[&gt; ChangeTransparency(-0.01)
@@ -1683,15 +1815,15 @@ noremap &lt;expr&gt;&lt;D-[&gt; ChangeTransparency(-0.01)
 <p>Lua:</p>
 <pre><code class="language-lua">-- Helper function for transparency formatting
 local alpha = function()
-  return string.format(&quot;%x&quot;, math.floor(255 * vim.g.neovide_transparency_point or 0.8))
+  return string.format(&quot;%x&quot;, math.floor(255 * vim.g.neovide_opacity_point or 0.8))
 end
 -- Set transparency and background color (title bar color)
-vim.g.neovide_transparency = 0.0
-vim.g.neovide_transparency_point = 0.8
+vim.g.neovide_opacity = 0.0
+vim.g.neovide_opacity_point = 0.8
 vim.g.neovide_background_color = &quot;#0f1117&quot; .. alpha()
 -- Add keybinds to change transparency
 local change_transparency = function(delta)
-  vim.g.neovide_transparency_point = vim.g.neovide_transparency_point + delta
+  vim.g.neovide_opacity_point = vim.g.neovide_opacity_point + delta
   vim.g.neovide_background_color = &quot;#0f1117&quot; .. alpha()
 end
 vim.keymap.set({ &quot;n&quot;, &quot;v&quot;, &quot;o&quot; }, &quot;&lt;D-]&gt;&quot;, function()
@@ -1887,6 +2019,11 @@ top, one time at the bottom in the bundling section)</li>
 <a href="https://github.com/neovide/neovide/issues/1482">#1482</a>)</strong></p>
 </li>
 <li>
+<p>Check that <code>cargo publish --workspace --dry-run</code> works
+If necessary, you might have to bump the version number for the
+<code>neovide-derive</code> crate as well.</p>
+</li>
+<li>
 <p>Create a commit called <code>Bump version to $tag</code></p>
 </li>
 <li>
@@ -1920,6 +2057,12 @@ the unzipped versions if listed above)</p>
 </li>
 <li>
 <p>profit</p>
+</li>
+<li>
+<p>Publish <code>neovide-derive</code> to crates.io if necessary <code>cargo publish -p neovide-derive</code></p>
+</li>
+<li>
+<p>Publish <code>neovide</code> to crates.io <code>cargo publish -p neovide</code></p>
 </li>
 </ol>
 <p>Phew. Now, announce the new release anywhere you think is appropriate (like

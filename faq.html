@@ -78,7 +78,7 @@
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
             <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item expanded affix "><a href="index.html">Neovide</a></li><li class="spacer"></li><li class="chapter-item expanded "><a href="features.html"><strong aria-hidden="true">1.</strong> Features</a></li><li class="chapter-item expanded "><a href="installation.html"><strong aria-hidden="true">2.</strong> Installation</a></li><li class="chapter-item expanded "><a href="configuration.html"><strong aria-hidden="true">3.</strong> Configuration</a></li><li class="chapter-item expanded "><a href="commands.html"><strong aria-hidden="true">4.</strong> Commands</a></li><li class="chapter-item expanded "><a href="command-line-reference.html"><strong aria-hidden="true">5.</strong> Command Line Reference</a></li><li class="chapter-item expanded "><a href="config-file.html"><strong aria-hidden="true">6.</strong> Config File</a></li><li class="chapter-item expanded "><a href="integration-with-external-tools.html"><strong aria-hidden="true">7.</strong> Integration w/ External Tools</a></li><li class="chapter-item expanded "><a href="troubleshooting.html"><strong aria-hidden="true">8.</strong> Troubleshooting</a></li><li class="chapter-item expanded "><a href="faq.html" class="active"><strong aria-hidden="true">9.</strong> FAQ</a></li><li class="chapter-item expanded "><a href="maintainer-cookbook.html"><strong aria-hidden="true">10.</strong> Maintainer Cookbook</a></li></ol>
+                <ol class="chapter"><li class="chapter-item expanded affix "><a href="index.html">Neovide</a></li><li class="spacer"></li><li class="chapter-item expanded "><a href="features.html"><strong aria-hidden="true">1.</strong> Features</a></li><li class="chapter-item expanded "><a href="installation.html"><strong aria-hidden="true">2.</strong> Installation</a></li><li class="chapter-item expanded "><a href="configuration.html"><strong aria-hidden="true">3.</strong> Configuration</a></li><li class="chapter-item expanded "><a href="commands.html"><strong aria-hidden="true">4.</strong> Commands</a></li><li class="chapter-item expanded "><a href="command-line-reference.html"><strong aria-hidden="true">5.</strong> Command Line Reference</a></li><li class="chapter-item expanded "><a href="config-file.html"><strong aria-hidden="true">6.</strong> Config File</a></li><li class="chapter-item expanded "><a href="api.html"><strong aria-hidden="true">7.</strong> API</a></li><li class="chapter-item expanded "><a href="integration-with-external-tools.html"><strong aria-hidden="true">8.</strong> Integration w/ External Tools</a></li><li class="chapter-item expanded "><a href="troubleshooting.html"><strong aria-hidden="true">9.</strong> Troubleshooting</a></li><li class="chapter-item expanded "><a href="faq.html" class="active"><strong aria-hidden="true">10.</strong> FAQ</a></li><li class="chapter-item expanded "><a href="maintainer-cookbook.html"><strong aria-hidden="true">11.</strong> Maintainer Cookbook</a></li></ol>
             </div>
             <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
         </nav>
@@ -198,14 +198,14 @@ end)
 <h2 id="how-can-i-dynamically-change-the-transparency-at-runtime-macos"><a class="header" href="#how-can-i-dynamically-change-the-transparency-at-runtime-macos">How can I Dynamically Change The Transparency At Runtime? (macOS)</a></h2>
 <p>VimScript:</p>
 <pre><code class="language-vim">&quot; Set transparency and background color (title bar color)
-let g:neovide_transparency=0.0
-let g:neovide_transparency_point=0.8
-let g:neovide_background_color = '#0f1117'.printf('%x', float2nr(255 * g:neovide_transparency_point))
+let g:neovide_opacity=0.0
+let g:neovide_opacity_point=0.8
+let g:neovide_background_color = '#0f1117'.printf('%x', float2nr(255 * g:neovide_opacity_point))
 
 &quot; Add keybinds to change transparency
 function! ChangeTransparency(delta)
-  let g:neovide_transparency_point = g:neovide_transparency_point + a:delta
-  let g:neovide_background_color = '#0f1117'.printf('%x', float2nr(255 * g:neovide_transparency_point))
+  let g:neovide_opacity_point = g:neovide_opacity_point + a:delta
+  let g:neovide_background_color = '#0f1117'.printf('%x', float2nr(255 * g:neovide_opacity_point))
 endfunction
 noremap &lt;expr&gt;&lt;D-]&gt; ChangeTransparency(0.01)
 noremap &lt;expr&gt;&lt;D-[&gt; ChangeTransparency(-0.01)
@@ -213,15 +213,15 @@ noremap &lt;expr&gt;&lt;D-[&gt; ChangeTransparency(-0.01)
 <p>Lua:</p>
 <pre><code class="language-lua">-- Helper function for transparency formatting
 local alpha = function()
-  return string.format(&quot;%x&quot;, math.floor(255 * vim.g.neovide_transparency_point or 0.8))
+  return string.format(&quot;%x&quot;, math.floor(255 * vim.g.neovide_opacity_point or 0.8))
 end
 -- Set transparency and background color (title bar color)
-vim.g.neovide_transparency = 0.0
-vim.g.neovide_transparency_point = 0.8
+vim.g.neovide_opacity = 0.0
+vim.g.neovide_opacity_point = 0.8
 vim.g.neovide_background_color = &quot;#0f1117&quot; .. alpha()
 -- Add keybinds to change transparency
 local change_transparency = function(delta)
-  vim.g.neovide_transparency_point = vim.g.neovide_transparency_point + delta
+  vim.g.neovide_opacity_point = vim.g.neovide_opacity_point + delta
   vim.g.neovide_background_color = &quot;#0f1117&quot; .. alpha()
 end
 vim.keymap.set({ &quot;n&quot;, &quot;v&quot;, &quot;o&quot; }, &quot;&lt;D-]&gt;&quot;, function()
