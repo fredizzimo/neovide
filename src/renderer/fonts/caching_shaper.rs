@@ -14,6 +14,7 @@ use swash::{
 };
 use unicode_segmentation::UnicodeSegmentation;
 
+use super::swash_font::SwashFont;
 use crate::{
     error_msg,
     profiling::tracy_zone,
@@ -170,25 +171,10 @@ impl CachingShaper {
         if let Some(info) = self.font_info {
             return info;
         }
-
-        let font_pair = self.current_font_pair();
         let size = self.current_size();
-        let mut shaper = self
-            .shape_context
-            .builder(font_pair.swash_font.as_ref())
-            .size(size)
-            .build();
-        shaper.add_str("M");
-        let metrics = shaper.metrics();
-        let mut advance = metrics.average_width;
-        shaper.shape_with(|cluster| {
-            advance = cluster
-                .glyphs
-                .first()
-                .map_or(metrics.average_width, |g| g.advance);
-        });
-        self.font_info = Some((metrics, advance));
-        (metrics, advance)
+        let swash_font = &self.current_font_pair().swash_font;
+        self.font_info = Some(info_for_font(&mut self.shape_context, swash_font, size));
+        self.font_info.unwrap()
     }
 
     fn metrics(&mut self) -> Metrics {
@@ -461,4 +447,18 @@ impl CachingShaper {
             vec![]
         }
     }
+}
+
+fn info_for_font(shape_context: &mut ShapeContext, font: &SwashFont, size: f32) -> (Metrics, f32) {
+    let mut shaper = shape_context.builder(font.as_ref()).size(size).build();
+    shaper.add_str("M");
+    let metrics = shaper.metrics();
+    let mut advance = metrics.average_width;
+    shaper.shape_with(|cluster| {
+        advance = cluster
+            .glyphs
+            .first()
+            .map_or(metrics.average_width, |g| g.advance);
+    });
+    (metrics, advance)
 }
