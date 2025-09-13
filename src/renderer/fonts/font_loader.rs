@@ -1,7 +1,7 @@
 use std::{
     fmt::{Display, Formatter},
     num::NonZeroUsize,
-    sync::Arc,
+    rc::Rc,
 };
 
 use log::trace;
@@ -66,9 +66,9 @@ pub struct FontKey {
 
 pub struct FontLoader {
     font_mgr: FontMgr,
-    cache: LruCache<FontKey, Arc<FontPair>>,
+    cache: LruCache<FontKey, Rc<FontPair>>,
     font_size: f32,
-    last_resort: Option<Arc<FontPair>>,
+    last_resort: Option<Rc<FontPair>>,
 }
 
 impl Display for FontKey {
@@ -105,23 +105,23 @@ impl FontLoader {
         }
     }
 
-    pub fn get_or_load(&mut self, font_key: &FontKey) -> Option<Arc<FontPair>> {
+    pub fn get_or_load(&mut self, font_key: &FontKey) -> Option<Rc<FontPair>> {
         if let Some(cached) = self.cache.get(font_key) {
             return Some(cached.clone());
         }
 
         let loaded_font = self.load(font_key.clone())?;
-        let font_arc = Arc::new(loaded_font);
-        self.cache.put(font_key.clone(), font_arc.clone());
+        let font_rc = Rc::new(loaded_font);
+        self.cache.put(font_key.clone(), font_rc.clone());
 
-        Some(font_arc)
+        Some(font_rc)
     }
 
     pub fn load_font_for_character(
         &mut self,
         coarse_style: CoarseStyle,
         character: char,
-    ) -> Option<Arc<FontPair>> {
+    ) -> Option<Rc<FontPair>> {
         let font_style = coarse_style.into();
         let typeface =
             self.font_mgr
@@ -136,14 +136,14 @@ impl FontLoader {
             edging: FontEdging::default(),
         };
 
-        let font_pair = Arc::new(FontPair::new(font_key.clone(), typeface, self.font_size)?);
+        let font_pair = Rc::new(FontPair::new(font_key.clone(), typeface, self.font_size)?);
 
         self.cache.put(font_key, font_pair.clone());
 
         Some(font_pair)
     }
 
-    pub fn get_or_load_last_resort(&mut self) -> Option<Arc<FontPair>> {
+    pub fn get_or_load_last_resort(&mut self) -> Option<Rc<FontPair>> {
         if self.last_resort.is_some() {
             self.last_resort.clone()
         } else {
@@ -151,14 +151,14 @@ impl FontLoader {
             let data = Data::new_copy(LAST_RESORT_FONT);
 
             let typeface = self.font_mgr.new_from_data(&data, 0)?;
-            let font_pair = Arc::new(FontPair::new(font_key, typeface, self.font_size)?);
+            let font_pair = Rc::new(FontPair::new(font_key, typeface, self.font_size)?);
 
             self.last_resort = Some(font_pair.clone());
             Some(font_pair)
         }
     }
 
-    pub fn loaded_fonts(&self) -> Vec<Arc<FontPair>> {
+    pub fn loaded_fonts(&self) -> Vec<Rc<FontPair>> {
         self.cache.iter().map(|(_, v)| v.clone()).collect()
     }
 
