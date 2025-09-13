@@ -388,11 +388,14 @@ impl CachingShaper {
                     .map(|desc| desc.family.as_str()),
             );
 
+            // Scale fallback fonts to have the same width as the primary one
+            let scale = (font_pair.font_info.unwrap().1 * current_size) / self.info().1;
+
             let mut shaper = self
                 .shape_context
                 .builder(font_pair.swash_font.as_ref())
                 .features(features.iter().map(|(name, value)| (name.as_ref(), *value)))
-                .size(current_size)
+                .size(current_size * scale)
                 .build();
 
             let charmap = font_pair.swash_font.as_ref().charmap();
@@ -417,11 +420,10 @@ impl CachingShaper {
             if glyph_data.is_empty() {
                 continue;
             }
-            let current_size = self.current_size();
 
             let mut blob_builder = TextBlobBuilder::new();
             let (glyphs, positions) = blob_builder.alloc_run_pos(
-                &font_pair.skia_font.with_size(current_size).unwrap(),
+                &font_pair.skia_font.with_size(current_size * scale).unwrap(),
                 glyph_data.len(),
                 None,
             );
