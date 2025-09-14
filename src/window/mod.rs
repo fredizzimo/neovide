@@ -8,6 +8,8 @@ mod window_wrapper;
 #[cfg(target_os = "macos")]
 pub mod macos;
 
+use std::sync::Arc;
+
 #[cfg(target_os = "linux")]
 use std::env;
 
@@ -41,6 +43,7 @@ use keyboard_manager::KeyboardManager;
 use mouse_manager::MouseManager;
 
 use crate::{
+    bridge::ApiInformation,
     cmd_line::{CmdLineSettings, GeometryArgs},
     frame::Frame,
     renderer::{build_window_config, DrawCommand, WindowConfig},
@@ -86,7 +89,7 @@ pub enum WindowCommand {
     UnregisterRightClick,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum UserEvent {
     DrawCommandBatch(Vec<DrawCommand>),
     WindowCommand(WindowCommand),
@@ -95,6 +98,7 @@ pub enum UserEvent {
     #[allow(dead_code)]
     RedrawRequested,
     NeovimExited,
+    NeovimInfo(Arc<Box<ApiInformation>>),
 }
 
 impl From<Vec<DrawCommand>> for UserEvent {

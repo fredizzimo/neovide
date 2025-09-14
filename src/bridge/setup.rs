@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use nvim_rs::Neovim;
 use rmpv::Value;
+use std::sync::Arc;
 
 use super::api_info::{parse_api_info, ApiInformation};
 use crate::{
@@ -23,7 +24,7 @@ pub async fn get_api_information(nvim: &Neovim<NeovimWriter>) -> Result<ApiInfor
 pub async fn setup_neovide_specific_state(
     nvim: &Neovim<NeovimWriter>,
     should_handle_clipboard: bool,
-    api_information: &ApiInformation,
+    api_information: Arc<Box<ApiInformation>>,
     settings: &Settings,
 ) -> Result<()> {
     // Set variable indicating to user config that neovide is being used.

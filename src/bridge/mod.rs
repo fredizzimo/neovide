@@ -25,12 +25,13 @@ use crate::{
     cmd_line::CmdLineSettings, editor::start_editor, running_tracker::RunningTracker, settings::*,
     units::GridSize, window::UserEvent,
 };
-pub use handler::NeovimHandler;
 use session::{NeovimInstance, NeovimSession};
 use setup::{get_api_information, setup_neovide_specific_state};
 
+pub use api_info::ApiInformation;
 pub use command::create_nvim_command;
 pub use events::*;
+pub use handler::NeovimHandler;
 pub use session::NeovimWriter;
 pub use ui_commands::{send_ui, start_ui_command_handler, ParallelCommand, SerialCommand};
 
@@ -77,6 +78,7 @@ async fn launch(
     handler: NeovimHandler,
     grid_size: Option<GridSize<u32>>,
     settings: Arc<Settings>,
+    event_loop_proxy: EventLoopProxy<UserEvent>,
 ) -> Result<NeovimSession> {
     let neovim_instance = neovim_instance(settings.as_ref()).await?;
 
@@ -100,17 +102,19 @@ async fn launch(
     let cmdline_settings = settings.get::<CmdLineSettings>();
 
     let should_handle_clipboard = cmdline_settings.wsl || cmdline_settings.server.is_some();
-    let api_information = get_api_information(&session.neovim).await?;
+    let api_information = Arc::new(Box::new(get_api_information(&session.neovim).await?));
     info!(
         "Neovide registered to nvim with channel id {}",
         api_information.channel
     );
+    info!("Neovim version {:#?}", api_information.version);
+    let _ = event_loop_proxy.send_event(UserEvent::NeovimInfo(api_information.clone()));
     // This is too verbose to keep enabled all the time
     // log::info!("Api information {:#?}", api_information);
     setup_neovide_specific_state(
         &session.neovim,
         should_handle_clipboard,
-        &api_information,
+        api_information,
         &settings,
     )
     .await?;
@@ -185,9 +189,12 @@ impl NeovimRuntime {
         settings: Arc<Settings>,
     ) -> Result<()> {
         let handler = start_editor(event_loop_proxy.clone(), running_tracker, settings.clone());
-        let session = self
-            .runtime
-            .block_on(launch(handler, grid_size, settings))?;
+        let session = self.runtime.block_on(launch(
+            handler,
+            grid_size,
+            settings,
+            event_loop_proxy.clone(),
+        ))?;
         self.runtime.spawn(run(session, event_loop_proxy));
         Ok(())
     }

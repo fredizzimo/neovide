@@ -20,7 +20,7 @@ use {
 };
 
 use crate::{
-    bridge::{send_ui, ParallelCommand, SerialCommand},
+    bridge::{send_ui, ApiInformation, ParallelCommand, SerialCommand},
     profiling::{tracy_frame, tracy_gpu_collect, tracy_gpu_zone, tracy_plot, tracy_zone},
     renderer::{
         create_skia_renderer, DrawCommand, Renderer, RendererSettingsChanged, SkiaRenderer, VSync,
@@ -94,6 +94,7 @@ pub struct WinitWindowWrapper {
     is_minimized: bool,
     ime_enabled: bool,
     ime_area: (dpi::PhysicalPosition<u32>, dpi::PhysicalSize<u32>),
+    neovim_info: Option<Arc<Box<ApiInformation>>>,
     pub vsync: Option<VSync>,
     #[cfg(target_os = "macos")]
     pub macos_feature: Option<MacosWindowFeature>,
@@ -133,6 +134,7 @@ impl WinitWindowWrapper {
             vsync: None,
             ime_enabled: false,
             ime_area: Default::default(),
+            neovim_info: None,
             #[cfg(target_os = "macos")]
             macos_feature: None,
             settings,
@@ -432,6 +434,7 @@ impl WinitWindowWrapper {
             UserEvent::ConfigsChanged(config) => {
                 self.handle_config_changed(*config);
             }
+            UserEvent::NeovimInfo(info) => self.handle_neovim_info(info),
             _ => {}
         }
     }
@@ -658,6 +661,10 @@ impl WinitWindowWrapper {
         tracy_zone!("handle_config_changed");
         self.renderer.handle_config_changed(config);
         self.font_changed_last_frame = true;
+    }
+
+    fn handle_neovim_info(&mut self, neovim_info: Arc<Box<ApiInformation>>) {
+        self.neovim_info = Some(neovim_info);
     }
 
     fn calculate_window_padding(&self) -> WindowPadding {
