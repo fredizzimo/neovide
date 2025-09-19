@@ -9,20 +9,19 @@ use objc2_metal::{
 };
 use objc2_quartz_core::{CAMetalDrawable, CAMetalLayer};
 use skia_safe::{
+    Canvas, ColorSpace, ColorType, PixelGeometry, Surface, SurfaceProps, SurfacePropsFlags,
     gpu::{
-        self,
+        self, DirectContext, SurfaceOrigin,
         mtl::{BackendContext, TextureInfo},
         surfaces::wrap_backend_render_target,
-        DirectContext, SurfaceOrigin,
     },
-    Canvas, ColorSpace, ColorType, PixelGeometry, Surface, SurfaceProps, SurfacePropsFlags,
 };
 use winit::{event_loop::EventLoopProxy, window::Window};
 
 use crate::{
     profiling::tracy_gpu_zone,
     renderer::{RendererSettings, SkiaRenderer, VSync},
-    window::{macos::get_ns_window, UserEvent},
+    window::{UserEvent, macos::get_ns_window},
 };
 
 use super::Settings;

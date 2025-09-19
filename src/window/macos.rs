@@ -2,18 +2,18 @@ use std::sync::Arc;
 use std::{os::raw::c_void, str};
 
 use objc2::{
-    define_class, msg_send,
+    AnyThread, MainThreadOnly, define_class, msg_send,
     rc::Retained,
     runtime::{AnyClass, AnyObject, ClassBuilder},
-    sel, AnyThread, MainThreadOnly,
+    sel,
 };
 use objc2_app_kit::{
     NSApplication, NSAutoresizingMaskOptions, NSColor, NSEvent, NSEventModifierFlags, NSImage,
     NSMenu, NSMenuItem, NSView, NSWindow, NSWindowStyleMask, NSWindowTabbingMode,
 };
 use objc2_foundation::{
-    ns_string, MainThreadMarker, NSArray, NSData, NSDictionary, NSObject, NSPoint, NSProcessInfo,
-    NSRect, NSSize, NSString, NSUserDefaults,
+    MainThreadMarker, NSArray, NSData, NSDictionary, NSObject, NSPoint, NSProcessInfo, NSRect,
+    NSSize, NSString, NSUserDefaults, ns_string,
 };
 
 use csscolorparser::Color;
@@ -21,7 +21,7 @@ use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use winit::window::Window;
 
 use crate::{
-    bridge::{send_ui, ParallelCommand, SerialCommand},
+    bridge::{ParallelCommand, SerialCommand, send_ui},
     settings::Settings,
 };
 use crate::{cmd_line::CmdLineSettings, error_msg, frame::Frame};

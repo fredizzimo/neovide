@@ -4,8 +4,8 @@ use crate::{dimensions::Dimensions, frame::Frame, settings::*, utils::handle_wsl
 
 use anyhow::Result;
 use clap::{
-    builder::{styling, FalseyValueParser, Styles},
     ArgAction, Parser,
+    builder::{FalseyValueParser, Styles, styling},
 };
 use winit::window::CursorIcon;
 

@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use serde::Deserialize;
 
 use crate::renderer::fonts::font_options::{
-    points_to_pixels, FontDescription, FontEdging, FontFeature, FontHinting, FontOptions,
-    SecondaryFontDescription,
+    FontDescription, FontEdging, FontFeature, FontHinting, FontOptions, SecondaryFontDescription,
+    points_to_pixels,
 };
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]

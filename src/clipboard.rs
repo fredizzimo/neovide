@@ -1,12 +1,12 @@
 use std::error::Error;
 use std::sync::OnceLock;
 
+use copypasta::{ClipboardContext, ClipboardProvider};
 #[cfg(target_os = "linux")]
 use copypasta::{
     wayland_clipboard,
     x11_clipboard::{Primary as X11SelectionClipboard, X11ClipboardContext},
 };
-use copypasta::{ClipboardContext, ClipboardProvider};
 use parking_lot::Mutex;
 use raw_window_handle::HasDisplayHandle;
 #[cfg(target_os = "linux")]

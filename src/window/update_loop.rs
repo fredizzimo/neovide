@@ -9,12 +9,12 @@ use winit::{
     event_loop::{ActiveEventLoop, ControlFlow, EventLoopProxy},
 };
 
-use super::{save_window_size, CmdLineSettings, UserEvent, WindowSettings, WinitWindowWrapper};
+use super::{CmdLineSettings, UserEvent, WindowSettings, WinitWindowWrapper, save_window_size};
 use crate::{
+    WindowSize,
     profiling::{tracy_plot, tracy_zone},
     renderer::DrawCommand,
     settings::{Config, Settings},
-    WindowSize,
 };
 
 enum FocusedState {

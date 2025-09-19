@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
 use skia_safe::{
+    Color4f, FontMgr, Paint, Point, Rect, Size,
     canvas::{Canvas, SaveLayerRec},
     colors::{BLACK, WHITE},
     textlayout::{
         FontCollection, Paragraph, ParagraphBuilder, ParagraphStyle, TextHeightBehavior, TextIndex,
         TextStyle,
     },
-    Color4f, FontMgr, Paint, Point, Rect, Size,
 };
 use strum::IntoEnumIterator;
 use strum::{EnumCount, EnumIter};
@@ -23,9 +23,9 @@ use winit::{
 use crate::{
     clipboard,
     cmd_line::SRGB_DEFAULT,
-    renderer::{build_window_config, create_skia_renderer, SkiaRenderer, WindowConfig},
+    renderer::{SkiaRenderer, WindowConfig, build_window_config, create_skia_renderer},
     settings::Settings,
-    window::{load_icon, UserEvent},
+    window::{UserEvent, load_icon},
 };
 
 const TEXT_COLOR: Color4f = WHITE;

@@ -9,9 +9,9 @@ use std::{
 };
 
 use anyhow::Context;
-use nvim_rs::{error::LoopError, neovim::Neovim, Handler};
+use nvim_rs::{Handler, error::LoopError, neovim::Neovim};
 use tokio::{
-    io::{split, AsyncBufReadExt, AsyncRead, AsyncWrite, BufReader},
+    io::{AsyncBufReadExt, AsyncRead, AsyncWrite, BufReader, split},
     net::TcpStream,
     process::{Child, Command},
     spawn,

@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use nvim_rs::Neovim;
 use rmpv::Value;
 
-use super::api_info::{parse_api_info, ApiInformation};
+use super::api_info::{ApiInformation, parse_api_info};
 use crate::{
     bridge::NeovimWriter,
     settings::{SettingLocation, Settings},

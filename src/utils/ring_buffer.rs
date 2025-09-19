@@ -1,4 +1,4 @@
-use num::{cast::AsPrimitive, Integer};
+use num::{Integer, cast::AsPrimitive};
 use std::{
     clone::Clone,
     ops::{Bound, Index, IndexMut, Range, RangeBounds},

@@ -1,15 +1,15 @@
 use std::{
     sync::{
-        atomic::{AtomicBool, Ordering},
         Arc,
+        atomic::{AtomicBool, Ordering},
     },
-    thread::{spawn, JoinHandle},
+    thread::{JoinHandle, spawn},
     time::Duration,
 };
 
 use spin_sleep::SpinSleeper;
 use windows::Win32::Foundation::HWND;
-use windows::Win32::Graphics::Dwm::{DwmGetCompositionTimingInfo, DWM_TIMING_INFO};
+use windows::Win32::Graphics::Dwm::{DWM_TIMING_INFO, DwmGetCompositionTimingInfo};
 use windows::Win32::System::Performance::{QueryPerformanceCounter, QueryPerformanceFrequency};
 use winit::event_loop::EventLoopProxy;
 

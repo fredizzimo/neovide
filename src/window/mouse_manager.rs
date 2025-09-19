@@ -14,12 +14,12 @@ use winit::{
 use glamour::{Contains, Point2};
 
 use crate::{
-    bridge::{send_ui, SerialCommand},
+    bridge::{SerialCommand, send_ui},
     renderer::{Renderer, WindowDrawDetails},
     settings::Settings,
     units::{GridPos, GridScale, GridVec, PixelPos, PixelRect, PixelSize, PixelVec},
-    window::keyboard_manager::KeyboardManager,
     window::WindowSettings,
+    window::keyboard_manager::KeyboardManager,
 };
 
 fn mouse_button_to_button_text(mouse_button: MouseButton) -> Option<String> {

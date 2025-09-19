@@ -2,12 +2,12 @@ use std::{
     convert::TryInto,
     env,
     env::consts::OS,
-    ffi::{c_void, CStr, CString},
+    ffi::{CStr, CString, c_void},
     num::NonZeroU32,
     sync::Arc,
 };
 
-use gl::{types::*, MAX_RENDERBUFFER_SIZE};
+use gl::{MAX_RENDERBUFFER_SIZE, types::*};
 use glutin::surface::SwapInterval;
 use glutin::{
     config::{Config, ConfigTemplateBuilder},
@@ -19,12 +19,12 @@ use glutin::{
 use glutin_winit::DisplayBuilder;
 use raw_window_handle::HasWindowHandle;
 use skia_safe::{
+    ColorSpace, ColorType, PixelGeometry, SurfaceProps, SurfacePropsFlags,
     canvas::Canvas,
     gpu::{
-        backend_render_targets::make_gl, gl::FramebufferInfo, surfaces::wrap_backend_render_target,
-        DirectContext, SurfaceOrigin,
+        DirectContext, SurfaceOrigin, backend_render_targets::make_gl, gl::FramebufferInfo,
+        surfaces::wrap_backend_render_target,
     },
-    ColorSpace, ColorType, PixelGeometry, SurfaceProps, SurfacePropsFlags,
 };
 use winit::{
     dpi::PhysicalSize,
@@ -43,7 +43,7 @@ use super::{RendererSettings, SkiaRenderer, VSync, WindowConfig, WindowConfigTyp
 use crate::{profiling::tracy_gpu_zone, settings::Settings, window::UserEvent};
 
 #[cfg(feature = "gpu_profiling")]
-use crate::profiling::{opengl::create_opengl_gpu_context, GpuCtx};
+use crate::profiling::{GpuCtx, opengl::create_opengl_gpu_context};
 
 pub struct OpenGLSkiaRenderer {
     // NOTE: The destruction order is important, so don't re-arrange

@@ -1,18 +1,18 @@
 use std::sync::Arc;
 
 use log::trace;
-use skia_safe::{colors, dash_path_effect, BlendMode, Canvas, Color, Paint, Path, HSV};
+use skia_safe::{BlendMode, Canvas, Color, HSV, Paint, Path, colors, dash_path_effect};
 
 use crate::{
     editor::{Colors, Style, UnderlineStyle},
     profiling::tracy_zone,
     renderer::{
-        box_drawing::{self},
         CachingShaper, RendererSettings,
+        box_drawing::{self},
     },
     settings::*,
     units::{
-        to_skia_point, to_skia_rect, GridPos, GridScale, GridSize, PixelPos, PixelRect, PixelVec,
+        GridPos, GridScale, GridSize, PixelPos, PixelRect, PixelVec, to_skia_point, to_skia_rect,
     },
     window::WindowSettings,
 };

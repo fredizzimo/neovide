@@ -43,9 +43,7 @@ macro_rules! cstr {
 }
 
 macro_rules! file_cstr {
-    ( ) => {{
-        unsafe { std::mem::transmute::<_, &std::ffi::CStr>(concat!(std::file!(), "\0")) }
-    }};
+    ( ) => {{ unsafe { std::mem::transmute::<_, &std::ffi::CStr>(concat!(std::file!(), "\0")) } }};
 }
 
 pub const fn _create_location_data(

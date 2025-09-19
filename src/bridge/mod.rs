@@ -9,10 +9,10 @@ mod ui_commands;
 
 use std::{io::Error, ops::Add, sync::Arc, time::Duration};
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use itertools::Itertools;
 use log::info;
-use nvim_rs::{error::CallError, Neovim, UiAttachOptions, Value};
+use nvim_rs::{Neovim, UiAttachOptions, Value, error::CallError};
 use rmpv::Utf8String;
 use tokio::{
     runtime::{Builder, Runtime},
@@ -32,7 +32,7 @@ use setup::{get_api_information, setup_neovide_specific_state};
 pub use command::create_nvim_command;
 pub use events::*;
 pub use session::NeovimWriter;
-pub use ui_commands::{send_ui, start_ui_command_handler, ParallelCommand, SerialCommand};
+pub use ui_commands::{ParallelCommand, SerialCommand, send_ui, start_ui_command_handler};
 
 const NEOVIM_REQUIRED_VERSION: &str = "0.10.0";
 
@@ -93,7 +93,9 @@ async fn launch(
     {
         Ok("1") => {} // This is just a guard
         _ => {
-            bail!("Neovide requires nvim version {NEOVIM_REQUIRED_VERSION} or higher. Download the latest version here https://github.com/neovim/neovim/wiki/Installing-Neovim");
+            bail!(
+                "Neovide requires nvim version {NEOVIM_REQUIRED_VERSION} or higher. Download the latest version here https://github.com/neovim/neovim/wiki/Installing-Neovim"
+            );
         }
     }
 

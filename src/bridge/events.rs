@@ -600,8 +600,13 @@ fn parse_grid_resize(grid_resize_arguments: Vec<Value>) -> Result<RedrawEvent> {
 }
 
 fn parse_default_colors(default_colors_arguments: Vec<Value>) -> Result<RedrawEvent> {
-    let [foreground, background, special, _term_foreground, _term_background] =
-        extract_values(default_colors_arguments)?;
+    let [
+        foreground,
+        background,
+        special,
+        _term_foreground,
+        _term_background,
+    ] = extract_values(default_colors_arguments)?;
 
     Ok(RedrawEvent::DefaultColorsSet {
         colors: Colors {
@@ -789,7 +794,16 @@ fn parse_window_anchor(value: Value) -> Result<WindowAnchor> {
 
 fn parse_win_float_pos(win_float_pos_arguments: Vec<Value>) -> Result<RedrawEvent> {
     let (
-        [grid, _window, anchor, anchor_grid, anchor_row, anchor_column, mouse_enabled, z_index],
+        [
+            grid,
+            _window,
+            anchor,
+            anchor_grid,
+            anchor_row,
+            anchor_column,
+            mouse_enabled,
+            z_index,
+        ],
         [comp_index, screen_row, screen_col],
     ) = extract_values_with_optional(win_float_pos_arguments)?;
 
@@ -847,7 +861,14 @@ fn parse_msg_set_pos(msg_set_pos_arguments: Vec<Value>) -> Result<RedrawEvent> {
 
 fn parse_win_viewport(win_viewport_arguments: Vec<Value>) -> Result<RedrawEvent> {
     let (
-        [grid, _window, top_line, bottom_line, current_line, current_column],
+        [
+            grid,
+            _window,
+            top_line,
+            bottom_line,
+            current_line,
+            current_column,
+        ],
         [line_count, scroll_delta],
     ) = extract_values_with_optional(win_viewport_arguments)?;
 

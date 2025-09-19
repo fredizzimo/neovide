@@ -7,12 +7,12 @@ use glamour::{Box2, Size2, Vector2};
 use itertools::Itertools;
 use num::{Integer, ToPrimitive};
 use skia_safe::{
-    paint::Cap, BlendMode, Canvas, ClipOp, Color, Paint, PaintStyle, Path, PathEffect,
-    PathFillType, Point, Rect,
+    BlendMode, Canvas, ClipOp, Color, Paint, PaintStyle, Path, PathEffect, PathFillType, Point,
+    Rect, paint::Cap,
 };
 
-use crate::units::{to_skia_point, to_skia_rect, PixelRect, PixelSize, PixelVec};
 use crate::units::{Pixel, PixelPos};
+use crate::units::{PixelRect, PixelSize, PixelVec, to_skia_point, to_skia_rect};
 
 trait LineAlignment {
     fn align_mid_line(self, stroke_width: f32) -> Self;

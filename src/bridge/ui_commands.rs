@@ -3,17 +3,17 @@ use std::sync::{Arc, OnceLock};
 use log::trace;
 
 use anyhow::{Context, Result};
-use nvim_rs::{call_args, error::CallError, rpc::model::IntoVal, Neovim, Value};
+use nvim_rs::{Neovim, Value, call_args, error::CallError, rpc::model::IntoVal};
 use strum::AsRefStr;
 use tokio::sync::mpsc::unbounded_channel;
 
-use super::{show_error_message, Settings};
+use super::{Settings, show_error_message};
 use crate::{
+    LoggingSender,
     bridge::NeovimWriter,
     cmd_line::CmdLineSettings,
     profiling::{tracy_dynamic_zone, tracy_fiber_enter, tracy_fiber_leave},
     utils::handle_wslpaths,
-    LoggingSender,
 };
 
 // Serial commands are any commands which must complete before the next value is sent. This

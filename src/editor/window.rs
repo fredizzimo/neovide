@@ -5,8 +5,8 @@ use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
     bridge::GridLineCell,
-    editor::{grid::CharacterGrid, style::Style, AnchorInfo, DrawCommand, DrawCommandBatcher},
-    renderer::{box_drawing, LineFragment, WindowDrawCommand},
+    editor::{AnchorInfo, DrawCommand, DrawCommandBatcher, grid::CharacterGrid, style::Style},
+    renderer::{LineFragment, WindowDrawCommand, box_drawing},
     units::{GridRect, GridSize},
 };
 

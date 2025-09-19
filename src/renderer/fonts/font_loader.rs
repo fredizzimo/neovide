@@ -6,7 +6,7 @@ use std::{
 
 use log::trace;
 use lru::LruCache;
-use skia_safe::{font::Edging as SkiaEdging, Data, Font, FontHinting as SkiaHinting, FontMgr};
+use skia_safe::{Data, Font, FontHinting as SkiaHinting, FontMgr, font::Edging as SkiaEdging};
 
 use crate::{
     profiling::tracy_zone,

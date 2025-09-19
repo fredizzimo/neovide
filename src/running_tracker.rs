@@ -1,8 +1,8 @@
 use std::{
     process::ExitCode,
     sync::{
-        atomic::{AtomicU8, Ordering},
         Arc,
+        atomic::{AtomicU8, Ordering},
     },
 };
 

@@ -7,9 +7,9 @@ use crate::{
     cmd_line::CmdLineSettings,
     editor::{AnchorInfo, SortOrder, Style, WindowType},
     profiling::{tracy_plot, tracy_zone},
-    renderer::{animation_utils::*, GridRenderer, RendererSettings},
+    renderer::{GridRenderer, RendererSettings, animation_utils::*},
     settings::Settings,
-    units::{to_skia_rect, GridPos, GridRect, GridScale, GridSize, PixelPos, PixelRect, PixelVec},
+    units::{GridPos, GridRect, GridScale, GridSize, PixelPos, PixelRect, PixelVec, to_skia_rect},
     utils::RingBuffer,
 };
 
@@ -394,7 +394,7 @@ impl RenderedWindow {
                 if self.hidden {
                     self.hidden = false;
                     self.position_t = 2.0; // We don't want to animate since the window is becoming visible,
-                                           // so we set t to 2.0 to stop animations.
+                    // so we set t to 2.0 to stop animations.
                     self.grid_start_position = grid_position;
                     self.grid_destination = grid_position;
                 }
@@ -447,7 +447,7 @@ impl RenderedWindow {
                 if self.hidden {
                     self.hidden = false;
                     self.position_t = 2.0; // We don't want to animate since the window is becoming visible,
-                                           // so we set t to 2.0 to stop animations.
+                    // so we set t to 2.0 to stop animations.
                     self.grid_start_position = self.grid_destination;
                     self.scroll_animation.reset();
                 }

@@ -1,6 +1,6 @@
 use std::{
-    sync::mpsc::{channel, Sender},
-    thread::{spawn, JoinHandle},
+    sync::mpsc::{Sender, channel},
+    thread::{JoinHandle, spawn},
 };
 
 use windows::Win32::Foundation::HANDLE;

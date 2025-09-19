@@ -8,16 +8,17 @@ use tokio::sync::mpsc::UnboundedSender;
 use winit::event_loop::EventLoopProxy;
 
 use crate::{
+    LoggingSender,
     bridge::{
+        NeovimWriter, ParallelCommand, RedrawEvent,
         clipboard::{get_clipboard_contents, set_clipboard_contents},
         events::parse_redraw_event,
-        send_ui, NeovimWriter, ParallelCommand, RedrawEvent,
+        send_ui,
     },
     error_handling::ResultPanicExplanation,
     running_tracker::RunningTracker,
     settings::Settings,
     window::{UserEvent, WindowCommand},
-    LoggingSender,
 };
 
 #[derive(Clone)]

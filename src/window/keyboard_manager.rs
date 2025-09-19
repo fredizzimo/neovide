@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
-    bridge::{send_ui, SerialCommand},
+    bridge::{SerialCommand, send_ui},
     settings::Settings,
 };
 
@@ -13,7 +13,7 @@ use winit::{
 };
 #[cfg(target_os = "macos")]
 use {
-    crate::{window::settings::OptionAsMeta, window::WindowSettings},
+    crate::{window::WindowSettings, window::settings::OptionAsMeta},
     winit::keyboard::ModifiersKeyState,
 };
 

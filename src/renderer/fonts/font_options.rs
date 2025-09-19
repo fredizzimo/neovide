@@ -4,8 +4,8 @@ use itertools::Itertools;
 use log::warn;
 use serde::Deserialize;
 use skia_safe::{
-    font_style::{Slant, Weight, Width},
     FontStyle,
+    font_style::{Slant, Weight, Width},
 };
 
 use crate::{editor, error_msg};

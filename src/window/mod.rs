@@ -36,17 +36,17 @@ use winit::platform::macos::EventLoopBuilderExtMacOS;
 #[cfg(target_os = "macos")]
 use macos::register_file_handler;
 
-use image::{load_from_memory, GenericImageView, Pixel};
+use image::{GenericImageView, Pixel, load_from_memory};
 use keyboard_manager::KeyboardManager;
 use mouse_manager::MouseManager;
 
 use crate::{
     cmd_line::{CmdLineSettings, GeometryArgs},
     frame::Frame,
-    renderer::{build_window_config, DrawCommand, WindowConfig},
+    renderer::{DrawCommand, WindowConfig, build_window_config},
     settings::{
-        clamped_grid_size, load_last_window_settings, save_window_size, HotReloadConfigs,
-        PersistentWindowSettings, Settings, SettingsChanged,
+        HotReloadConfigs, PersistentWindowSettings, Settings, SettingsChanged, clamped_grid_size,
+        load_last_window_settings, save_window_size,
     },
     units::GridSize,
 };

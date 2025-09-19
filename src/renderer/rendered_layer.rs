@@ -1,16 +1,16 @@
 use itertools::Itertools;
 use skia_safe::{
+    BlendMode, Canvas, ClipOp, Color, Paint, Path, PathOp, Point3, RRect, Rect,
     canvas::SaveLayerRec,
     image_filters::blur,
-    utils::shadow_utils::{draw_shadow, ShadowFlags},
-    BlendMode, Canvas, ClipOp, Color, Paint, Path, PathOp, Point3, RRect, Rect,
+    utils::shadow_utils::{ShadowFlags, draw_shadow},
 };
 
 use glamour::Intersection;
 
 use crate::{
     editor::WindowType,
-    units::{to_skia_rect, GridScale, PixelRect},
+    units::{GridScale, PixelRect, to_skia_rect},
 };
 
 use super::{RenderedWindow, RendererSettings, WindowDrawDetails};

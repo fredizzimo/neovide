@@ -1,15 +1,14 @@
 use std::sync::Arc;
 
 use skia_safe::{
+    Canvas, ColorSpace, ColorType, PixelGeometry, Surface, SurfaceProps, SurfacePropsFlags,
     gpu::{
+        BackendRenderTarget, DirectContext, FlushInfo, Protected, SurfaceOrigin, SyncCpu,
         d3d::{BackendContext, TextureResourceInfo},
         surfaces::wrap_backend_render_target,
-        BackendRenderTarget, DirectContext, FlushInfo, Protected, SurfaceOrigin, SyncCpu,
     },
     surface::BackendSurfaceAccess,
-    Canvas, ColorSpace, ColorType, PixelGeometry, Surface, SurfaceProps, SurfacePropsFlags,
 };
-use windows::core::{Interface, Result, PCWSTR};
 use windows::Win32::Graphics::DirectComposition::{
     DCompositionCreateDevice2, IDCompositionDevice, IDCompositionTarget, IDCompositionVisual,
 };
@@ -18,17 +17,17 @@ use windows::Win32::Graphics::Dxgi::Common::{
     DXGI_SAMPLE_DESC,
 };
 use windows::Win32::Graphics::Dxgi::{
-    CreateDXGIFactory1, IDXGIAdapter1, IDXGIFactory2, IDXGISwapChain1, IDXGISwapChain3,
-    DXGI_ADAPTER_FLAG, DXGI_ADAPTER_FLAG_SOFTWARE, DXGI_SCALING_STRETCH,
+    CreateDXGIFactory1, DXGI_ADAPTER_FLAG, DXGI_ADAPTER_FLAG_SOFTWARE, DXGI_SCALING_STRETCH,
     DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT, DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL,
-    DXGI_USAGE_RENDER_TARGET_OUTPUT,
+    DXGI_USAGE_RENDER_TARGET_OUTPUT, IDXGIAdapter1, IDXGIFactory2, IDXGISwapChain1,
+    IDXGISwapChain3,
 };
 use windows::Win32::Graphics::{Direct3D::D3D_FEATURE_LEVEL_11_0, Dxgi::DXGI_SWAP_CHAIN_DESC1};
 use windows::Win32::Graphics::{
     Direct3D12::{
-        D3D12CreateDevice, ID3D12CommandQueue, ID3D12Device, ID3D12Fence, ID3D12Resource,
         D3D12_COMMAND_LIST_TYPE_DIRECT, D3D12_COMMAND_QUEUE_DESC, D3D12_COMMAND_QUEUE_FLAG_NONE,
-        D3D12_FENCE_FLAG_NONE, D3D12_RESOURCE_STATE_PRESENT,
+        D3D12_FENCE_FLAG_NONE, D3D12_RESOURCE_STATE_PRESENT, D3D12CreateDevice, ID3D12CommandQueue,
+        ID3D12Device, ID3D12Fence, ID3D12Resource,
     },
     Dxgi::DXGI_SWAP_CHAIN_FLAG,
 };
@@ -37,20 +36,21 @@ use windows::Win32::Graphics::{
     Direct3D12::{D3D12GetDebugInterface, ID3D12Debug},
     Dxgi::{CreateDXGIFactory2, DXGI_CREATE_FACTORY_DEBUG},
 };
-use windows::Win32::System::Threading::{CreateEventW, WaitForSingleObjectEx, INFINITE};
+use windows::Win32::System::Threading::{CreateEventW, INFINITE, WaitForSingleObjectEx};
 use windows::Win32::{
     Foundation::{CloseHandle, HANDLE, HWND},
     Graphics::Dxgi::DXGI_PRESENT,
 };
+use windows::core::{Interface, PCWSTR, Result};
 use winit::{
     event_loop::EventLoopProxy,
     raw_window_handle::{HasWindowHandle, RawWindowHandle},
     window::Window,
 };
 
-use super::{vsync::VSyncWinSwapChain, RendererSettings, SkiaRenderer, VSync};
+use super::{RendererSettings, SkiaRenderer, VSync, vsync::VSyncWinSwapChain};
 #[cfg(feature = "gpu_profiling")]
-use crate::profiling::{d3d::create_d3d_gpu_context, GpuCtx};
+use crate::profiling::{GpuCtx, d3d::create_d3d_gpu_context};
 use crate::{
     profiling::{tracy_gpu_zone, tracy_zone},
     settings::Settings,

@@ -38,7 +38,7 @@ extern crate derive_new;
 
 use std::{
     env::{self, args},
-    fs::{create_dir_all, File, OpenOptions},
+    fs::{File, OpenOptions, create_dir_all},
     io::Write,
     panic::set_hook,
     process::ExitCode,
@@ -51,8 +51,8 @@ use log::trace;
 use std::env::var;
 use std::panic::PanicHookInfo;
 use std::path::PathBuf;
-use time::macros::format_description;
 use time::OffsetDateTime;
+use time::macros::format_description;
 use winit::{error::EventLoopError, event_loop::EventLoopProxy};
 
 #[cfg(not(test))]
@@ -62,17 +62,17 @@ use backtrace::Backtrace;
 use bridge::NeovimRuntime;
 use cmd_line::CmdLineSettings;
 use error_handling::handle_startup_errors;
-use renderer::{cursor_renderer::CursorSettings, RendererSettings};
+use renderer::{RendererSettings, cursor_renderer::CursorSettings};
 use running_tracker::RunningTracker;
 use window::{
-    create_event_loop, determine_window_size, UpdateLoop, UserEvent, WindowSettings, WindowSize,
+    UpdateLoop, UserEvent, WindowSettings, WindowSize, create_event_loop, determine_window_size,
 };
 
 pub use channel_utils::*;
 #[cfg(target_os = "windows")]
 pub use windows_utils::*;
 
-use crate::settings::{load_last_window_settings, Config, PersistentWindowSettings, Settings};
+use crate::settings::{Config, PersistentWindowSettings, Settings, load_last_window_settings};
 
 pub use profiling::startup_profiler;
 
@@ -295,16 +295,20 @@ fn maybe_disown(settings: &Settings) {
     }
 
     if let Ok(current_exe) = env::current_exe() {
-        assert!(process::Command::new(current_exe)
-            .stdin(process::Stdio::null())
-            .stdout(process::Stdio::null())
-            .stderr(process::Stdio::null())
-            .args(env::args().skip(1))
-            .spawn()
-            .is_ok());
+        assert!(
+            process::Command::new(current_exe)
+                .stdin(process::Stdio::null())
+                .stdout(process::Stdio::null())
+                .stderr(process::Stdio::null())
+                .args(env::args().skip(1))
+                .spawn()
+                .is_ok()
+        );
         process::exit(0);
     } else {
-        eprintln!("error in disowning process, cannot obtain the path for the current executable, continuing without disowning...");
+        eprintln!(
+            "error in disowning process, cannot obtain the path for the current executable, continuing without disowning..."
+        );
     }
 }
 
@@ -400,5 +404,7 @@ fn generate_panic_message(panic_info: &PanicHookInfo) -> String {
         None => return "Could not parse panic payload to a string. This is a bug.".to_owned(),
     };
 
-    format!("Neovide panicked with the message '{payload}'. (File: {file}; Line: {line}, Column: {column})")
+    format!(
+        "Neovide panicked with the message '{payload}'. (File: {file}; Line: {line}, Column: {column})"
+    )
 }

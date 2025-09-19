@@ -3,14 +3,14 @@ use std::{num::NonZeroUsize, sync::Arc};
 use itertools::Itertools;
 use log::{debug, error, info, trace};
 use lru::LruCache;
-use skia_safe::{graphics::set_font_cache_limit, TextBlob, TextBlobBuilder};
+use skia_safe::{TextBlob, TextBlobBuilder, graphics::set_font_cache_limit};
 use swash::{
+    Metrics,
     shape::ShapeContext,
     text::{
-        cluster::{CharCluster, Parser, Status, Token},
         Script,
+        cluster::{CharCluster, Parser, Status, Token},
     },
-    Metrics,
 };
 use unicode_segmentation::UnicodeSegmentation;
 

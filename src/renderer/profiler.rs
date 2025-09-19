@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use crate::{
     profiling::tracy_zone,
-    renderer::{animation_utils::lerp, fonts::font_loader::*, RendererSettings},
+    renderer::{RendererSettings, animation_utils::lerp, fonts::font_loader::*},
     settings::Settings,
 };
 use skia_safe::{Canvas, Color, Paint, Point, Rect, Size};

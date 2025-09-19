@@ -17,7 +17,7 @@ mod metal;
 
 use std::{
     cmp::Ordering,
-    collections::{hash_map::Entry, HashMap},
+    collections::{HashMap, hash_map::Entry},
     sync::Arc,
 };
 
@@ -32,15 +32,15 @@ use winit::{
 };
 
 use crate::{
+    WindowSettings,
     bridge::EditorMode,
     cmd_line::CmdLineSettings,
     editor::{Cursor, Style, WindowType},
     profiling::{tracy_create_gpu_context, tracy_named_frame, tracy_zone},
-    renderer::rendered_layer::{group_windows, FloatingLayer},
+    renderer::rendered_layer::{FloatingLayer, group_windows},
     settings::*,
-    units::{to_skia_rect, GridRect, GridSize, PixelPos},
+    units::{GridRect, GridSize, PixelPos, to_skia_rect},
     window::{ShouldRender, UserEvent},
-    WindowSettings,
 };
 
 #[cfg(feature = "profiling")]

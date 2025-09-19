@@ -20,18 +20,18 @@ use {
 };
 
 use crate::{
-    bridge::{send_ui, ParallelCommand, SerialCommand},
+    CmdLineSettings,
+    bridge::{ParallelCommand, SerialCommand, send_ui},
     profiling::{tracy_frame, tracy_gpu_collect, tracy_gpu_zone, tracy_plot, tracy_zone},
     renderer::{
-        create_skia_renderer, DrawCommand, Renderer, RendererSettingsChanged, SkiaRenderer, VSync,
+        DrawCommand, Renderer, RendererSettingsChanged, SkiaRenderer, VSync, create_skia_renderer,
     },
     settings::{
-        clamped_grid_size, Config, HotReloadConfigs, Settings, SettingsChanged, DEFAULT_GRID_SIZE,
-        MIN_GRID_SIZE,
+        Config, DEFAULT_GRID_SIZE, HotReloadConfigs, MIN_GRID_SIZE, Settings, SettingsChanged,
+        clamped_grid_size,
     },
     units::{GridRect, GridSize, PixelPos, PixelSize},
-    window::{create_window, PhysicalSize, ShouldRender, WindowSize},
-    CmdLineSettings,
+    window::{PhysicalSize, ShouldRender, WindowSize, create_window},
 };
 #[cfg(windows)]
 use {

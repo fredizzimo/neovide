@@ -1,5 +1,5 @@
 use std::{
-    io::{stdout, IsTerminal},
+    io::{IsTerminal, stdout},
     process::ExitCode,
     sync::Arc,
 };
@@ -14,9 +14,9 @@ use winit::event_loop::EventLoop;
 use crate::windows_attach_to_console;
 
 use crate::{
-    bridge::{send_ui, ParallelCommand},
+    bridge::{ParallelCommand, send_ui},
     settings::Settings,
-    window::{show_error_window, UserEvent},
+    window::{UserEvent, show_error_window},
 };
 
 fn show_error(explanation: &str) -> ! {

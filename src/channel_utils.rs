@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use log::trace;
-use tokio::sync::mpsc::{error::SendError as TokioSendError, UnboundedSender};
+use tokio::sync::mpsc::{UnboundedSender, error::SendError as TokioSendError};
 
 use crate::profiling::tracy_dynamic_zone;
 

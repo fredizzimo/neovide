@@ -1,6 +1,6 @@
 use gl::{
-    GenQueries, GetInteger64v, GetQueryObjectiv, GetQueryObjectui64v, QueryCounter, QUERY_RESULT,
-    QUERY_RESULT_AVAILABLE, TIMESTAMP,
+    GenQueries, GetInteger64v, GetQueryObjectiv, GetQueryObjectui64v, QUERY_RESULT,
+    QUERY_RESULT_AVAILABLE, QueryCounter, TIMESTAMP,
 };
 use std::{
     ffi::CString,

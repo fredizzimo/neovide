@@ -1,26 +1,25 @@
 use std::{
     collections::VecDeque,
-    ffi::{c_void, CString},
+    ffi::{CString, c_void},
     mem,
     ptr::null_mut,
     slice::from_raw_parts,
     sync::atomic::{AtomicU8, Ordering},
 };
 
-use windows::core::Interface;
 use windows::Win32::Graphics::Direct3D12::{
-    ID3D12CommandAllocator, ID3D12CommandQueue, ID3D12Device, ID3D12Fence,
-    ID3D12GraphicsCommandList, ID3D12PipelineState, ID3D12QueryHeap, ID3D12Resource,
     D3D12_COMMAND_LIST_TYPE_COPY, D3D12_COMMAND_LIST_TYPE_DIRECT, D3D12_CPU_PAGE_PROPERTY_UNKNOWN,
     D3D12_FEATURE_D3D12_OPTIONS3, D3D12_FEATURE_DATA_D3D12_OPTIONS3, D3D12_FENCE_FLAG_NONE,
     D3D12_HEAP_FLAG_NONE, D3D12_HEAP_PROPERTIES, D3D12_HEAP_TYPE_READBACK,
     D3D12_MEMORY_POOL_UNKNOWN, D3D12_QUERY_HEAP_DESC, D3D12_QUERY_HEAP_TYPE_COPY_QUEUE_TIMESTAMP,
     D3D12_QUERY_HEAP_TYPE_TIMESTAMP, D3D12_QUERY_TYPE_TIMESTAMP, D3D12_RANGE, D3D12_RESOURCE_DESC,
     D3D12_RESOURCE_DIMENSION_BUFFER, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_COPY_DEST,
-    D3D12_TEXTURE_LAYOUT_ROW_MAJOR,
+    D3D12_TEXTURE_LAYOUT_ROW_MAJOR, ID3D12CommandAllocator, ID3D12CommandQueue, ID3D12Device,
+    ID3D12Fence, ID3D12GraphicsCommandList, ID3D12PipelineState, ID3D12QueryHeap, ID3D12Resource,
 };
 use windows::Win32::Graphics::Dxgi::Common::{DXGI_FORMAT_UNKNOWN, DXGI_SAMPLE_DESC};
 use windows::Win32::System::Performance::QueryPerformanceFrequency;
+use windows::core::Interface;
 
 use tracy_client_sys::{
     ___tracy_emit_gpu_calibration_serial, ___tracy_emit_gpu_context_name,
@@ -31,7 +30,7 @@ use tracy_client_sys::{
     ___tracy_source_location_data,
 };
 
-use crate::profiling::{is_connected, GpuContextType, GpuCtx};
+use crate::profiling::{GpuContextType, GpuCtx, is_connected};
 use crate::renderer::d3d::D3DSkiaRenderer;
 
 static CONTEXT_ID: AtomicU8 = AtomicU8::new(0);
