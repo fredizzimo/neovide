@@ -282,7 +282,7 @@ fn parse_pixels(part: &str) -> Result<f32, ParseFloatError> {
 }
 
 fn parse_font_name(font_name: impl AsRef<str>) -> String {
-    let parsed_font_name = font_name
+    font_name
         .as_ref()
         .chars()
         .batching(|iter| {
@@ -293,9 +293,7 @@ fn parse_font_name(font_name: impl AsRef<str>) -> String {
                 _ => ch,
             }
         })
-        .collect();
-
-    parsed_font_name
+        .collect()
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Default)]

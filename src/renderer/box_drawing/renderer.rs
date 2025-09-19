@@ -87,16 +87,14 @@ impl<'a> Context<'a> {
     }
 
     fn get_stroke_width_pixels(&self, t: Thickness) -> f32 {
-        let v = t
-            .resolve_pixel_size(
-                self.em_size,
-                self.settings
-                    .sizes
-                    .as_ref()
-                    .unwrap_or(&LineSizes::default()),
-            )
-            .max(1.0);
-        v
+        t.resolve_pixel_size(
+            self.em_size,
+            self.settings
+                .sizes
+                .as_ref()
+                .unwrap_or(&LineSizes::default()),
+        )
+        .max(1.0)
     }
 
     fn fg_paint(&self) -> Paint {
