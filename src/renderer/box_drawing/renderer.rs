@@ -887,7 +887,7 @@ enum LineStyle {
 }
 
 impl Thickness {
-    fn resolve_pixel_size(&self, em_size: f32, LineSizes(ref sizes): &LineSizes) -> f32 {
+    fn resolve_pixel_size(&self, em_size: f32, LineSizes(sizes): &LineSizes) -> f32 {
         let sorted_intervals = sizes.keys().flat_map(|k| k.parse::<u16>().ok()).sorted();
         let mut selected: Option<&(u16, u16)> = sizes.get("default");
         for i in sorted_intervals {

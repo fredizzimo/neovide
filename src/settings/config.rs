@@ -85,41 +85,43 @@ impl Config {
     }
 
     fn write_to_env(&self) {
-        if let Some(wsl) = self.wsl {
-            env::set_var("NEOVIDE_WSL", wsl.to_string());
-        }
-        if let Some(no_multigrid) = self.no_multigrid {
-            env::set_var("NEOVIDE_NO_MULTIGRID", no_multigrid.to_string());
-        }
-        if let Some(maximized) = self.maximized {
-            env::set_var("NEOVIDE_MAXIMIZED", maximized.to_string());
-        }
-        if let Some(vsync) = self.vsync {
-            env::set_var("NEOVIDE_VSYNC", vsync.to_string());
-        }
-        if let Some(srgb) = self.srgb {
-            env::set_var("NEOVIDE_SRGB", srgb.to_string());
-        }
-        if let Some(fork) = self.fork {
-            env::set_var("NEOVIDE_FORK", fork.to_string());
-        }
-        if let Some(idle) = self.idle {
-            env::set_var("NEOVIDE_IDLE", idle.to_string());
-        }
-        if let Some(frame) = self.frame {
-            env::set_var("NEOVIDE_FRAME", frame.to_string());
-        }
-        if let Some(neovim_bin) = &self.neovim_bin {
-            env::set_var("NEOVIM_BIN", neovim_bin.to_string_lossy().to_string());
-        }
-        if let Some(mouse_cursor_icon) = &self.mouse_cursor_icon {
-            env::set_var("NEOVIDE_MOUSE_CURSOR_ICON", mouse_cursor_icon);
-        }
-        if let Some(title_hidden) = &self.title_hidden {
-            env::set_var("NEOVIDE_TITLE_HIDDEN", title_hidden.to_string());
-        }
-        if let Some(tabs) = &self.tabs {
-            env::set_var("NEOVIDE_TABS", tabs.to_string());
+        unsafe {
+            if let Some(wsl) = self.wsl {
+                env::set_var("NEOVIDE_WSL", wsl.to_string());
+            }
+            if let Some(no_multigrid) = self.no_multigrid {
+                env::set_var("NEOVIDE_NO_MULTIGRID", no_multigrid.to_string());
+            }
+            if let Some(maximized) = self.maximized {
+                env::set_var("NEOVIDE_MAXIMIZED", maximized.to_string());
+            }
+            if let Some(vsync) = self.vsync {
+                env::set_var("NEOVIDE_VSYNC", vsync.to_string());
+            }
+            if let Some(srgb) = self.srgb {
+                env::set_var("NEOVIDE_SRGB", srgb.to_string());
+            }
+            if let Some(fork) = self.fork {
+                env::set_var("NEOVIDE_FORK", fork.to_string());
+            }
+            if let Some(idle) = self.idle {
+                env::set_var("NEOVIDE_IDLE", idle.to_string());
+            }
+            if let Some(frame) = self.frame {
+                env::set_var("NEOVIDE_FRAME", frame.to_string());
+            }
+            if let Some(neovim_bin) = &self.neovim_bin {
+                env::set_var("NEOVIM_BIN", neovim_bin.to_string_lossy().to_string());
+            }
+            if let Some(mouse_cursor_icon) = &self.mouse_cursor_icon {
+                env::set_var("NEOVIDE_MOUSE_CURSOR_ICON", mouse_cursor_icon);
+            }
+            if let Some(title_hidden) = &self.title_hidden {
+                env::set_var("NEOVIDE_TITLE_HIDDEN", title_hidden.to_string());
+            }
+            if let Some(tabs) = &self.tabs {
+                env::set_var("NEOVIDE_TABS", tabs.to_string());
+            }
         }
     }
 

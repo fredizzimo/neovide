@@ -97,7 +97,9 @@ fn main() -> ExitCode {
 
     // This variable is set by the AppImage runtime and causes problems for child processes
     #[cfg(target_os = "linux")]
-    env::remove_var("ARGV0");
+    unsafe {
+        env::remove_var("ARGV0");
+    }
 
     let event_loop = create_event_loop();
     clipboard::init(&event_loop);
