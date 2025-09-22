@@ -7,9 +7,9 @@ use std::{
 use log::trace;
 use lru::LruCache;
 use skia_safe::{
-    font::Edging as SkiaEdging, Data, Font, FontHinting as SkiaHinting, FontMgr, Typeface,
+    font::Edging as SkiaEdging, Data, Font, FontHinting as SkiaHinting, FontMgr, FontStyle, Typeface
 };
-use swash::{shape::ShapeContext, Metrics};
+use swash::{shape::ShapeContext, Metrics, text::{cluster::{CharCluster, Parser, Status, Token}, Script}};
 
 use crate::{
     profiling::tracy_zone,
@@ -29,16 +29,58 @@ pub struct FontPair {
     pub font_info: Option<(Metrics, f32)>,
 }
 
-fn info_for_font(shape_context: &mut ShapeContext, font: &SwashFont) -> (Metrics, f32) {
+fn info_for_font(shape_context: &mut ShapeContext, emoji: bool, font: &SwashFont) -> (Metrics, f32) {
     let mut shaper = shape_context.builder(font.as_ref()).build();
-    shaper.add_str("M");
+    // Note the second character is a a double width space
     let metrics = shaper.metrics();
     let mut advance = metrics.average_width;
-    shaper.shape_with(|cluster| {
-        advance = cluster.glyphs.first().map_or(metrics.average_width, |g| {
-            g.advance / metrics.units_per_em as f32
+    if emoji {
+        shaper.add_str("☺️");
+        shaper.shape_with(|cluster| {
+            advance = cluster.glyphs.first().map_or(metrics.average_width, |g| {
+                g.advance / metrics.units_per_em as f32
+            });
         });
-    });
+        advance /= 2.0;
+    }
+    else {
+
+        let double_width_space = '　';
+        let token = Token {
+            ch: double_width_space,
+            offset: 0,
+            len: double_width_space.len_utf8() as u8,
+            info: double_width_space.into(),
+            data: 0,
+        };
+        let tokens = [token];
+        let mut parser = Parser::new(Script::Latin, tokens.into_iter());
+        let mut cluster = CharCluster::new();
+        parser.next(&mut cluster);
+        let charmap = font.as_ref().charmap();
+        let mut has_double_width_space = false;
+        match cluster.map(|ch| charmap.map(ch)) {
+            Status::Complete => {has_double_width_space = true}
+            Status::Keep => {},
+            Status::Discard => {}
+        }
+        log::info!("Has double width space {has_double_width_space}");
+        if has_double_width_space {
+            shaper.add_str("　");
+        } else {
+            shaper.add_str("M");
+        }
+        shaper.shape_with(|cluster| {
+            advance = cluster.glyphs.first().map_or(metrics.average_width, |g| {
+                g.advance / metrics.units_per_em as f32
+            });
+        });
+        if has_double_width_space {
+            advance /= 2.0;
+        }
+    }
+    log::info!("{metrics:#?}");
+    log::info!("Advance: {advance}");
     (metrics, advance)
 }
 
@@ -46,14 +88,16 @@ impl FontPair {
     fn new(
         key: FontKey,
         typeface: Typeface,
+        emoji: bool,
         shaper: Option<&mut ShapeContext>,
     ) -> Option<FontPair> {
+        log::info!("Loading font pair {}", typeface.family_name());
         let (font_data, index) = typeface.to_font_data()?;
         // Only the lower 16 bits are part of the index, the rest indicates named instances. But we
         // don't care about those here, since we are just loading the font, so ignore them
         let index = index & 0xFFFF;
         let swash_font = SwashFont::from_data(font_data, index)?;
-        let font_info = shaper.map(|shaper| info_for_font(shaper, &swash_font));
+        let font_info = shaper.map(|shaper| info_for_font(shaper, emoji, &swash_font));
         let mut skia_font = Font::from_typeface(typeface, None);
         skia_font.set_subpixel(true);
         skia_font.set_baseline_snap(true);
@@ -88,6 +132,7 @@ pub struct FontLoader {
     font_mgr: FontMgr,
     cache: LruCache<FontKey, Rc<FontPair>>,
     last_resort: Option<Rc<FontPair>>,
+    emoji: Option<Rc<FontPair>>,
 }
 
 impl Display for FontKey {
@@ -106,6 +151,7 @@ impl FontLoader {
             font_mgr: FontMgr::new(),
             cache: LruCache::new(NonZeroUsize::new(20).unwrap()),
             last_resort: None,
+            emoji: None,
         }
     }
 
@@ -115,11 +161,11 @@ impl FontLoader {
         if let Some(desc) = &font_key.font_desc {
             let (family, style) = desc.as_family_and_font_style();
             let typeface = self.font_mgr.match_family_style(family, style)?;
-            FontPair::new(font_key, typeface, shaper)
+            FontPair::new(font_key, typeface, false, shaper)
         } else {
             let data = Data::new_copy(DEFAULT_FONT);
             let typeface = self.font_mgr.new_from_data(&data, 0)?;
-            FontPair::new(font_key, typeface, shaper)
+            FontPair::new(font_key, typeface, false, shaper)
         }
     }
 
@@ -159,7 +205,7 @@ impl FontLoader {
             edging: FontEdging::default(),
         };
 
-        let font_pair = Rc::new(FontPair::new(font_key.clone(), typeface, shaper)?);
+        let font_pair = Rc::new(FontPair::new(font_key.clone(), typeface, false, shaper)?);
 
         self.cache.put(font_key, font_pair.clone());
 
@@ -177,11 +223,43 @@ impl FontLoader {
             let data = Data::new_copy(LAST_RESORT_FONT);
 
             let typeface = self.font_mgr.new_from_data(&data, 0)?;
-            let font_pair = Rc::new(FontPair::new(font_key, typeface, shaper)?);
+            let font_pair = Rc::new(FontPair::new(font_key, typeface, false, shaper)?);
 
             self.last_resort = Some(font_pair.clone());
             Some(font_pair)
         }
+    }
+
+    pub fn get_or_load_emoji(&mut self, character: char, shaper: Option<&mut ShapeContext>) -> Option<Rc<FontPair>>{
+        if self.emoji.is_some() {
+            return self.emoji.clone();
+        }
+        let mut typeface = None;
+        #[cfg(target_os = "macos")]
+        {
+            typeface = self.font_mgr.match_family_style("Apple Color Emoji", FontStyle::normal);
+        }
+        if typeface.is_none() {
+            let locale = "und-Zsye";
+            typeface =
+                self.font_mgr
+                    .match_family_style_character("", FontStyle::normal(), &[locale], character as i32);
+        }
+        let typeface = typeface?;
+
+        let font_key = FontKey {
+            font_desc: Some(FontDescription {
+                family: typeface.family_name(),
+                style: None,
+            }),
+            hinting: FontHinting::default(),
+            edging: FontEdging::default(),
+        };
+
+        let font_pair = Rc::new(FontPair::new(font_key.clone(), typeface, true, shaper)?);
+
+        self.emoji = Some(font_pair.clone());
+        Some(font_pair)
     }
 
     pub fn loaded_fonts(&self) -> Vec<Rc<FontPair>> {

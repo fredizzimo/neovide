@@ -7,7 +7,7 @@ use skia_safe::{graphics::set_font_cache_limit, TextBlob, TextBlobBuilder};
 use swash::{
     shape::ShapeContext,
     text::{
-        cluster::{CharCluster, Parser, Status, Token},
+        cluster::{CharCluster, Emoji, Parser, Status, Token},
         Script,
     },
     Metrics,
@@ -282,9 +282,30 @@ impl CachingShaper {
                 edging: self.options.edging.clone(),
             });
 
+            let info = cluster.info();
+            let mut best = None;
+
+            if info.is_emoji() {
+                if let Some(emoji) = self.font_loader.get_or_load_emoji(cluster.chars()[0].ch, Some(&mut self.shape_context)) {
+                    log::info!("Loaded emoji {:#?}", info.emoji());
+                    let charmap = emoji.swash_font.as_ref().charmap();
+                    match cluster.map(|ch| charmap.map(ch)) {
+                        Status::Complete => {
+                            log::info!("Yay");
+                            results.push((cluster.to_owned(), emoji));
+                            continue 'cluster;
+                        }
+                        Status::Keep => {
+                            log::info!("Bley");
+                            best = Some(emoji)
+                        }
+                        Status::Discard => {}
+                    }
+                }
+            }
+
             // Use the cluster.map function to select a viable font from the fallback list and loaded fonts
 
-            let mut best = None;
             // Search through the configured and default fonts for a match
             for fallback_key in font_fallback_keys.iter() {
                 if let Some(font_pair) = self
@@ -395,8 +416,10 @@ impl CachingShaper {
             );
 
             // Scale fallback fonts to have the same width as the primary one
-            let scale = (fallback_info.1 * current_size) / self.info().1;
+            let scale = self.info().1 / (fallback_info.1 * current_size);
+            log::info!("Scale {scale}");
             let baseline_offset = self.baseline_offset();
+            log::info!("Baseline Offset {baseline_offset}");
 
             let mut shaper = self
                 .shape_context
