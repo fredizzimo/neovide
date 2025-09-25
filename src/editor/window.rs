@@ -6,7 +6,7 @@ use unicode_segmentation::UnicodeSegmentation;
 use crate::{
     bridge::GridLineCell,
     editor::{grid::CharacterGrid, style::Style, AnchorInfo, DrawCommand, DrawCommandBatcher},
-    renderer::{box_drawing, LineFragment, WindowDrawCommand},
+    renderer::WindowDrawCommand,
     units::{GridRect, GridSize},
 };
 
@@ -149,6 +149,7 @@ impl Window {
             }
             *column_pos += 1;
         } else {
+            // TODO: This does not make sense
             for character in text.graphemes(true) {
                 if let Some(cell) = self.grid.get_cell_mut(*column_pos, row_index) {
                     *cell = (character.to_string(), style.clone());
@@ -160,78 +161,16 @@ impl Window {
         *previous_style = style;
     }
 
-    // Build a line fragment for the given row starting from current_start up until the next style
-    // change or double width character.
-    fn build_line_fragment(&self, row_index: usize, start: usize) -> (usize, LineFragment) {
-        let row = self.grid.row(row_index).unwrap();
-
-        let (_, style) = &row[start];
-
-        let mut text = String::new();
-        let mut width = 0;
-        let mut last_box_char = None;
-
-        for (character, possible_end_style) in row.iter().take(self.grid.width).skip(start) {
-            // Style doesn't match. Draw what we've got.
-            if style != possible_end_style {
-                break;
-            }
-
-            // Box drawing characters are rendered specially; break up the segment such that
-            // repeated box drawing characters are in a segment by themselves
-            if box_drawing::is_box_char(character) {
-                if text.is_empty() {
-                    last_box_char = Some(character)
-                }
-                if (!text.is_empty() && last_box_char.is_none()) || last_box_char != Some(character)
-                {
-                    // either we have non-box chars accumulated or this is a different box char
-                    // from what we have seen before. Either way, render what we have
-                    break;
-                }
-            } else if last_box_char.is_some() {
-                // render the list of box chars we have accumulated so far
-                break;
-            }
-
-            width += 1;
-            // The previous character is double width, so send this as its own draw command.
-            if character.is_empty() {
-                break;
-            }
-
-            // Add the grid cell to the cells to render.
-            text.push_str(character);
-        }
-
-        let line_fragment = LineFragment {
-            text,
-            window_left: start as u64,
-            width: width as u64,
-            style: style.clone(),
-        };
-
-        (start + width, line_fragment)
-    }
-
-    // Redraw line by calling build_line_fragment starting at 0
-    // until current_start is greater than the grid width and sending the resulting
-    // fragments as a batch.
     fn redraw_line(&self, batcher: &mut DrawCommandBatcher, row: usize) {
-        let mut current_start = 0;
-        let mut line_fragments = Vec::new();
-        while current_start < self.grid.width {
-            let (next_start, line_fragment) = self.build_line_fragment(row, current_start);
-            current_start = next_start;
-            line_fragments.push(line_fragment);
+        if let Some(grid_row) = self.grid.row(row) {
+            self.send_command(
+                batcher,
+                WindowDrawCommand::DrawLine {
+                    row,
+                    grid: grid_row.clone(),
+                },
+            );
         }
-        self.send_command(
-            batcher,
-            WindowDrawCommand::DrawLine {
-                row,
-                line_fragments,
-            },
-        );
     }
 
     pub fn draw_grid_line(
@@ -255,18 +194,7 @@ impl Window {
                     &mut previous_style,
                 );
             }
-
-            // Due to the limitations of the current rendering strategy, some underlines get
-            // clipped by the line below. To mitigate that, we redraw the adjacent lines whenever
-            // an individual line is redrawn. Unfortunately, some clipping still happens.
-            // TODO: figure out how to solve this
-            if row < self.grid.height - 1 {
-                self.redraw_line(batcher, row + 1);
-            }
             self.redraw_line(batcher, row);
-            if row > 0 {
-                self.redraw_line(batcher, row - 1);
-            }
         } else {
             warn!("Draw command out of bounds");
         }

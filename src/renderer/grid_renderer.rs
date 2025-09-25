@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use itertools::Itertools;
 use log::trace;
 use skia_safe::{colors, dash_path_effect, BlendMode, Canvas, Color, Paint, Path, HSV};
 
@@ -12,7 +13,8 @@ use crate::{
     },
     settings::*,
     units::{
-        to_skia_point, to_skia_rect, GridPos, GridScale, GridSize, PixelPos, PixelRect, PixelVec,
+        to_skia_point, to_skia_rect, GridPos, GridScale, GridSize, GridVec, PixelPos, PixelRect,
+        PixelVec,
     },
     window::WindowSettings,
 };
@@ -186,129 +188,142 @@ impl GridRenderer {
         &mut self,
         text_canvas: &Canvas,
         boxchar_canvas: &Canvas,
-        text: &str,
+        cells: &[(String, Option<Arc<Style>>)],
         grid_position: GridPos<i32>,
-        fragment_width: i32,
         style: &Option<Arc<Style>>,
         window_position: PixelPos<f32>,
     ) -> (bool, bool) {
         tracy_zone!("draw_foreground");
-        let pos = grid_position * self.grid_scale;
-        let fragment_size = GridSize::new(fragment_width, 1) * self.grid_scale;
-        let width = fragment_size.width;
+        let style = style.as_ref().unwrap_or(&self.default_style).clone();
 
-        let style = style.as_ref().unwrap_or(&self.default_style);
+        let color = if self.settings.get::<RendererSettings>().debug_renderer {
+            let random_hsv: HSV = (rand::random::<f32>() * 360.0, 1.0, 1.0).into();
+            random_hsv.to_color(255)
+        } else {
+            style.foreground(&self.default_style.colors).to_color()
+        };
+
+        let region = self.compute_text_region(grid_position, cells.len() as i32);
+
+        let mut boxchar_drawn = false;
         let mut text_drawn = false;
 
-        if let Some(underline_style) = style.underline {
-            let stroke_size = self.shaper.stroke_size();
-            // Measure the underline offset from the baseline position snapped to a whole pixel
-            let baseline_position = (pos.y + self.shaper.baseline_offset()).round();
-            // The underline should be at least 1 pixel below the baseline
-            let underline_position =
-                baseline_position - self.shaper.underline_offset().min(-1.).round();
-            let p1 = PixelPos::new(pos.x, underline_position);
-            let p2 = PixelPos::new(pos.x + width, underline_position);
-
-            self.draw_underline(text_canvas, style, underline_style, stroke_size, p1, p2);
+        if style.underline.is_some() {
+            self.draw_underline(text_canvas, &region, &style);
             text_drawn = true;
         }
 
-        if self.box_char_renderer.draw_glyph(
-            text,
-            boxchar_canvas,
-            PixelRect::from_origin_and_size(pos, fragment_size),
-            style.foreground(&self.default_style.colors).to_color(),
-            window_position,
-        ) {
-            return (text_drawn, true);
-        } else if !text.is_empty() {
-            let mut paint = Paint::default();
-            paint.set_anti_alias(false);
-            paint.set_blend_mode(BlendMode::SrcOver);
-            text_canvas.save();
-
-            // We don't want to clip text in the x position, only the y so we add a buffer of 1
-            // character on either side of the region so that we clip vertically but not horizontally.
-            let clip_position = (grid_position.x.saturating_sub(1), grid_position.y).into();
-            let region = self.compute_text_region(clip_position, fragment_width + 2);
-
-            if self.settings.get::<RendererSettings>().debug_renderer {
-                let random_hsv: HSV = (rand::random::<f32>() * 360.0, 1.0, 1.0).into();
-                let random_color = random_hsv.to_color(255);
-                paint.set_color(random_color);
-            } else {
-                paint.set_color(style.foreground(&self.default_style.colors).to_color());
+        let mut start = 0;
+        let mut current_box = None;
+        while start < cells.len() {
+            let cell = &cells[start];
+            // Skip empty start.
+            // This can happen if the window is scrolled and starts with a double width char.
+            // Or when a box char is double width according to Neovim.
+            // Note that we don't support double width box chars at the moment.
+            if cell.0.is_empty() {
+                start += 1;
+                continue;
             }
-            paint.set_anti_alias(false);
-            if self.settings.get::<RendererSettings>().debug_renderer {
-                let random_hsv: HSV = (rand::random::<f32>() * 360.0, 1.0, 1.0).into();
-                let random_color = random_hsv.to_color(255);
-                paint.set_color(random_color);
-            } else {
-                paint.set_color(style.foreground(&self.default_style.colors).to_color());
-            }
-            paint.set_anti_alias(false);
-            text_canvas.clip_rect(to_skia_rect(&region), None, Some(false));
-
-            let mut paint = Paint::default();
-            paint.set_anti_alias(false);
-            paint.set_blend_mode(BlendMode::SrcOver);
-
-            if self.settings.get::<RendererSettings>().debug_renderer {
-                let random_hsv: HSV = (rand::random::<f32>() * 360.0, 1.0, 1.0).into();
-                let random_color = random_hsv.to_color(255);
-                paint.set_color(random_color);
-            } else {
-                paint.set_color(style.foreground(&self.default_style.colors).to_color());
-            }
-            paint.set_anti_alias(false);
-            // There's a lot of overhead for empty blobs in Skia, for some reason they never hit the
-            // cache, so trim all the spaces
-            let trimmed = text.trim_start();
-            let leading_space_bytes = text.len() - trimmed.len();
-            let leading_spaces = text[..leading_space_bytes].chars().count();
-            let trimmed = trimmed.trim_end();
-            let adjustment = PixelVec::new(
-                leading_spaces as f32 * self.grid_scale.width(),
-                self.shaper.baseline_offset(),
-            );
-
-            for blob in self
-                .shaper
-                .shape_cached(trimmed.to_string(), style.into())
-                .iter()
+            let grid_position = grid_position + GridVec::new(start as i32, 0);
+            let pos = grid_position * self.grid_scale;
+            if let Some(glyph) = current_box
+                .take()
+                .map(|(_, ch)| ch)
+                .or(self.box_char_renderer.get_glyph_renderer(&cell.0))
             {
-                tracy_zone!("draw_text_blob");
-                text_canvas.draw_text_blob(blob, to_skia_point(pos + adjustment), &paint);
-                text_drawn = true;
+                let fragment_size = GridSize::new(1, 1) * self.grid_scale;
+                let rect = PixelRect::from_origin_and_size(pos, fragment_size);
+                glyph.draw_glyph(boxchar_canvas, rect, color, window_position);
+                start += 1;
+                boxchar_drawn = true;
+                continue;
             }
-            if style.strikethrough {
-                let line_position = region.center().y;
-                paint.set_color(style.special(&self.default_style.colors).to_color());
-                text_canvas.draw_line(
-                    (pos.x, line_position),
-                    (pos.x + width, line_position),
-                    &paint,
-                );
-                text_drawn = true;
-            }
-            text_canvas.restore();
+            current_box = cells[start..].iter().enumerate().find_map(|(i, (ch, _))| {
+                self.box_char_renderer
+                    .get_glyph_renderer(ch)
+                    .map(|renderer| (i, renderer))
+            });
+            let text_cells =
+                &cells[start..current_box.as_ref().map_or(cells.len(), |(i, _)| i + start)];
+            let region = self.compute_text_region(grid_position, text_cells.len() as i32);
+            let shaper = &mut self.shaper;
+            let grid_width = self.grid_scale.width();
+            Self::draw_text(
+                shaper,
+                text_canvas,
+                text_cells,
+                &style,
+                color,
+                &region,
+                grid_width,
+            );
+            start += text_cells.len();
+            text_drawn = true;
         }
-        (text_drawn, false)
+        if style.strikethrough {
+            self.draw_strikethrough(text_canvas, &region, &style);
+            text_drawn = true;
+        }
+        (text_drawn, boxchar_drawn)
     }
 
-    fn draw_underline(
-        &self,
-        canvas: &Canvas,
-        style: &Arc<Style>,
-        underline_style: UnderlineStyle,
-        stroke_size: f32,
-        p1: PixelPos<f32>,
-        p2: PixelPos<f32>,
+    fn draw_text(
+        shaper: &mut CachingShaper,
+        text_canvas: &Canvas,
+        cells: &[(String, Option<Arc<Style>>)],
+        style: &Style,
+        color: Color,
+        pixel_region: &PixelRect<f32>,
+        grid_width: f32,
     ) {
+        // TODO: pass the cells directly
+        let text = cells.iter().map(|(t, _)| t).join("");
+
+        let mut paint = Paint::default();
+        paint.set_anti_alias(false);
+        paint.set_blend_mode(BlendMode::SrcOver);
+        paint.set_color(color);
+        text_canvas.save();
+
+        text_canvas.clip_rect(to_skia_rect(pixel_region), None, Some(false));
+
+        // There's a lot of overhead for empty blobs in Skia, for some reason they never hit the
+        // cache, so trim all the spaces
+        let trimmed = text.trim_start();
+        let leading_space_bytes = text.len() - trimmed.len();
+        let leading_spaces = text[..leading_space_bytes].chars().count();
+        let trimmed = trimmed.trim_end();
+        let adjustment =
+            PixelVec::new(leading_spaces as f32 * grid_width, shaper.baseline_offset());
+        let pos = pixel_region.min;
+
+        for blob in shaper
+            .shape_cached(trimmed.to_string(), style.into())
+            .iter()
+        {
+            tracy_zone!("draw_text_blob");
+            text_canvas.draw_text_blob(blob, to_skia_point(pos + adjustment), &paint);
+        }
+        text_canvas.restore();
+    }
+
+    fn draw_underline(&mut self, canvas: &Canvas, pixel_region: &PixelRect<f32>, style: &Style) {
         tracy_zone!("draw_underline");
         canvas.save();
+        let pos = pixel_region.min;
+        let width = pixel_region.size().width;
+
+        let underline_style = style.underline.unwrap();
+
+        let stroke_size = self.shaper.stroke_size();
+        // Measure the underline offset from the baseline position snapped to a whole pixel
+        let baseline_position = (pos.y + self.shaper.baseline_offset()).round();
+        // The underline should be at least 1 pixel below the baseline
+        let underline_position =
+            baseline_position - self.shaper.underline_offset().min(-1.).round();
+        let p1 = PixelPos::new(pos.x, underline_position);
+        let p2 = PixelPos::new(pos.x + width, underline_position);
 
         let mut underline_paint = Paint::default();
         underline_paint.set_anti_alias(false);
@@ -376,6 +391,28 @@ impl GridRenderer {
             }
         }
 
+        canvas.restore();
+    }
+
+    fn draw_strikethrough(
+        &mut self,
+        canvas: &Canvas,
+        pixel_region: &PixelRect<f32>,
+        style: &Style,
+    ) {
+        let pos = pixel_region.min;
+        let width = pixel_region.size().width;
+        let line_position = pixel_region.center().y;
+        canvas.save();
+        let mut paint = Paint::default();
+        paint.set_anti_alias(false);
+        paint.set_blend_mode(BlendMode::SrcOver);
+        paint.set_color(style.special(&self.default_style.colors).to_color());
+        canvas.draw_line(
+            (pos.x, line_position),
+            (pos.x + width, line_position),
+            &paint,
+        );
         canvas.restore();
     }
 }

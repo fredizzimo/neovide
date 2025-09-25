@@ -11,9 +11,9 @@ macro_rules! default_cell {
     };
 }
 
-#[derive(Clone)]
-struct GridLine {
-    characters: Vec<GridCell>,
+#[derive(Clone, Debug)]
+pub struct GridLine {
+    pub characters: Vec<GridCell>,
 }
 
 impl GridLine {
@@ -72,9 +72,9 @@ impl CharacterGrid {
         }
     }
 
-    pub fn row(&self, row_index: usize) -> Option<&[GridCell]> {
+    pub fn row(&self, row_index: usize) -> Option<&GridLine> {
         if row_index < self.height {
-            Some(&self.lines[row_index].characters[..])
+            Some(&self.lines[row_index])
         } else {
             None
         }

@@ -1,11 +1,11 @@
-use std::{cell::RefCell, rc::Rc, sync::Arc};
+use std::{cell::RefCell, rc::Rc};
 
 use skia_safe::{Canvas, Color, Matrix, Picture, PictureRecorder, Rect};
 
 use crate::{
     bridge::WindowAnchor,
     cmd_line::CmdLineSettings,
-    editor::{AnchorInfo, SortOrder, Style, WindowType},
+    editor::{AnchorInfo, GridLine, SortOrder, WindowType},
     profiling::{tracy_plot, tracy_zone},
     renderer::{animation_utils::*, GridRenderer, RendererSettings},
     settings::Settings,
@@ -14,20 +14,12 @@ use crate::{
 };
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct LineFragment {
-    pub text: String,
-    pub window_left: u64,
-    pub width: u64,
-    pub style: Option<Arc<Style>>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
 pub struct ViewportMargins {
     pub top: u64,
     pub bottom: u64,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum WindowDrawCommand {
     Position {
         grid_position: (f64, f64),
@@ -37,7 +29,7 @@ pub enum WindowDrawCommand {
     },
     DrawLine {
         row: usize,
-        line_fragments: Vec<LineFragment>,
+        grid: GridLine,
     },
     Scroll {
         top: u64,
@@ -65,7 +57,7 @@ pub enum WindowDrawCommand {
 
 #[derive(Clone)]
 struct Line {
-    line_fragments: Vec<LineFragment>,
+    grid: GridLine,
     background_picture: Option<Picture>,
     foreground_picture: Option<Picture>,
     boxchar_picture: Option<(Picture, PixelPos<f32>)>,
@@ -399,14 +391,11 @@ impl RenderedWindow {
                     self.grid_destination = grid_position;
                 }
             }
-            WindowDrawCommand::DrawLine {
-                row,
-                line_fragments,
-            } => {
+            WindowDrawCommand::DrawLine { row, grid } => {
                 tracy_zone!("draw_line_cmd", 0);
 
                 let line = Line {
-                    line_fragments,
+                    grid,
                     background_picture: None,
                     foreground_picture: None,
                     boxchar_picture: None,
@@ -632,65 +621,58 @@ impl RenderedWindow {
                 return;
             }
 
-            let mut recorder = PictureRecorder::new();
-
             let line_size = GridSize::new(self.grid_size.width, 1) * grid_scale;
             let grid_rect = Rect::from_wh(line_size.width, line_size.height);
-            let canvas = recorder.begin_recording(grid_rect, false);
+            let mut background_recorder = PictureRecorder::new();
+            let background_canvas = background_recorder.begin_recording(grid_rect, false);
 
-            let mut has_transparency = false;
+            let mut text_recorder = PictureRecorder::new();
+            let text_canvas = text_recorder.begin_recording(grid_rect, false);
+            let mut boxchar_recorder = PictureRecorder::new();
+            let boxchar_canvas =
+                boxchar_recorder.begin_recording(grid_rect.with_offset((position.x, 0.0)), false);
+
+            let mut text_drawn = false;
+            let mut boxchar_drawn = false;
             let mut custom_background = false;
+            let mut has_transparency = false;
 
-            for line_fragment in line.line_fragments.iter() {
-                let LineFragment {
-                    window_left,
-                    width,
-                    style,
-                    ..
-                } = line_fragment;
-                let grid_position = (i32::try_from(*window_left).unwrap(), 0).into();
+            let mut grid_left = 0;
+            for fragment in line.grid.characters.chunk_by(|(_, a), (_, b)| a == b) {
+                let style = &fragment[0].1;
+
+                let width = fragment.len() as i32;
+                let grid_position = (grid_left, 0).into();
+                grid_left += width;
+
                 let background_info = grid_renderer.draw_background(
-                    canvas,
+                    background_canvas,
                     grid_position,
-                    i32::try_from(*width).unwrap(),
+                    width,
                     style,
                     opacity,
                 );
                 custom_background |= background_info.custom_color;
                 has_transparency |= background_info.transparent;
-            }
-            let background_picture =
-                custom_background.then_some(recorder.finish_recording_as_picture(None).unwrap());
-
-            let text_canvas = recorder.begin_recording(grid_rect, false);
-            let mut boxchar_recorder = PictureRecorder::new();
-            let boxchar_canvas =
-                boxchar_recorder.begin_recording(grid_rect.with_offset((position.x, 0.0)), false);
-            let mut text_drawn = false;
-            let mut boxchar_drawn = false;
-            for line_fragment in &line.line_fragments {
-                let LineFragment {
-                    text,
-                    window_left,
-                    width,
-                    style,
-                } = line_fragment;
-                let grid_position = (i32::try_from(*window_left).unwrap(), 0).into();
 
                 let (frag_text_drawn, frag_box_drawn) = grid_renderer.draw_foreground(
                     text_canvas,
                     boxchar_canvas,
-                    text,
+                    fragment,
                     grid_position,
-                    i32::try_from(*width).unwrap(),
                     style,
                     position,
                 );
                 text_drawn |= frag_text_drawn;
                 boxchar_drawn |= frag_box_drawn;
             }
+            let background_picture = custom_background.then_some(
+                background_recorder
+                    .finish_recording_as_picture(None)
+                    .unwrap(),
+            );
             let foreground_picture =
-                text_drawn.then_some(recorder.finish_recording_as_picture(None).unwrap());
+                text_drawn.then_some(text_recorder.finish_recording_as_picture(None).unwrap());
             let boxchar_picture = boxchar_drawn.then_some((
                 boxchar_recorder.finish_recording_as_picture(None).unwrap(),
                 position,

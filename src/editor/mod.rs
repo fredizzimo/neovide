@@ -32,6 +32,7 @@ use crate::{cmd_line::CmdLineSettings, frame::Frame};
 
 pub use cursor::{Cursor, CursorMode, CursorShape};
 pub use draw_command_batcher::DrawCommandBatcher;
+pub use grid::GridLine;
 pub use style::{Colors, Style, UnderlineStyle};
 pub use window::*;
 
