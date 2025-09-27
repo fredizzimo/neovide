@@ -396,7 +396,9 @@ impl CursorRenderer {
             );
         } else {
             let pos = (self.destination.x, self.destination.y + baseline_offset);
-            let blobs = &grid_renderer.shaper.shape_cached(character, coarse_style);
+            let blobs = &grid_renderer
+                .shaper
+                .shape_cached([character.as_str()].into_iter(), coarse_style);
             for blob in blobs.iter() {
                 canvas.draw_text_blob(blob, pos, &paint);
             }

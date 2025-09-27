@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use itertools::Itertools;
 use log::trace;
 use skia_safe::{colors, dash_path_effect, BlendMode, Canvas, Color, Paint, Path, HSV};
 
@@ -248,16 +247,7 @@ impl GridRenderer {
                 &cells[start..current_box.as_ref().map_or(cells.len(), |(i, _)| i + start)];
             let region = self.compute_text_region(grid_position, text_cells.len() as i32);
             let shaper = &mut self.shaper;
-            let grid_width = self.grid_scale.width();
-            Self::draw_text(
-                shaper,
-                text_canvas,
-                text_cells,
-                &style,
-                color,
-                &region,
-                grid_width,
-            );
+            Self::draw_text(shaper, text_canvas, text_cells, &style, color, &region);
             start += text_cells.len();
             text_drawn = true;
         }
@@ -275,11 +265,7 @@ impl GridRenderer {
         style: &Style,
         color: Color,
         pixel_region: &PixelRect<f32>,
-        grid_width: f32,
     ) {
-        // TODO: pass the cells directly
-        let text = cells.iter().map(|(t, _)| t).join("");
-
         let mut paint = Paint::default();
         paint.set_anti_alias(false);
         paint.set_blend_mode(BlendMode::SrcOver);
@@ -288,22 +274,20 @@ impl GridRenderer {
 
         text_canvas.clip_rect(to_skia_rect(pixel_region), None, Some(false));
 
-        // There's a lot of overhead for empty blobs in Skia, for some reason they never hit the
-        // cache, so trim all the spaces
-        let trimmed = text.trim_start();
-        let leading_space_bytes = text.len() - trimmed.len();
-        let leading_spaces = text[..leading_space_bytes].chars().count();
-        let trimmed = trimmed.trim_end();
-        let adjustment =
-            PixelVec::new(leading_spaces as f32 * grid_width, shaper.baseline_offset());
-        let pos = pixel_region.min;
-
+        // // There's a lot of overhead for empty blobs in Skia, for some reason they never hit the
+        // // cache, so trim all the spaces
+        // let trimmed = text.trim_start();
+        // let leading_space_bytes = text.len() - trimmed.len();
+        // let leading_spaces = text[..leading_space_bytes].chars().count();
+        // let trimmed = trimmed.trim_end();
+        let adjustment = PixelVec::new(0.0, shaper.baseline_offset());
+        let pos = to_skia_point(pixel_region.min + adjustment);
         for blob in shaper
-            .shape_cached(trimmed.to_string(), style.into())
+            .shape_cached(cells.iter().map(|cell| cell.0.as_str()), style.into())
             .iter()
         {
             tracy_zone!("draw_text_blob");
-            text_canvas.draw_text_blob(blob, to_skia_point(pos + adjustment), &paint);
+            text_canvas.draw_text_blob(blob, pos, &paint);
         }
         text_canvas.restore();
     }

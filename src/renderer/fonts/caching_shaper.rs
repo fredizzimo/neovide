@@ -1,7 +1,7 @@
-use std::{num::NonZeroUsize, sync::Arc};
+use std::{iter::Iterator, num::NonZeroUsize, sync::Arc};
 
-use itertools::Itertools;
-use log::{debug, error, info, trace};
+use itertools::{EitherOrBoth, Itertools};
+use log::{debug, error, info};
 use lru::LruCache;
 use skia_safe::{graphics::set_font_cache_limit, TextBlob, TextBlobBuilder};
 use swash::{
@@ -12,7 +12,6 @@ use swash::{
     },
     Metrics,
 };
-use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
     error_msg,
@@ -231,108 +230,104 @@ impl CachingShaper {
         metrics.ascent + (metrics.leading + self.linespace) / 2.0
     }
 
-    fn build_clusters(
+    fn build_clusters<'a, I>(
         &mut self,
-        text: &str,
+        cells: I,
         style: CoarseStyle,
-    ) -> Vec<(Vec<CharCluster>, Arc<FontPair>)> {
+    ) -> Vec<(Vec<CharCluster>, Arc<FontPair>)>
+    where
+        I: Iterator<Item = (usize, &'a str, u8)> + Clone,
+    {
         let mut cluster = CharCluster::new();
-
-        // Enumerate the characters storing the glyph index in the user data so that we can position
-        // glyphs according to Neovim's grid rules
-        let mut character_index = 0;
-        let mut parser = Parser::new(
-            Script::Latin,
-            text.graphemes(true)
-                .enumerate()
-                .flat_map(|(glyph_index, unicode_segment)| {
-                    unicode_segment.chars().map(move |character| {
-                        let token = Token {
-                            ch: character,
-                            offset: character_index as u32,
-                            len: character.len_utf8() as u8,
-                            info: character.into(),
-                            data: glyph_index as u32,
-                        };
-                        character_index += 1;
-                        token
-                    })
-                }),
-        );
-
         let mut results = Vec::new();
-        'cluster: while parser.next(&mut cluster) {
-            // TODO: Don't redo this work for every cluster. Save it some how
-            // Create font fallback list
-            let mut font_fallback_keys = Vec::new();
-
-            // Add parsed fonts from guifont or config file
-            font_fallback_keys.extend(
-                self.options
-                    .font_list(style)
-                    .iter()
-                    .map(|font_desc| FontKey {
-                        font_desc: Some(font_desc.clone()),
-                        hinting: self.options.hinting.clone(),
-                        edging: self.options.edging.clone(),
-                    })
-                    .unique(),
+        // Neovim has already run it's own clustering algorithm and we need to follow the same rule.
+        // So respect it by processing one cell at a time.
+        // The third element is glyph width (1 or 2), but it's currently unused
+        for (cell_nr, str, _) in cells {
+            let mut parser = Parser::new(
+                Script::Latin,
+                str.char_indices().map(move |(offset, character)| Token {
+                    ch: character,
+                    offset: offset as u32,
+                    len: character.len_utf8() as u8,
+                    info: character.into(),
+                    data: cell_nr as u32,
+                }),
             );
 
-            // Add default font
-            font_fallback_keys.push(FontKey {
-                font_desc: None,
-                hinting: self.options.hinting.clone(),
-                edging: self.options.edging.clone(),
-            });
+            'cluster: while parser.next(&mut cluster) {
+                // TODO: Don't redo this work for every cluster. Save it some how
+                // Create font fallback list
+                let mut font_fallback_keys = Vec::new();
 
-            // Use the cluster.map function to select a viable font from the fallback list and loaded fonts
+                // Add parsed fonts from guifont or config file
+                font_fallback_keys.extend(
+                    self.options
+                        .font_list(style)
+                        .iter()
+                        .map(|font_desc| FontKey {
+                            font_desc: Some(font_desc.clone()),
+                            hinting: self.options.hinting.clone(),
+                            edging: self.options.edging.clone(),
+                        })
+                        .unique(),
+                );
 
-            let mut best = None;
-            // Search through the configured and default fonts for a match
-            for fallback_key in font_fallback_keys.iter() {
-                if let Some(font_pair) = self.font_loader.get_or_load(fallback_key) {
-                    let charmap = font_pair.swash_font.as_ref().charmap();
+                // Add default font
+                font_fallback_keys.push(FontKey {
+                    font_desc: None,
+                    hinting: self.options.hinting.clone(),
+                    edging: self.options.edging.clone(),
+                });
+
+                // Use the cluster.map function to select a viable font from the fallback list and loaded fonts
+
+                let mut best = None;
+                // Search through the configured and default fonts for a match
+                for fallback_key in font_fallback_keys.iter() {
+                    if let Some(font_pair) = self.font_loader.get_or_load(fallback_key) {
+                        let charmap = font_pair.swash_font.as_ref().charmap();
+                        match cluster.map(|ch| charmap.map(ch)) {
+                            Status::Complete => {
+                                results.push((cluster.to_owned(), font_pair.clone()));
+                                continue 'cluster;
+                            }
+                            Status::Keep => best = Some(font_pair),
+                            Status::Discard => {}
+                        }
+                    }
+                }
+
+                // Configured font/default didn't work. Search through currently loaded ones
+                for loaded_font in self.font_loader.loaded_fonts() {
+                    let charmap = loaded_font.swash_font.as_ref().charmap();
                     match cluster.map(|ch| charmap.map(ch)) {
                         Status::Complete => {
-                            results.push((cluster.to_owned(), font_pair.clone()));
+                            results.push((cluster.to_owned(), loaded_font.clone()));
+                            self.font_loader.refresh(loaded_font.as_ref());
                             continue 'cluster;
                         }
-                        Status::Keep => best = Some(font_pair),
+                        Status::Keep => best = Some(loaded_font),
                         Status::Discard => {}
                     }
                 }
-            }
 
-            // Configured font/default didn't work. Search through currently loaded ones
-            for loaded_font in self.font_loader.loaded_fonts() {
-                let charmap = loaded_font.swash_font.as_ref().charmap();
-                match cluster.map(|ch| charmap.map(ch)) {
-                    Status::Complete => {
-                        results.push((cluster.to_owned(), loaded_font.clone()));
-                        self.font_loader.refresh(loaded_font.as_ref());
-                        continue 'cluster;
-                    }
-                    Status::Keep => best = Some(loaded_font),
-                    Status::Discard => {}
-                }
-            }
-
-            if let Some(best) = best {
-                results.push((cluster.to_owned(), best.clone()));
-            } else {
-                let fallback_character = cluster.chars()[0].ch;
-                if let Some(fallback_font) = self
-                    .font_loader
-                    .load_font_for_character(style, fallback_character)
-                {
-                    results.push((cluster.to_owned(), fallback_font));
+                if let Some(best) = best {
+                    results.push((cluster.to_owned(), best.clone()));
                 } else {
-                    // Last Resort covers all of the unicode space so we will always have a fallback
-                    results.push((
-                        cluster.to_owned(),
-                        self.font_loader.get_or_load_last_resort().unwrap(),
-                    ));
+                    let fallback_character = cluster.chars()[0].ch;
+                    if let Some(fallback_font) = self
+                        .font_loader
+                        .load_font_for_character(style, fallback_character)
+                    {
+                        results.push((cluster.to_owned(), fallback_font));
+                    } else {
+                        // Last Resort covers all of the unicode space so we will always have a fallback
+                        results.push((
+                            cluster.to_owned(),
+                            self.font_loader.get_or_load_last_resort().unwrap(),
+                        ));
+                    }
                 }
             }
         }
@@ -370,15 +365,19 @@ impl CachingShaper {
         set_font_cache_limit(FONT_CACHE_SIZE);
     }
 
-    pub fn shape(&mut self, text: String, style: CoarseStyle) -> Vec<TextBlob> {
+    pub fn shape<'a, I>(&mut self, cells: I, style: CoarseStyle) -> Vec<TextBlob>
+    where
+        I: Iterator<Item = (usize, &'a str, u8)> + Clone,
+    {
         let current_size = self.current_size();
         let glyph_width = self.font_base_dimensions().width;
 
         let mut resulting_blobs = Vec::new();
 
-        trace!("Shaping text: {text:?}");
+        // TODO: This would be nice to have back
+        //trace!("Shaping text: {text:?}");
 
-        for (cluster_group, font_pair) in self.build_clusters(&text, style) {
+        for (cluster_group, font_pair) in self.build_clusters(cells, style) {
             let features = self.get_font_features(
                 font_pair
                     .as_ref()
@@ -433,16 +432,34 @@ impl CachingShaper {
         resulting_blobs
     }
 
-    pub fn shape_cached(&mut self, text: String, style: CoarseStyle) -> &Vec<TextBlob> {
+    pub fn shape_cached<'a, I>(&mut self, cells: I, style: CoarseStyle) -> Vec<TextBlob>
+    where
+        I: Iterator<Item = &'a str> + Clone,
+    {
         tracy_zone!("shape_cached");
-        let key = ShapeKey::new(text.clone(), style);
+        let with_index = cells.clone().enumerate();
+        // Get the cell width and remove all empty cells from the shaper view
+        let with_widths = with_index
+            .zip_longest(cells.skip(1))
+            .filter_map(|e| match e {
+                EitherOrBoth::Both((_, ""), _) => None,
+                EitherOrBoth::Both((i, str), "") => Some((i, str, 2)),
+                EitherOrBoth::Both((i, str), _) => Some((i, str, 1)),
+                EitherOrBoth::Left((i, str)) => Some((i, str, 1)),
+                EitherOrBoth::Right(_) => None,
+            });
 
-        if !self.blob_cache.contains(&key) {
-            let blobs = self.shape(text, style);
-            self.blob_cache.put(key.clone(), blobs);
-        }
+        self.shape(with_widths, style)
+        // TODO: Add caching
 
-        self.blob_cache.get(&key).unwrap()
+        // let key = ShapeKey::new(text.clone(), style);
+        //
+        // if !self.blob_cache.contains(&key) {
+        //     let blobs = self.shape(text, style);
+        //     self.blob_cache.put(key.clone(), blobs);
+        // }
+        //
+        // self.blob_cache.get(&key).unwrap()
     }
 
     fn get_font_features(&self, name: Option<&str>) -> Vec<(String, u16)> {
