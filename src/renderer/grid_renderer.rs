@@ -282,13 +282,16 @@ impl GridRenderer {
         // let trimmed = trimmed.trim_end();
         let adjustment = PixelVec::new(0.0, shaper.baseline_offset());
         let pos = to_skia_point(pixel_region.min + adjustment);
-        for blob in shaper
-            .shape_cached(cells.iter().map(|cell| cell.0.as_str()), style.into())
-            .iter()
-        {
-            tracy_zone!("draw_text_blob");
-            text_canvas.draw_text_blob(blob, pos, &paint);
-        }
+        shaper.shape_cached(
+            cells.iter().map(|cell| cell.0.as_str()),
+            style.into(),
+            |offset, blobs| {
+                for blob in blobs {
+                    tracy_zone!("draw_text_blob");
+                    text_canvas.draw_text_blob(blob, pos + offset, &paint);
+                }
+            },
+        );
         text_canvas.restore();
     }
 

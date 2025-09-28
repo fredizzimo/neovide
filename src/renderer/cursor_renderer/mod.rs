@@ -5,7 +5,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use approx::AbsDiffEq;
 use itertools::Itertools;
-use skia_safe::{op, Canvas, Paint, Path};
+use skia_safe::{op, Canvas, Paint, Path, Point};
 use winit::event::WindowEvent;
 
 use crate::{
@@ -395,13 +395,16 @@ impl CursorRenderer {
                 PixelPos::default(),
             );
         } else {
-            let pos = (self.destination.x, self.destination.y + baseline_offset);
-            let blobs = &grid_renderer
-                .shaper
-                .shape_cached([character.as_str()].into_iter(), coarse_style);
-            for blob in blobs.iter() {
-                canvas.draw_text_blob(blob, pos, &paint);
-            }
+            let pos = Point::new(self.destination.x, self.destination.y + baseline_offset);
+            grid_renderer.shaper.shape_cached(
+                [character.as_str()].into_iter(),
+                coarse_style,
+                |offset, blobs| {
+                    for blob in blobs {
+                        canvas.draw_text_blob(blob, pos + offset, &paint);
+                    }
+                },
+            );
         }
 
         canvas.restore();

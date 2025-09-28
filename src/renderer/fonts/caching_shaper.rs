@@ -1,9 +1,9 @@
 use std::{iter::Iterator, num::NonZeroUsize, sync::Arc};
 
 use itertools::{EitherOrBoth, Itertools};
-use log::{debug, error, info};
+use log::{debug, error, info, trace};
 use lru::LruCache;
-use skia_safe::{graphics::set_font_cache_limit, TextBlob, TextBlobBuilder};
+use skia_safe::{graphics::set_font_cache_limit, TextBlob, TextBlobBuilder, Vector};
 use swash::{
     shape::ShapeContext,
     text::{
@@ -20,7 +20,7 @@ use crate::{
     units::PixelSize,
 };
 
-#[derive(new, Clone, Hash, PartialEq, Eq, Debug)]
+#[derive(new, Clone, Hash, PartialEq, Eq, Debug, Default)]
 struct ShapeKey {
     pub text: String,
     pub style: CoarseStyle,
@@ -29,9 +29,14 @@ struct ShapeKey {
 const FONT_CACHE_SIZE: usize = 8 * 1024 * 1024;
 
 pub struct CachingShaper {
+    // The actual implementation is split into two, to satifsy the rust borrow checker
+    shaper: Shaper,
+    blob_cache: LruCache<ShapeKey, Vec<TextBlob>>,
+}
+
+pub struct Shaper {
     options: FontOptions,
     font_loader: FontLoader,
-    blob_cache: LruCache<ShapeKey, Vec<TextBlob>>,
     shape_context: ShapeContext,
     scale_factor: f32,
     linespace: f32,
@@ -39,13 +44,130 @@ pub struct CachingShaper {
 }
 
 impl CachingShaper {
-    pub fn new(scale_factor: f32) -> CachingShaper {
+    pub fn new(scale_factor: f32) -> Self {
+        Self {
+            shaper: Shaper::new(scale_factor),
+            blob_cache: LruCache::new(NonZeroUsize::new(10000).unwrap()),
+        }
+    }
+
+    pub fn current_size(&self) -> f32 {
+        self.shaper.current_size()
+    }
+
+    pub fn update_scale_factor(&mut self, scale_factor: f32) {
+        self.shaper.update_scale_factor(scale_factor);
+        self.blob_cache.clear();
+    }
+
+    pub fn update_font(&mut self, guifont_setting: &str) {
+        debug!("Updating font: {guifont_setting}");
+
+        let options = match FontOptions::parse(guifont_setting) {
+            Ok(opt) => opt,
+            Err(msg) => {
+                error_msg!("Failed to parse guifont: {}", msg);
+                return;
+            }
+        };
+
+        self.update_font_options(options);
+    }
+
+    pub fn font_names(&self) -> Vec<String> {
+        self.shaper.font_loader.font_names()
+    }
+
+    pub fn update_font_options(&mut self, options: FontOptions) {
+        if self.shaper.update_font_options(options) {
+            self.blob_cache.clear();
+        }
+    }
+
+    pub fn update_linespace(&mut self, linespace: f32) {
+        self.shaper.update_linespace(linespace);
+    }
+
+    pub fn font_base_dimensions(&mut self) -> PixelSize<f32> {
+        self.shaper.font_base_dimensions()
+    }
+
+    pub fn underline_offset(&mut self) -> f32 {
+        self.shaper.underline_offset()
+    }
+
+    pub fn baseline_offset(&mut self) -> f32 {
+        self.shaper.baseline_offset()
+    }
+
+    pub fn stroke_size(&mut self) -> f32 {
+        self.shaper.stroke_size()
+    }
+
+    pub fn cleanup_font_cache(&self) {
+        self.shaper.cleanup_font_cache();
+    }
+
+    pub fn shape_cached<'a, I, F>(&mut self, cells: I, style: CoarseStyle, on_shaped: F)
+    where
+        I: Iterator<Item = &'a str> + Clone,
+        F: Fn(Vector, &Vec<TextBlob>),
+    {
+        tracy_zone!("shape_cached");
+        let mut chunk_storage = Vec::new();
+        let mut cached_key = ShapeKey::default();
+        let font_width = self.shaper.font_base_dimensions().width;
+        let mut pixel_offset = Vector::default();
+
+        let with_index = cells.clone().enumerate();
+        // Get the cell width and remove all empty cells from the shaper view
+        let with_widths = with_index
+            .zip_longest(cells.skip(1))
+            .filter_map(|e| match e {
+                EitherOrBoth::Both((_, ""), _) => None,
+                EitherOrBoth::Both((i, str), "") => Some((i, str, 2)),
+                EitherOrBoth::Both((i, str), _) => Some((i, str, 1)),
+                EitherOrBoth::Left((i, str)) => Some((i, str, 1)),
+                EitherOrBoth::Right(_) => None,
+            });
+        let whitespace_chunked = with_widths
+            .map(|c| (c.1.chars().next().unwrap().is_whitespace(), c))
+            .chunk_by(|c| c.0);
+        for (_, chunk) in whitespace_chunked
+            .into_iter()
+            .filter(|(is_whitespace, _)| !is_whitespace)
+        {
+            chunk_storage.extend(chunk.map(|(_, c)| c));
+            cached_key.text.clear();
+            cached_key
+                .text
+                .extend(chunk_storage.iter().map(|(_, str, _)| *str));
+            cached_key.style = style;
+            let offset = chunk_storage[0].0;
+            pixel_offset.x = offset as f32 * font_width;
+            on_shaped(
+                pixel_offset,
+                self.blob_cache.get_or_insert_ref(&cached_key, || {
+                    for cell in &mut chunk_storage {
+                        cell.0 -= offset;
+                    }
+                    trace!("Shaping text: {:?}", cached_key.text);
+                    self.shaper.shape(&chunk_storage, style)
+                }),
+            );
+
+            chunk_storage.clear();
+        }
+    }
+}
+
+impl Shaper {
+    fn new(scale_factor: f32) -> Self {
         let options = FontOptions::default();
         let font_size = options.size * scale_factor;
-        let mut shaper = CachingShaper {
+        let mut shaper = Self {
             options,
             font_loader: FontLoader::new(font_size),
-            blob_cache: LruCache::new(NonZeroUsize::new(10000).unwrap()),
             shape_context: ShapeContext::new(),
             scale_factor,
             linespace: 0.0,
@@ -69,32 +191,18 @@ impl CachingShaper {
             })
     }
 
-    pub fn current_size(&self) -> f32 {
+    fn current_size(&self) -> f32 {
         let min_font_size = 1.0;
         (self.options.size * self.scale_factor).max(min_font_size)
     }
 
-    pub fn update_scale_factor(&mut self, scale_factor: f32) {
+    fn update_scale_factor(&mut self, scale_factor: f32) {
         debug!("scale_factor changed: {scale_factor:.2}");
         self.scale_factor = scale_factor;
         self.reset_font_loader();
     }
 
-    pub fn update_font(&mut self, guifont_setting: &str) {
-        debug!("Updating font: {guifont_setting}");
-
-        let options = match FontOptions::parse(guifont_setting) {
-            Ok(opt) => opt,
-            Err(msg) => {
-                error_msg!("Failed to parse guifont: {}", msg);
-                return;
-            }
-        };
-
-        self.update_font_options(options);
-    }
-
-    pub fn update_font_options(&mut self, options: FontOptions) {
+    fn update_font_options(&mut self, options: FontOptions) -> bool {
         debug!("Updating font options: {options:?}");
 
         let keys = options
@@ -125,11 +233,13 @@ impl CachingShaper {
         if failed_fonts.len() != keys.len() {
             debug!("Font updated to: {options:?}");
             self.options = options;
-            self.reset_font_loader();
+            true
+        } else {
+            false
         }
     }
 
-    pub fn update_linespace(&mut self, linespace: f32) {
+    fn update_linespace(&mut self, linespace: f32) {
         debug!("Updating linespace: {linespace}");
 
         let font_height = self.font_base_dimensions().height;
@@ -157,12 +267,6 @@ impl CachingShaper {
         self.font_loader = FontLoader::new(font_size);
         let (_, font_width) = self.info();
         info!("Reset Font Loader: font_size: {font_size:.2}px, font_width: {font_width:.2}px");
-
-        self.blob_cache.clear();
-    }
-
-    pub fn font_names(&self) -> Vec<String> {
-        self.font_loader.font_names()
     }
 
     fn info(&mut self) -> (Metrics, f32) {
@@ -195,7 +299,7 @@ impl CachingShaper {
         self.info().0
     }
 
-    pub fn font_base_dimensions(&mut self) -> PixelSize<f32> {
+    fn font_base_dimensions(&mut self) -> PixelSize<f32> {
         let (metrics, glyph_advance) = self.info();
 
         let bare_font_height = metrics.ascent + metrics.descent + metrics.leading;
@@ -206,7 +310,7 @@ impl CachingShaper {
         (font_width, font_height).into()
     }
 
-    pub fn underline_offset(&mut self) -> f32 {
+    fn underline_offset(&mut self) -> f32 {
         let metrics = self.metrics();
         if metrics.underline_offset != 0. {
             metrics.underline_offset
@@ -217,11 +321,11 @@ impl CachingShaper {
         }
     }
 
-    pub fn stroke_size(&mut self) -> f32 {
+    fn stroke_size(&mut self) -> f32 {
         self.metrics().stroke_size
     }
 
-    pub fn baseline_offset(&mut self) -> f32 {
+    fn baseline_offset(&mut self) -> f32 {
         let metrics = self.metrics();
         // NOTE: leading is also called linegap and should be equally distributed on the top and
         // bottom, so it's centered like our linespace settings. That's how it works on the web,
@@ -230,14 +334,12 @@ impl CachingShaper {
         metrics.ascent + (metrics.leading + self.linespace) / 2.0
     }
 
-    fn build_clusters<'a, I>(
+    fn build_clusters(
         &mut self,
-        cells: I,
+        cells: &[(usize, &str, u8)],
         style: CoarseStyle,
-    ) -> Vec<(Vec<CharCluster>, Arc<FontPair>)>
-    where
-        I: Iterator<Item = (usize, &'a str, u8)> + Clone,
-    {
+    ) -> Vec<(Vec<CharCluster>, Arc<FontPair>)> {
+        tracy_zone!("build_clusters");
         let mut cluster = CharCluster::new();
         let mut results = Vec::new();
         // Neovim has already run it's own clustering algorithm and we need to follow the same rule.
@@ -251,7 +353,7 @@ impl CachingShaper {
                     offset: offset as u32,
                     len: character.len_utf8() as u8,
                     info: character.into(),
-                    data: cell_nr as u32,
+                    data: *cell_nr as u32,
                 }),
             );
 
@@ -359,25 +461,20 @@ impl CachingShaper {
         grouped_results
     }
 
-    pub fn cleanup_font_cache(&self) {
+    fn cleanup_font_cache(&self) {
         tracy_zone!("purge_font_cache");
         set_font_cache_limit(FONT_CACHE_SIZE / 2);
         set_font_cache_limit(FONT_CACHE_SIZE);
     }
 
-    pub fn shape<'a, I>(&mut self, cells: I, style: CoarseStyle) -> Vec<TextBlob>
-    where
-        I: Iterator<Item = (usize, &'a str, u8)> + Clone,
-    {
+    fn shape(&mut self, cells: &[(usize, &str, u8)], style: CoarseStyle) -> Vec<TextBlob> {
         let current_size = self.current_size();
         let glyph_width = self.font_base_dimensions().width;
 
         let mut resulting_blobs = Vec::new();
 
-        // TODO: This would be nice to have back
-        //trace!("Shaping text: {text:?}");
-
         for (cluster_group, font_pair) in self.build_clusters(cells, style) {
+            tracy_zone!("shape cluster group");
             let features = self.get_font_features(
                 font_pair
                     .as_ref()
@@ -430,36 +527,6 @@ impl CachingShaper {
         }
 
         resulting_blobs
-    }
-
-    pub fn shape_cached<'a, I>(&mut self, cells: I, style: CoarseStyle) -> Vec<TextBlob>
-    where
-        I: Iterator<Item = &'a str> + Clone,
-    {
-        tracy_zone!("shape_cached");
-        let with_index = cells.clone().enumerate();
-        // Get the cell width and remove all empty cells from the shaper view
-        let with_widths = with_index
-            .zip_longest(cells.skip(1))
-            .filter_map(|e| match e {
-                EitherOrBoth::Both((_, ""), _) => None,
-                EitherOrBoth::Both((i, str), "") => Some((i, str, 2)),
-                EitherOrBoth::Both((i, str), _) => Some((i, str, 1)),
-                EitherOrBoth::Left((i, str)) => Some((i, str, 1)),
-                EitherOrBoth::Right(_) => None,
-            });
-
-        self.shape(with_widths, style)
-        // TODO: Add caching
-
-        // let key = ShapeKey::new(text.clone(), style);
-        //
-        // if !self.blob_cache.contains(&key) {
-        //     let blobs = self.shape(text, style);
-        //     self.blob_cache.put(key.clone(), blobs);
-        // }
-        //
-        // self.blob_cache.get(&key).unwrap()
     }
 
     fn get_font_features(&self, name: Option<&str>) -> Vec<(String, u16)> {
