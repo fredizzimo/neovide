@@ -1,4 +1,4 @@
-use std::{iter::Iterator, num::NonZeroUsize, sync::Arc};
+use std::{borrow::{Borrow, Cow}, iter::Iterator, num::NonZeroUsize, sync::Arc};
 
 use itertools::{EitherOrBoth, Itertools};
 use log::{debug, error, info, trace};
@@ -20,11 +20,66 @@ use crate::{
     units::PixelSize,
 };
 
+#[derive(new, Hash, PartialEq, Eq, Debug)]
+struct ShapeKeyRef<'a> {
+    //pub text: String,
+    pub cells: Vec<(u32, &'a str)>,
+    pub style: &'a CoarseStyle,
+}
+
 #[derive(new, Clone, Hash, PartialEq, Eq, Debug, Default)]
 struct ShapeKey {
-    pub text: String,
+    //pub text: String,
+    pub cells: Vec<(u32, String)>,
     pub style: CoarseStyle,
 }
+
+trait BorrowedShapeKey {
+}
+
+impl<'a> BorrowedShapeKey for ShapeKeyRef<'a> {
+}
+
+impl BorrowedShapeKey for ShapeKey {
+}
+
+impl<'a> ToOwned for dyn BorrowedShapeKey +'a
+{
+    type Owned = ShapeKey;
+
+    fn to_owned(&self) -> Self::Owned {
+        Self::Owned {
+            cells: Vec::new(),
+            style: CoarseStyle::default(),
+        }
+    }
+}
+
+// impl<'a> Borrow<Key + 'a> for String {
+//     fn borrow(&self) -> &(Key + 'a) {
+//         self
+//     }
+// }
+//
+
+impl<'a> Borrow<dyn BorrowedShapeKey +'a> for ShapeKey 
+{
+    fn borrow(&self) -> &(dyn BorrowedShapeKey + 'a) {
+        self
+    }
+}
+
+impl<'a> Borrow<dyn BorrowedShapeKey +'a> for ShapeKeyRef<'a>
+{
+    fn borrow(&self) -> &(dyn BorrowedShapeKey + 'a) {
+        self
+    }
+}
+
+
+
+// impl<'a> Borrow<ShapeKeyRef<'a>> for ShapeKey {
+// }
 
 const FONT_CACHE_SIZE: usize = 8 * 1024 * 1024;
 
@@ -137,24 +192,24 @@ impl CachingShaper {
             .into_iter()
             .filter(|(is_whitespace, _)| !is_whitespace)
         {
-            chunk_storage.extend(chunk.map(|(_, c)| c));
-            cached_key.text.clear();
-            cached_key
-                .text
-                .extend(chunk_storage.iter().map(|(_, str, _)| *str));
-            cached_key.style = style;
-            let offset = chunk_storage[0].0;
-            pixel_offset.x = offset as f32 * font_width;
-            on_shaped(
-                pixel_offset,
-                self.blob_cache.get_or_insert_ref(&cached_key, || {
-                    for cell in &mut chunk_storage {
-                        cell.0 -= offset;
-                    }
-                    trace!("Shaping text: {:?}", cached_key.text);
-                    self.shaper.shape(&chunk_storage, style)
-                }),
-            );
+            // chunk_storage.extend(chunk.map(|(_, c)| c));
+            // cached_key.text.clear();
+            // cached_key
+            //     .text
+            //     .extend(chunk_storage.iter().map(|(_, str, _)| *str));
+            // cached_key.style = style;
+            // let offset = chunk_storage[0].0;
+            // pixel_offset.x = offset as f32 * font_width;
+            // on_shaped(
+            //     pixel_offset,
+            //     self.blob_cache.get_or_insert_ref(&cached_key, || {
+            //         for cell in &mut chunk_storage {
+            //             cell.0 -= offset;
+            //         }
+            //         trace!("Shaping text: {:?}", cached_key.text);
+            //         self.shaper.shape(&chunk_storage, style)
+            //     }),
+            // );
 
             chunk_storage.clear();
         }

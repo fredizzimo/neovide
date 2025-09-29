@@ -44,8 +44,8 @@ pub struct FontFeature(pub String, pub u16);
 // TODO: could be made a bitfield sometime?
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct CoarseStyle {
-    bold: bool,
-    italic: bool,
+    pub bold: bool,
+    pub italic: bool,
 }
 
 impl CoarseStyle {
