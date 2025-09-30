@@ -20,66 +20,36 @@ use crate::{
     units::PixelSize,
 };
 
-#[derive(new, Hash, PartialEq, Eq, Debug)]
-struct ShapeKeyRef<'a> {
-    //pub text: String,
-    pub cells: Vec<(u32, &'a str)>,
-    pub style: &'a CoarseStyle,
-}
-
 #[derive(new, Clone, Hash, PartialEq, Eq, Debug, Default)]
 struct ShapeKey {
-    //pub text: String,
-    pub cells: Vec<(u32, String)>,
+    pub text: String,
+    pub cells: Vec<u8>,
     pub style: CoarseStyle,
 }
 
-trait BorrowedShapeKey {
+struct ShapeKeyIterator<'a> {
+    shape_key: &'a ShapeKey,
+    current_cell: std::slice::Iter<'a, u8>,
+    current_text_offset: usize,
+    current_cell_nr: usize,
 }
 
-impl<'a> BorrowedShapeKey for ShapeKeyRef<'a> {
-}
+impl<'a> Iterator for ShapeKeyIterator<'a> {
+    type Item = (usize, &'a str);
 
-impl BorrowedShapeKey for ShapeKey {
-}
-
-impl<'a> ToOwned for dyn BorrowedShapeKey +'a
-{
-    type Owned = ShapeKey;
-
-    fn to_owned(&self) -> Self::Owned {
-        Self::Owned {
-            cells: Vec::new(),
-            style: CoarseStyle::default(),
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(cell) = self.current_cell.next() {
+            let cell_nr = self.current_cell_nr;
+            // TODO: Deal with double width
+            self.current_cell_nr += 1;
+            let text_offset = self.current_text_offset; 
+            self.current_text_offset += (*cell as usize) & 127;
+            Some((cell_nr, &self.shape_key.text[text_offset..self.current_text_offset]))
+        } else {
+            None
         }
     }
 }
-
-// impl<'a> Borrow<Key + 'a> for String {
-//     fn borrow(&self) -> &(Key + 'a) {
-//         self
-//     }
-// }
-//
-
-impl<'a> Borrow<dyn BorrowedShapeKey +'a> for ShapeKey 
-{
-    fn borrow(&self) -> &(dyn BorrowedShapeKey + 'a) {
-        self
-    }
-}
-
-impl<'a> Borrow<dyn BorrowedShapeKey +'a> for ShapeKeyRef<'a>
-{
-    fn borrow(&self) -> &(dyn BorrowedShapeKey + 'a) {
-        self
-    }
-}
-
-
-
-// impl<'a> Borrow<ShapeKeyRef<'a>> for ShapeKey {
-// }
 
 const FONT_CACHE_SIZE: usize = 8 * 1024 * 1024;
 
@@ -169,49 +139,73 @@ impl CachingShaper {
         F: Fn(Vector, &Vec<TextBlob>),
     {
         tracy_zone!("shape_cached");
-        let mut chunk_storage = Vec::new();
+        // let mut chunk_storage = Vec::new();
         let mut cached_key = ShapeKey::default();
         let font_width = self.shaper.font_base_dimensions().width;
         let mut pixel_offset = Vector::default();
 
-        let with_index = cells.clone().enumerate();
-        // Get the cell width and remove all empty cells from the shaper view
-        let with_widths = with_index
-            .zip_longest(cells.skip(1))
-            .filter_map(|e| match e {
-                EitherOrBoth::Both((_, ""), _) => None,
-                EitherOrBoth::Both((i, str), "") => Some((i, str, 2)),
-                EitherOrBoth::Both((i, str), _) => Some((i, str, 1)),
-                EitherOrBoth::Left((i, str)) => Some((i, str, 1)),
-                EitherOrBoth::Right(_) => None,
-            });
-        let whitespace_chunked = with_widths
+        // let with_index = cells.clone().enumerate();
+        // // Get the cell width and remove all empty cells from the shaper view
+        // let with_widths = with_index
+        //     .zip_longest(cells.skip(1))
+        //     .filter_map(|e| match e {
+        //         EitherOrBoth::Both((_, ""), _) => None,
+        //         EitherOrBoth::Both((i, str), "") => Some((i, str, 2)),
+        //         EitherOrBoth::Both((i, str), _) => Some((i, str, 1)),
+        //         EitherOrBoth::Left((i, str)) => Some((i, str, 1)),
+        //         EitherOrBoth::Right(_) => None,
+        //     });
+        let whitespace_chunked = cells.enumerate()
             .map(|c| (c.1.chars().next().unwrap().is_whitespace(), c))
             .chunk_by(|c| c.0);
-        for (_, chunk) in whitespace_chunked
+        for (_, word) in whitespace_chunked
             .into_iter()
             .filter(|(is_whitespace, _)| !is_whitespace)
         {
-            // chunk_storage.extend(chunk.map(|(_, c)| c));
-            // cached_key.text.clear();
+            //chunk_storage.extend(chunk.map(|(_, c)| c));
+            cached_key.text.clear();
+            cached_key.cells.clear();
+            let mut word_offset = 0;
+            let mut first = true;
+            for (index, (cell_offset, cell)) in word {
+                if first {
+                    word_offset = cell_offset;
+                    first = false;
+                }
+                if cell.is_empty() {
+                    // TODO: Deal with words starting with a double width char
+                    if let Some(last) = cached_key.cells.last_mut() {
+                        *last |= 128;
+                    }
+                } else {
+                    cached_key.text.push_str(cell);
+                    // TODO: deal with overflow
+                    cached_key.cells.push(cell.len() as u8);
+                }
+            }
+
+
             // cached_key
             //     .text
             //     .extend(chunk_storage.iter().map(|(_, str, _)| *str));
-            // cached_key.style = style;
-            // let offset = chunk_storage[0].0;
-            // pixel_offset.x = offset as f32 * font_width;
-            // on_shaped(
-            //     pixel_offset,
-            //     self.blob_cache.get_or_insert_ref(&cached_key, || {
-            //         for cell in &mut chunk_storage {
-            //             cell.0 -= offset;
-            //         }
-            //         trace!("Shaping text: {:?}", cached_key.text);
-            //         self.shaper.shape(&chunk_storage, style)
-            //     }),
-            // );
+            cached_key.style = style;
+            pixel_offset.x = word_offset as f32 * font_width;
+            on_shaped(
+                pixel_offset,
+                self.blob_cache.get_or_insert_ref(&cached_key, || {
+                    trace!("Shaping text: {:?}", cached_key.text);
 
-            chunk_storage.clear();
+                    let iter = ShapeKeyIterator {
+                        shape_key: &cached_key,
+                        current_cell: cached_key.cells.iter(),
+                        current_text_offset: 0,
+                        current_cell_nr: 0,
+                    };
+                    self.shaper.shape(iter, style)
+                }),
+            );
+            //
+            // chunk_storage.clear();
         }
     }
 }
@@ -389,18 +383,20 @@ impl Shaper {
         metrics.ascent + (metrics.leading + self.linespace) / 2.0
     }
 
-    fn build_clusters(
+    fn build_clusters<'a, I>(
         &mut self,
-        cells: &[(usize, &str, u8)],
+        cells: I,
         style: CoarseStyle,
-    ) -> Vec<(Vec<CharCluster>, Arc<FontPair>)> {
+    ) -> Vec<(Vec<CharCluster>, Arc<FontPair>)> 
+        where I: Iterator<Item = (usize, &'a str)>
+    {
         tracy_zone!("build_clusters");
         let mut cluster = CharCluster::new();
         let mut results = Vec::new();
         // Neovim has already run it's own clustering algorithm and we need to follow the same rule.
         // So respect it by processing one cell at a time.
         // The third element is glyph width (1 or 2), but it's currently unused
-        for (cell_nr, str, _) in cells {
+        for (cell_nr, str) in cells {
             let mut parser = Parser::new(
                 Script::Latin,
                 str.char_indices().map(move |(offset, character)| Token {
@@ -408,7 +404,7 @@ impl Shaper {
                     offset: offset as u32,
                     len: character.len_utf8() as u8,
                     info: character.into(),
-                    data: *cell_nr as u32,
+                    data: cell_nr as u32,
                 }),
             );
 
@@ -522,7 +518,9 @@ impl Shaper {
         set_font_cache_limit(FONT_CACHE_SIZE);
     }
 
-    fn shape(&mut self, cells: &[(usize, &str, u8)], style: CoarseStyle) -> Vec<TextBlob> {
+    fn shape<'a, I>(&mut self, cells: I, style: CoarseStyle) -> Vec<TextBlob> 
+        where I: Iterator<Item = (usize, &'a str)>
+    {
         let current_size = self.current_size();
         let glyph_width = self.font_base_dimensions().width;
 
