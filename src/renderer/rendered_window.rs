@@ -632,43 +632,24 @@ impl RenderedWindow {
                 return;
             }
 
-            let mut recorder = PictureRecorder::new();
-
             let line_size = GridSize::new(self.grid_size.width, 1) * grid_scale;
             let grid_rect = Rect::from_wh(line_size.width, line_size.height);
-            let canvas = recorder.begin_recording(grid_rect, false);
+            let mut background_recorder = PictureRecorder::new();
+            let background_canvas = background_recorder.begin_recording(grid_rect, false);
 
-            let mut has_transparency = false;
-            let mut custom_background = false;
-
-            for line_fragment in line.line_fragments.iter() {
-                let LineFragment {
-                    window_left,
-                    width,
-                    style,
-                    ..
-                } = line_fragment;
-                let grid_position = (i32::try_from(*window_left).unwrap(), 0).into();
-                let background_info = grid_renderer.draw_background(
-                    canvas,
-                    grid_position,
-                    i32::try_from(*width).unwrap(),
-                    style,
-                    opacity,
-                );
-                custom_background |= background_info.custom_color;
-                has_transparency |= background_info.transparent;
-            }
-            let background_picture =
-                custom_background.then_some(recorder.finish_recording_as_picture(None).unwrap());
-
-            let text_canvas = recorder.begin_recording(grid_rect, false);
+            let mut text_recorder = PictureRecorder::new();
+            let text_canvas = text_recorder.begin_recording(grid_rect, false);
             let mut boxchar_recorder = PictureRecorder::new();
             let boxchar_canvas =
                 boxchar_recorder.begin_recording(grid_rect.with_offset((position.x, 0.0)), false);
+
             let mut text_drawn = false;
             let mut boxchar_drawn = false;
-            for line_fragment in &line.line_fragments {
+            let mut custom_background = false;
+            let mut has_transparency = false;
+
+            let mut grid_left = 0;
+            for line_fragment in line.line_fragments.iter() {
                 let LineFragment {
                     text,
                     window_left,
@@ -676,21 +657,36 @@ impl RenderedWindow {
                     style,
                 } = line_fragment;
                 let grid_position = (i32::try_from(*window_left).unwrap(), 0).into();
+                grid_left += width;
+
+                let background_info = grid_renderer.draw_background(
+                    background_canvas,
+                    grid_position,
+                    width,
+                    style,
+                    opacity,
+                );
+                custom_background |= background_info.custom_color;
+                has_transparency |= background_info.transparent;
 
                 let (frag_text_drawn, frag_box_drawn) = grid_renderer.draw_foreground(
                     text_canvas,
                     boxchar_canvas,
                     text,
                     grid_position,
-                    i32::try_from(*width).unwrap(),
                     style,
                     position,
                 );
                 text_drawn |= frag_text_drawn;
                 boxchar_drawn |= frag_box_drawn;
             }
+            let background_picture = custom_background.then_some(
+                background_recorder
+                    .finish_recording_as_picture(None)
+                    .unwrap(),
+            );
             let foreground_picture =
-                text_drawn.then_some(recorder.finish_recording_as_picture(None).unwrap());
+                text_drawn.then_some(text_recorder.finish_recording_as_picture(None).unwrap());
             let boxchar_picture = boxchar_drawn.then_some((
                 boxchar_recorder.finish_recording_as_picture(None).unwrap(),
                 position,

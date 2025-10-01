@@ -381,17 +381,20 @@ impl CursorRenderer {
         let style = &self.cursor.grid_cell.1;
         let coarse_style = style.as_ref().map(|style| style.into()).unwrap_or_default();
 
-        let box_char_drawn = grid_renderer.box_char_renderer.draw_glyph(
-            &character,
-            canvas,
-            PixelRect::from_origin_and_size(
-                self.destination,
-                GridSize::new(1, 1) * grid_renderer.grid_scale,
-            ),
-            foreground_color,
-            PixelPos::default(),
-        );
-        if !box_char_drawn {
+        if let Some(glyph) = grid_renderer
+            .box_char_renderer
+            .get_glyph_renderer(&character)
+        {
+            glyph.draw_glyph(
+                canvas,
+                PixelRect::from_origin_and_size(
+                    self.destination,
+                    GridSize::new(1, 1) * grid_renderer.grid_scale,
+                ),
+                foreground_color,
+                PixelPos::default(),
+            );
+        } else {
             let pos = (self.destination.x, self.destination.y + baseline_offset);
             let blobs = &grid_renderer.shaper.shape_cached(character, coarse_style);
             for blob in blobs.iter() {

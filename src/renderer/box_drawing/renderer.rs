@@ -1,9 +1,9 @@
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::f32::consts::PI;
-use std::sync::LazyLock;
+use std::rc::Rc;
 
 use super::settings::{BoxDrawingMode, BoxDrawingSettings, LineSizes};
-use glamour::{Box2, Size2, Vector2};
+use glamour::{Size2, Vector2};
 use itertools::Itertools;
 use num::{Integer, ToPrimitive};
 use skia_safe::{
@@ -988,16 +988,16 @@ enum MirrorMode {
     Mirror,
 }
 
-type BoxDrawFn = Box<dyn Fn(&Context) + Send + Sync>;
+type BoxDrawFn = Rc<dyn Fn(&Context) + Send + Sync>;
 
-static BOX_CHARS: LazyLock<BTreeMap<char, BoxDrawFn>> = LazyLock::new(|| {
+fn initialize() -> HashMap<char, BoxDrawFn> {
     use Orientation::*;
-    let mut m: BTreeMap<char, BoxDrawFn> = BTreeMap::new();
+    let mut m: HashMap<char, BoxDrawFn> = HashMap::new();
 
     macro_rules! box_char {
         ($($chars:literal),* -> $func:expr) => {
             for ch in &[$($chars),*] {
-                m.insert(*ch, Box::new($func));
+                m.insert(*ch, Rc::new($func));
             }
         };
     }
@@ -1504,7 +1504,7 @@ static BOX_CHARS: LazyLock<BTreeMap<char, BoxDrawFn>> = LazyLock::new(|| {
             ($($ch:literal -> $north:ident, $east:ident, $south:ident, $west:ident)+) => {
                 $(m.insert(
                     $ch,
-                    Box::new(move |ctx: &Context| {
+                    Rc::new(move |ctx: &Context| {
                         ctx.draw_t_or_cross_joint($north, $east, $south, $west);
                     }),
                 ));+
@@ -1579,7 +1579,7 @@ static BOX_CHARS: LazyLock<BTreeMap<char, BoxDrawFn>> = LazyLock::new(|| {
             ($($ch:literal -> $orientation:ident, $halfselector:ident)+) => {
                 $(m.insert(
                     $ch,
-                    Box::new(move |ctx: &Context| {
+                    Rc::new(move |ctx: &Context| {
                         ctx.draw_fg_line1(Orientation::$orientation, HalfSelector::Both);
                         ctx.draw_double_line(Orientation::$orientation.swap(), HalfSelector::$halfselector);
                     }),
@@ -1601,7 +1601,7 @@ static BOX_CHARS: LazyLock<BTreeMap<char, BoxDrawFn>> = LazyLock::new(|| {
             ($($ch:literal -> $orientation:ident, $halfselector:ident, $lineselector:ident)+) => {
                 $(m.insert(
                     $ch,
-                    Box::new(move |ctx: &Context| {
+                    Rc::new(move |ctx: &Context| {
                         ctx.draw_double_line(Orientation::$orientation, HalfSelector::Both);
                         ctx.draw_line(
                             Orientation::$orientation.swap(),
@@ -1630,7 +1630,7 @@ static BOX_CHARS: LazyLock<BTreeMap<char, BoxDrawFn>> = LazyLock::new(|| {
             ($($ch:literal -> $orientation:ident, $side:ident)+) => {
                 $(m.insert(
                     $ch,
-                    Box::new(move |ctx: &Context| {
+                    Rc::new(move |ctx: &Context| {
                         let stroke_width = ctx.get_stroke_width_pixels(Thickness::Thin);
                         let o = Orientation::$orientation;
                         let side = LineSelector::$side;
@@ -1721,7 +1721,7 @@ static BOX_CHARS: LazyLock<BTreeMap<char, BoxDrawFn>> = LazyLock::new(|| {
             ($($ch:literal -> $corner:ident, $horiz:ident, $vert:ident)+) => {
                 $(m.insert(
                     $ch,
-                    Box::new(move |ctx: &Context| {
+                    Rc::new(move |ctx: &Context| {
                         ctx.draw_corner($corner, $horiz, $vert);
                     }),
                 ));+
@@ -1763,26 +1763,43 @@ static BOX_CHARS: LazyLock<BTreeMap<char, BoxDrawFn>> = LazyLock::new(|| {
     }
 
     m
-});
+}
 
-pub fn is_box_char(text: &str) -> bool {
-    text.chars()
-        .next()
-        .is_some_and(|ch| BOX_CHARS.contains_key(&ch))
+fn get_enabled_chars(
+    all_supported_chars: &HashMap<char, BoxDrawFn>,
+    settings: &BoxDrawingSettings,
+) -> HashMap<char, BoxDrawFn> {
+    match settings.mode.as_ref().unwrap_or(&BoxDrawingMode::default()) {
+        BoxDrawingMode::FontGlyph => HashMap::new(),
+        BoxDrawingMode::Native => (*all_supported_chars).clone(),
+        BoxDrawingMode::SelectedNative => settings
+            .selected
+            .as_ref()
+            .unwrap_or(&"".to_string())
+            .chars()
+            .filter_map(|c| all_supported_chars.get(&c).map(|v| (c, (*v).clone())))
+            .collect(),
+    }
 }
 
 pub struct Renderer {
     settings: BoxDrawingSettings,
     cell_size: Size2<Pixel<f32>>,
     em_size: f32,
+    all_supported_chars: HashMap<char, BoxDrawFn>,
+    all_enabled_chars: HashMap<char, BoxDrawFn>,
 }
 
 impl Renderer {
     pub fn new(cell_size: Size2<Pixel<f32>>, em_size: f32, settings: BoxDrawingSettings) -> Self {
+        let all_supported_chars = initialize();
+        let all_enabled_chars = get_enabled_chars(&all_supported_chars, &settings);
         Self {
             settings,
             cell_size,
             em_size,
+            all_supported_chars,
+            all_enabled_chars,
         }
     }
 
@@ -1793,68 +1810,44 @@ impl Renderer {
 
     pub fn update_settings(&mut self, settings: BoxDrawingSettings) {
         self.settings = settings;
+        self.all_enabled_chars = get_enabled_chars(&self.all_supported_chars, &self.settings);
     }
 
+    pub fn get_glyph_renderer(&self, text: &str) -> Option<BoxGlyphRenderer<'_>> {
+        let ch = text.chars().next()?;
+        self.all_enabled_chars
+            .get(&ch)
+            .map(|draw_fn| BoxGlyphRenderer {
+                draw_fn,
+                renderer: self,
+            })
+    }
+}
+
+pub struct BoxGlyphRenderer<'a> {
+    draw_fn: &'a BoxDrawFn,
+    renderer: &'a Renderer,
+}
+
+impl BoxGlyphRenderer<'_> {
     pub fn draw_glyph(
         &self,
-        box_char_text: &str,
         canvas: &Canvas,
         dst: PixelRect<f32>,
         color_fg: Color,
         window_pos: PixelPos<f32>,
-    ) -> bool {
-        match self
-            .settings
-            .mode
-            .as_ref()
-            .unwrap_or(&BoxDrawingMode::default())
-        {
-            BoxDrawingMode::FontGlyph => false,
-            BoxDrawingMode::Native => {
-                self.draw_box_glyph(box_char_text, canvas, dst, color_fg, window_pos)
-            }
-            BoxDrawingMode::SelectedNative => {
-                let selected = self.settings.selected.as_deref().unwrap_or("");
-                let is_selected = box_char_text
-                    .chars()
-                    .next()
-                    .is_some_and(|first| selected.contains(first));
-                if is_selected {
-                    self.draw_box_glyph(box_char_text, canvas, dst, color_fg, window_pos)
-                } else {
-                    false
-                }
-            }
-        }
-    }
-
-    fn draw_box_glyph(
-        &self,
-        box_char_text: &str,
-        canvas: &Canvas,
-        dst: PixelRect<f32>,
-        color_fg: Color,
-        window_pos: PixelPos<f32>,
-    ) -> bool {
-        let Some(ch) = box_char_text.chars().next() else {
-            return false;
-        };
-        let Some(draw_fn) = BOX_CHARS.get(&ch) else {
-            return false;
-        };
-        for (i, _) in box_char_text.chars().enumerate() {
-            canvas.save();
-            // Box chars need to be rendered with absolute x positions, so translate the x coordinates.
-            // The line height is already a multiplier of pixels, so it does not need a fixup.
-            let rect = Box2::from_rect(glamour::Rect::new(
-                dst.min + Vector2::new(self.cell_size.width * i as f32, 0.0),
-                self.cell_size,
-            )) + PixelVec::new(window_pos.x, 0.0);
-            canvas.clip_rect(to_skia_rect(&rect), None, Some(false));
-            let ctx = Context::new(canvas, &self.settings, rect, color_fg, self.em_size);
-            (draw_fn)(&ctx);
-            canvas.restore();
-        }
-        true
+    ) {
+        canvas.save();
+        let rect = dst + PixelVec::new(window_pos.x, 0.0);
+        canvas.clip_rect(to_skia_rect(&rect), None, Some(false));
+        let ctx = Context::new(
+            canvas,
+            &self.renderer.settings,
+            rect,
+            color_fg,
+            self.renderer.em_size,
+        );
+        (self.draw_fn)(&ctx);
+        canvas.restore();
     }
 }
