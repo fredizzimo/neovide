@@ -97,6 +97,7 @@ impl FontLoader {
             let typeface = self.font_mgr.match_family_style(family, style)?;
             FontPair::new(font_key, Font::from_typeface(typeface, self.font_size))
         } else {
+            log::warn!("Loading default font");
             let data = Data::new_copy(DEFAULT_FONT);
             let typeface = self.font_mgr.new_from_data(&data, 0)?;
             FontPair::new(font_key, Font::from_typeface(typeface, self.font_size))
@@ -121,9 +122,11 @@ impl FontLoader {
         character: char,
     ) -> Option<Arc<FontPair>> {
         let font_style = coarse_style.into();
+        //TODO: Figure out how to document the need for
+        // paru -S noto-cjk-fontconfig 
         let typeface =
             self.font_mgr
-                .match_family_style_character("", font_style, &[], character as i32)?;
+                .match_family_style_character("monospace", font_style, &[], character as i32)?;
 
         let font_key = FontKey {
             font_desc: Some(FontDescription {
@@ -138,6 +141,7 @@ impl FontLoader {
             font_key.clone(),
             Font::from_typeface(typeface, self.font_size),
         )?);
+        log::trace!("Load font for character {} {}", character, font_pair.skia_font.typeface().family_name() );
 
         self.cache.put(font_key, font_pair.clone());
 
@@ -145,6 +149,7 @@ impl FontLoader {
     }
 
     pub fn get_or_load_last_resort(&mut self) -> Option<Arc<FontPair>> {
+        log::warn!("Last resort font used");
         if self.last_resort.is_some() {
             self.last_resort.clone()
         } else {

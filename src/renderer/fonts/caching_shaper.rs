@@ -278,12 +278,12 @@ impl CachingShaper {
                     .unique(),
             );
 
-            // Add default font
-            font_fallback_keys.push(FontKey {
-                font_desc: None,
-                hinting: self.options.hinting.clone(),
-                edging: self.options.edging.clone(),
-            });
+            // // Add default font
+            // font_fallback_keys.push(FontKey {
+            //     font_desc: None,
+            //     hinting: self.options.hinting.clone(),
+            //     edging: self.options.edging.clone(),
+            // });
 
             // Use the cluster.map function to select a viable font from the fallback list and loaded fonts
 
@@ -376,6 +376,7 @@ impl CachingShaper {
         let mut resulting_blobs = Vec::new();
 
         for (cluster_group, font_pair) in self.build_clusters(word, style) {
+            log::trace!("Cluster group {}, font: {}", cluster_group[0].chars().iter().map(|c| c.ch).collect::<String>(), font_pair.skia_font.typeface().family_name() );
             let features = self.get_font_features(
                 font_pair
                     .as_ref()
