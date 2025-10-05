@@ -45,39 +45,12 @@ fn info_for_font(shape_context: &mut ShapeContext, emoji: bool, font: &SwashFont
     }
     else {
 
-        let double_width_space = '　';
-        let token = Token {
-            ch: double_width_space,
-            offset: 0,
-            len: double_width_space.len_utf8() as u8,
-            info: double_width_space.into(),
-            data: 0,
-        };
-        let tokens = [token];
-        let mut parser = Parser::new(Script::Latin, tokens.into_iter());
-        let mut cluster = CharCluster::new();
-        parser.next(&mut cluster);
-        let charmap = font.as_ref().charmap();
-        let mut has_double_width_space = false;
-        match cluster.map(|ch| charmap.map(ch)) {
-            Status::Complete => {has_double_width_space = true}
-            Status::Keep => {},
-            Status::Discard => {}
-        }
-        log::info!("Has double width space {has_double_width_space}");
-        if has_double_width_space {
-            shaper.add_str("　");
-        } else {
-            shaper.add_str("M");
-        }
+        shaper.add_str("M");
         shaper.shape_with(|cluster| {
             advance = cluster.glyphs.first().map_or(metrics.average_width, |g| {
                 g.advance / metrics.units_per_em as f32
             });
         });
-        if has_double_width_space {
-            advance /= 2.0;
-        }
     }
     log::info!("{metrics:#?}");
     log::info!("Advance: {advance}");
