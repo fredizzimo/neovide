@@ -445,6 +445,13 @@ impl CachingShaper {
                 //Align to the grid at the start of each cluster
                 let mut x_offset = glyph_width * glyph_cluster.data as f32;
 
+                // HACK: Should use the total cell width, and no adjustment when the total_width is greater
+                let total_width = glyph_cluster.advance();
+                let diff = (glyph_width - total_width) / 2.0;
+                if diff > 0.0 {
+                    x_offset += diff;
+                }
+
                 for glyph in glyph_cluster.glyphs {
                     let position = (x_offset + glyph.x, -glyph.y + y_offset);
                     glyph_data.push((glyph.id, position));
