@@ -1,5 +1,9 @@
-use std::{num::NonZeroUsize, rc::Rc};
+use std::{iter::Iterator, num::NonZeroUsize, rc::Rc};
 
+use icu_properties::{
+    props::{Emoji, EmojiModifier, EmojiPresentation},
+    CodePointSetData, CodePointSetDataBorrowed,
+};
 use itertools::Itertools;
 use log::{debug, error, info, trace};
 use lru::LruCache;
@@ -39,6 +43,9 @@ pub struct CachingShaper {
     scale_factor: f32,
     linespace: f32,
     font_info: Option<(Metrics, f32)>,
+    emoji: CodePointSetDataBorrowed<'static>,
+    emoji_presentation: CodePointSetDataBorrowed<'static>,
+    emoji_modifier: CodePointSetDataBorrowed<'static>,
 }
 
 impl CachingShaper {
@@ -52,6 +59,9 @@ impl CachingShaper {
             scale_factor,
             linespace: 0.0,
             font_info: None,
+            emoji: CodePointSetData::new::<Emoji>(),
+            emoji_presentation: CodePointSetData::new::<EmojiPresentation>(),
+            emoji_modifier: CodePointSetData::new::<EmojiModifier>(),
         };
         shaper.reset_font_loader();
         shaper
@@ -207,11 +217,11 @@ impl CachingShaper {
 
         let size = self.current_size();
         let pair = &self.current_font_pair();
-        let font_info = pair.font_info.expect(
+        let font_info = pair.font_info.as_ref().expect(
             "All fonts should be loaded with shaper and therefore have calculated font info",
         );
-        let metrics = font_info.0.linear_scale(size);
-        let advance = font_info.1 * size;
+        let metrics = font_info.metrics.linear_scale(size);
+        let advance = font_info.advance * size;
         self.font_info = Some((metrics, advance));
         self.font_info.unwrap()
     }
@@ -260,7 +270,7 @@ impl CachingShaper {
 
     fn build_clusters(
         &mut self,
-        word: RenderedWord<'_>,
+        nvim_clusters: &[(usize, &str)],
         style: CoarseStyle,
     ) -> Vec<(Vec<CharCluster>, Rc<FontPair>)> {
         let mut cluster = CharCluster::new();
@@ -269,17 +279,20 @@ impl CachingShaper {
         // glyphs according to Neovim's grid rules
         let mut parser = Parser::new(
             Script::Latin,
-            word.clusters().flat_map(|(cell_index, cluster)| {
-                cluster
-                    .char_indices()
-                    .map(move |(offset, character)| Token {
-                        ch: character,
-                        offset: offset as u32,
-                        len: character.len_utf8() as u8,
-                        info: character.into(),
-                        data: cell_index as u32,
-                    })
-            }),
+            nvim_clusters
+                .iter()
+                .enumerate()
+                .flat_map(|(i, (_, cluster))| {
+                    cluster
+                        .char_indices()
+                        .map(move |(offset, character)| Token {
+                            ch: character,
+                            offset: offset as u32,
+                            len: character.len_utf8() as u8,
+                            info: character.into(),
+                            data: i as u32,
+                        })
+                }),
         );
 
         let mut results = Vec::new();
@@ -301,8 +314,17 @@ impl CachingShaper {
                     .unique(),
             );
 
-            // Use the cluster.map function to select a viable font from the fallback list and loaded fonts
+            // Use the color emoji font as the highest priority fallback when requested
+            if self.is_color_emoji(nvim_clusters[cluster.user_data() as usize].1.chars()) {
+                if let Some(emoji_font) = self
+                    .font_loader
+                    .get_or_load_emoji(cluster.chars()[0].ch, &mut self.shape_context)
+                {
+                    font_fallback_keys.insert(0, emoji_font.key.clone())
+                }
+            }
 
+            // Use the cluster.map function to select a viable font from the fallback list and loaded fonts
             let mut best = None;
             // Search through the configured and default fonts for a match
             for fallback_key in font_fallback_keys.iter() {
@@ -322,18 +344,27 @@ impl CachingShaper {
                 }
             }
 
-            // Configured font/default didn't work. Search through currently loaded ones
-            for loaded_font in self.font_loader.loaded_fonts() {
+            // Configured font/default didn't work. Search through currently loaded ones, excluding emoji fonts
+            let mut found = false;
+            for loaded_font in self.font_loader.loaded_fonts().filter(|f| {
+                f.font_info
+                    .as_ref()
+                    .map(|info| !info.emoji)
+                    .unwrap_or(false)
+            }) {
                 let charmap = loaded_font.swash_font.as_ref().charmap();
                 match cluster.map(|ch| charmap.map(ch)) {
                     Status::Complete => {
                         results.push((cluster.to_owned(), loaded_font.clone()));
-                        self.font_loader.refresh(loaded_font.as_ref());
-                        continue 'cluster;
+                        found = true;
                     }
-                    Status::Keep => best = Some(loaded_font),
+                    Status::Keep => best = Some(loaded_font.clone()),
                     Status::Discard => {}
                 }
+            }
+            if found {
+                self.font_loader.refresh(&results.last().unwrap().1);
+                continue 'cluster;
             }
 
             if let Some(best) = best {
@@ -343,6 +374,7 @@ impl CachingShaper {
                 if let Some(fallback_font) = self.font_loader.load_font_for_character(
                     style,
                     fallback_character,
+                    &[],
                     Some(&mut self.shape_context),
                 ) {
                     results.push((cluster.to_owned(), fallback_font));
@@ -397,7 +429,9 @@ impl CachingShaper {
 
         let mut resulting_blobs = Vec::new();
 
-        for (cluster_group, font_pair) in self.build_clusters(word, style) {
+        let nvim_clusters = word.clusters().collect_vec();
+
+        for (cluster_group, font_pair) in self.build_clusters(&nvim_clusters, style) {
             log::trace!(
                 "Cluster group: \"{}\" font: {}",
                 cluster_group
@@ -408,16 +442,10 @@ impl CachingShaper {
             );
             let features = self.get_font_features(&font_pair.key.font_desc.family);
 
-            let fallback_info = font_pair.font_info.expect(
+            let fallback_info = font_pair.font_info.as_ref().expect(
                 "All fonts should be loaded with shaper and therefore have calculated font info",
             );
-            // Scale fallback fonts to have the same width as the primary one
-            // Don't scale emojis
-            let scale = if cluster_group[0].info().is_emoji() {
-                1.0
-            } else {
-                self.info().1 / (fallback_info.1 * current_size)
-            };
+            let scale = self.info().1 / (fallback_info.advance * current_size);
             log::info!("Scale {scale}");
             let baseline_offset = self.baseline_offset();
             log::info!("Baseline Offset {baseline_offset}");
@@ -437,7 +465,7 @@ impl CachingShaper {
 
             let mut glyph_data = Vec::new();
 
-            let metrics = &fallback_info.0;
+            let metrics = &fallback_info.metrics;
             // Push the baseline down if there's not enough space above it.
             // This only happens for fallback fonts.
             let y_offset = ((metrics.ascent + metrics.leading / 2.0) * current_size
@@ -445,8 +473,9 @@ impl CachingShaper {
                 .max(0.0);
 
             shaper.shape_with(|glyph_cluster| {
+                let cell_index = nvim_clusters[glyph_cluster.data as usize].0;
                 //Align to the grid at the start of each cluster
-                let mut x_offset = glyph_width * glyph_cluster.data as f32;
+                let mut x_offset = glyph_width * cell_index as f32;
 
                 for glyph in glyph_cluster.glyphs {
                     let position = (x_offset + glyph.x, -glyph.y + y_offset);
@@ -502,5 +531,32 @@ impl CachingShaper {
                     .collect::<Vec<_>>()
             })
             .unwrap_or_default()
+    }
+
+    fn is_color_emoji(&self, mut cluster_chars: impl Iterator<Item = char>) -> bool {
+        const VARIANT_SELECTOR_PREFER_TEXT: char = '\u{FE0E}';
+        const VARIANT_SELECTOR_PREFER_EMOJI: char = '\u{FE0F}';
+        // NOTE: cluster.info().is_emoji() could be used, but it returns wrong for "#️", for
+        // example, which is an emoji with text presentation as default. So use icu_properties
+        // for detecting that as well.
+        let first_char = cluster_chars.next().unwrap();
+        if self.emoji.contains(first_char) {
+            let mut color_emoji_preference = None;
+            if let Some(second_char) = cluster_chars.next() {
+                if second_char == VARIANT_SELECTOR_PREFER_TEXT {
+                    color_emoji_preference = Some(false);
+                }
+                // Modifiers like skin color should also force emoji representation
+                else if second_char == VARIANT_SELECTOR_PREFER_EMOJI
+                    || self.emoji_modifier.contains(second_char)
+                {
+                    color_emoji_preference = Some(true);
+                }
+            }
+            // Use the unicde default presentation when no preference is given
+            return color_emoji_preference
+                .unwrap_or_else(|| self.emoji_presentation.contains(first_char));
+        }
+        false
     }
 }
