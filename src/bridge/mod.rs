@@ -9,6 +9,18 @@ mod ui_commands;
 
 use std::{io::Error, ops::Add, sync::Arc, time::Duration};
 
+use anyhow::{bail, Context, Result};
+use itertools::Itertools;
+use log::info;
+use nvim_rs::{error::CallError, Neovim, UiAttachOptions, Value};
+use rmpv::Utf8String;
+use tokio::{
+    runtime::{Builder, Runtime},
+    select,
+    time::timeout,
+};
+use winit::event_loop::EventLoopProxy;
+
 use crate::{
     cmd_line::CmdLineSettings,
     editor::start_editor_handler,
@@ -18,20 +30,9 @@ use crate::{
     window::{EventPayload, UserEvent},
     WindowSettings,
 };
-use anyhow::{bail, Context, Result};
 pub use handler::NeovimHandler;
-use itertools::Itertools;
-use log::info;
-use nvim_rs::{error::CallError, Neovim, UiAttachOptions, Value};
-use rmpv::Utf8String;
 use session::{NeovimInstance, NeovimSession};
 use setup::{get_api_information, setup_neovide_specific_state};
-use tokio::{
-    runtime::{Builder, Runtime},
-    select,
-    time::timeout,
-};
-use winit::event_loop::EventLoopProxy;
 
 pub use command::create_nvim_command;
 pub use events::*;

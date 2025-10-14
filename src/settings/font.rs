@@ -51,26 +51,6 @@ pub struct FontSettings {
     pub underline_offset: Option<f32>,
 }
 
-impl Default for FontSettings {
-    fn default() -> Self {
-        Self {
-            normal: FontDescriptionSettings::Single(SimpleFontDescription::String(
-                "Fira Code".into(),
-            )),
-            bold: None,
-            italic: None,
-            bold_italic: None,
-            size: 14.0,
-            width: None,
-            features: None,
-            allow_float_size: Some(false),
-            hinting: Some("Full".into()),
-            edging: Some("Subpixel".into()),
-            underline_offset: None
-        }
-    }
-}
-
 impl From<FontDescriptionSettings> for Vec<FontDescription> {
     fn from(value: FontDescriptionSettings) -> Self {
         match value {
