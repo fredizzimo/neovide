@@ -110,9 +110,6 @@ pub async fn show_error_message(
     nvim.echo(prepared_lines, true, nvim_dict! {}).await
 }
 
-// TODO: this function name is bringing confusion and is duplicated
-// conflicting with the runtime.launch fn, it should be renamed
-// to something else
 async fn create_neovim_session(
     handler: NeovimHandler,
     grid_size: Option<GridSize<u32>>,
