@@ -121,7 +121,6 @@ fn main() -> ExitCode {
                 initial_config,
                 event_loop.create_proxy(),
                 settings.clone(),
-                clipboard,
             );
 
             let result = event_loop.run_app(&mut update_loop);

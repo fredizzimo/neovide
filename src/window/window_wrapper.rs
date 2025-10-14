@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use log::trace;
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
@@ -32,6 +32,7 @@ use crate::{
     units::{GridRect, GridSize, PixelPos, PixelSize},
     window::{create_window, PhysicalSize, ShouldRender, WindowSize},
     CmdLineSettings,
+    clipboard::Clipboard,
 };
 #[cfg(windows)]
 use {
@@ -95,10 +96,10 @@ pub struct WinitWindowWrapper {
     ime_enabled: bool,
     ime_area: (dpi::PhysicalPosition<u32>, dpi::PhysicalSize<u32>),
     pub vsync: Option<VSync>,
+    settings: Arc<Settings>,
     #[cfg(target_os = "macos")]
     pub macos_feature: Option<MacosWindowFeature>,
 
-    settings: Arc<Settings>,
 }
 
 impl WinitWindowWrapper {
@@ -133,15 +134,10 @@ impl WinitWindowWrapper {
             vsync: None,
             ime_enabled: false,
             ime_area: Default::default(),
+            settings,
             #[cfg(target_os = "macos")]
             macos_feature: None,
-            settings,
         }
-    }
-
-    pub fn exit(&mut self) {
-        self.vsync = None;
-        self.skia_renderer = None;
     }
 
     pub fn set_fullscreen(&mut self, fullscreen: bool) {

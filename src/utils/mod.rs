@@ -1,4 +1,5 @@
 mod ring_buffer;
+mod runtime_scoped;
 #[cfg(test)]
 mod test;
 
@@ -6,6 +7,7 @@ mod test;
 use wslpath_rs::windows_to_wsl;
 
 pub use ring_buffer::*;
+pub use runtime_scoped::RuntimeScoped;
 
 #[cfg(not(target_os = "windows"))]
 pub fn is_tty() -> bool {

@@ -1,6 +1,7 @@
 use std::{
     sync::{Arc, Mutex},
     time::{Duration, Instant},
+    ops::DerefMut,
 };
 
 use winit::{
@@ -16,6 +17,7 @@ use crate::{
     renderer::DrawCommand,
     settings::{Config, Settings},
     WindowSize,
+    utils::RuntimeScoped,
 };
 
 enum FocusedState {
@@ -86,12 +88,10 @@ pub struct UpdateLoop {
     pending_draw_commands: Vec<Vec<DrawCommand>>,
     animation_start: Instant, // When the last animation started (went from idle to animating)
     animation_time: Duration, // How long the current animation has been simulated, will usually be in the future
-    window_wrapper: WinitWindowWrapper,
+    window_wrapper: RuntimeScoped<WinitWindowWrapper>,
     create_window_allowed: bool,
     proxy: EventLoopProxy<UserEvent>,
     settings: Arc<Settings>,
-    // Stored here for future use
-    _clipboard: Option<Arc<Mutex<Clipboard>>>,
 }
 
 impl UpdateLoop {
@@ -100,7 +100,6 @@ impl UpdateLoop {
         initial_config: Config,
         proxy: EventLoopProxy<UserEvent>,
         settings: Arc<Settings>,
-        clipboard: Arc<Mutex<Clipboard>>,
     ) -> Self {
         let previous_frame_start = Instant::now();
         let last_dt = 0.0;
@@ -116,7 +115,7 @@ impl UpdateLoop {
         let idle = cmd_line_settings.idle;
 
         let window_wrapper =
-            WinitWindowWrapper::new(initial_window_size, initial_config, settings.clone());
+            RuntimeScoped::with_value(WinitWindowWrapper::new(initial_window_size, initial_config, settings.clone()));
 
         Self {
             idle,
@@ -133,7 +132,6 @@ impl UpdateLoop {
             create_window_allowed: false,
             proxy,
             settings,
-            _clipboard: Some(clipboard),
         }
     }
 
@@ -257,8 +255,9 @@ impl UpdateLoop {
         if self.window_wrapper.skia_renderer.is_none() {
             return;
         }
-        let skia_renderer = self.window_wrapper.skia_renderer.as_ref().unwrap();
-        let vsync = self.window_wrapper.vsync.as_mut().unwrap();
+        let window_wrapper = self.window_wrapper.deref_mut();
+        let skia_renderer = window_wrapper.skia_renderer.as_ref().unwrap();
+        let vsync = window_wrapper.vsync.as_mut().unwrap();
 
         // There's really no point in trying to render if the frame is skipped
         // (most likely due to the compositor being busy). The animated frame will
@@ -398,10 +397,8 @@ impl ApplicationHandler<UserEvent> for UpdateLoop {
     fn exiting(&mut self, event_loop: &ActiveEventLoop) {
         tracy_zone!("exiting");
 
-        // SAFETY: The clipboard must be dropped before the event loop exits
-        self._clipboard = None;
-        // SAFETY: The renderer must be dropped before the event loop
-        self.window_wrapper.exit();
-        self.schedule_next_event(event_loop);
+        // SAFETY: The renderer, and clipboard must be dropped before the event loop
+        self.window_wrapper.destroy();
+        event_loop.set_control_flow(ControlFlow::Wait);
     }
 }
