@@ -34,7 +34,13 @@ pub use events::*;
 pub use session::NeovimWriter;
 pub use ui_commands::{send_ui, start_ui_command_handler, ParallelCommand, SerialCommand};
 
+#[cfg(not(target_os = "windows"))]
 use rustix::fd::AsRawFd;
+#[cfg(target_os = "windows")]
+use std::{
+    os::windows::io::AsRawHandle,
+    io::prelude::*,
+};
 
 const NEOVIM_REQUIRED_VERSION: &str = "0.10.0";
 
@@ -126,8 +132,23 @@ async fn launch(
     options.set_rgb(true);
     // We can close the handle here, as Neovim already owns it
     if let Some(fd) = session.stdin_fd.take() {
-        if let Ok(fd) = fd.as_raw_fd().try_into() {
-            options.set_stdin_fd(fd);
+        #[cfg(not(target_os = "windows"))]
+        {
+            if let Ok(fd) = fd.as_raw_fd().try_into() {
+                options.set_stdin_fd(fd);
+            }
+        }
+        #[cfg(target_os = "windows")]
+        {
+            let (read, mut write) = fd;
+            let read = read.unwrap();
+            log::info!("forwarding stdin {:?} {:?}", read.as_raw_handle() as u64, write.as_raw_handle() as u64);
+            options.set_stdin_fd(read.as_raw_handle() as u64);
+            write.write_all(b"hello\n");
+            write.flush();
+            write.write_all(b"word\n");
+            session.stdin_fd = Some((None, write));
+            std::thread::sleep(std::time::Duration::from_millis(10000));
         }
     }
 

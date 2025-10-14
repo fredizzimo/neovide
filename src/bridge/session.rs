@@ -10,6 +10,8 @@ use std::{
 
 use anyhow::Context;
 use nvim_rs::{error::LoopError, neovim::Neovim, Handler};
+#[cfg(target_os = "windows")]
+use std::os::windows::io::AsRawHandle;
 use tokio::{
     io::{split, AsyncBufReadExt, AsyncRead, AsyncWrite, BufReader},
     net::TcpStream,
@@ -18,6 +20,20 @@ use tokio::{
     task::JoinHandle,
 };
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
+#[cfg(target_os = "windows")]
+use windows::Win32::{
+    Foundation::{DuplicateHandle, DUPLICATE_SAME_ACCESS, HANDLE, INVALID_HANDLE_VALUE, SetHandleInformation, HANDLE_FLAG_INHERIT, HANDLE_FLAGS},
+    Security::SECURITY_ATTRIBUTES,
+    System::{
+        Pipes::CreatePipe,
+        Threading::{GetCurrentProcess},
+    },
+};
+#[cfg(target_os = "windows")]
+use std::{
+    fs::File,
+    os::windows::io::FromRawHandle,
+};
 
 pub type NeovimWriter = Box<dyn futures::AsyncWrite + Send + Unpin + 'static>;
 
@@ -29,8 +45,16 @@ pub struct NeovimSession {
     pub io_handle: JoinHandle<std::result::Result<(), Box<LoopError>>>,
     pub neovim_process: Option<Child>,
     pub stderr_task: Option<JoinHandle<Vec<String>>>,
+    #[cfg(not(target_os = "windows"))]
     pub stdin_fd: Option<rustix::fd::OwnedFd>,
+    #[cfg(target_os = "windows")]
+    pub stdin_fd: Option<(Option<File>, File)>,
 }
+
+#[cfg(target_os = "windows")]
+pub struct SendableHandle(pub HANDLE);
+#[cfg(target_os = "windows")]
+unsafe impl Send for SendableHandle {}
 
 #[cfg(debug_assertions)]
 impl fmt::Debug for NeovimSession {
@@ -47,9 +71,12 @@ impl NeovimSession {
         handler: impl Handler<Writer = NeovimWriter>,
     ) -> anyhow::Result<Self> {
         // This needs to be done before the process is spawned, since the file descriptors are
-        // inherited on unix-like systems
+        // inherited.
         let stdin_fd = instance.forward_stdin();
         let (reader, writer, stderr_reader, neovim_process) = instance.connect().await?;
+        // // But on window after, because DuplicateHandle needs access to the target process id
+        // #[cfg(target_os = "windows")]
+        // let stdin_fd = forward_stdin(&neovim_process);
         // Spawn a background task to read from stderr
         let stderr_task = stderr_reader.map(|reader| {
             tokio::spawn(async move {
@@ -181,12 +208,6 @@ impl NeovimInstance {
         }
     }
 
-    #[cfg(target_os = "windows")]
-    fn forward_stdin(&self) -> Option<i32> {
-        // TODO: Implement
-        None
-    }
-
     #[cfg(not(target_os = "windows"))]
     fn forward_stdin(&self) -> Option<rustix::fd::OwnedFd> {
         // stdin should be forwarded only in embedded mode when stdio is piped
@@ -194,8 +215,35 @@ impl NeovimInstance {
             Self::Embedded(..) => {
                 let stdin = std::io::stdin();
                 let is_pipe = !stdin.is_terminal();
+                is_pipe.then(|| rustix::io::dup(stdin).ok()).flatten()
+            }
+            Self::Server { .. } => None,
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    fn forward_stdin(&self) -> Option<(Option<File>, File)> {
+        // stdin should be forwarded only in embedded mode when stdio is piped
+        match self {
+            Self::Embedded(..) => {
+                let stdin = std::io::stdin();
+                let is_pipe = !stdin.is_terminal();
                 is_pipe
-                    .then(|| rustix::io::dup(stdin).ok())
+                    .then(|| unsafe {
+                        let mut read_handle = HANDLE::default();
+                        let mut write_handle = HANDLE::default();
+                        let mut sa = SECURITY_ATTRIBUTES {
+                            nLength: std::mem::size_of::<SECURITY_ATTRIBUTES>() as u32,
+                            lpSecurityDescriptor: std::ptr::null_mut(),
+                            bInheritHandle: true.into(),
+                        };
+                        CreatePipe(&mut read_handle, &mut write_handle, Some(&mut sa), 0).unwrap();
+                        //SetHandleInformation(write_handle, HANDLE_FLAG_INHERIT.0, HANDLE_FLAGS(0));
+                        Some((
+                            Some(File::from_raw_handle(read_handle.0 as *mut _)),
+                            File::from_raw_handle(write_handle.0 as *mut _),
+                        ))
+                    })
                     .flatten()
             }
             Self::Server { .. } => None,
@@ -209,3 +257,35 @@ impl NeovimInstance {
         (Box::new(reader), Box::new(writer))
     }
 }
+
+// #[cfg(target_os = "windows")]
+// fn forward_stdin(child: &Option<Child>) -> Option<SendableHandle> {
+//     // stdin should be forwarded only in embedded mode when stdio is piped
+//     if let Some(child) = child {
+//         let stdin = std::io::stdin();
+//         let is_pipe = !stdin.is_terminal();
+//         is_pipe
+//             .then(|| {
+//                 let current_process = unsafe { GetCurrentProcess() };
+//                 let target_process = child;
+//                 let mut target_handle = INVALID_HANDLE_VALUE;
+//                 unsafe {
+//                     if DuplicateHandle(
+//                         current_process,
+//                         HANDLE(stdin.as_raw_handle()),
+//                         HANDLE(target_process.raw_handle().unwrap_or(INVALID_HANDLE_VALUE.0)),
+//                         &mut target_handle,
+//                         0,
+//                         false,
+//                         DUPLICATE_SAME_ACCESS,
+//                     ).is_ok() {
+//                         Some(SendableHandle(target_handle))
+//                     } else {
+//                         None
+//                     }
+//                 }
+//             }).flatten()
+//     } else {
+//         None
+//     }
+// }
