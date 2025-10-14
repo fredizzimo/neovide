@@ -39,7 +39,37 @@ pub use ui_commands::{
     send_ui, start_ui_command_handler, ParallelCommand, SerialCommand, HANDLER_REGISTRY,
 };
 
-const NEOVIM_REQUIRED_VERSION: &str = "0.10.0";
+const NEOVIM_REQUIRED_VERSION: (u64, u64, u64) = (0, 10, 0);
+
+macro_rules! nvim_dict {
+    ( $( $key:expr => $value:expr ),* $(,)? ) => {
+        vec![
+            $( (Value::from($key), Value::from($value)) ),*
+        ]
+    };
+}
+pub(crate) use nvim_dict;
+
+/// nvim_command_output is deprecated, so use our own version
+async fn nvim_exec_output(
+    nvim: &Neovim<NeovimWriter>,
+    func: &str,
+) -> Result<String, Box<CallError>> {
+    let result = nvim
+        .exec2(
+            func,
+            nvim_dict! {
+                "output" => true,
+            },
+        )
+        .await?;
+    Ok(result
+        .iter()
+        .find(|(k, _)| k.as_str() == Some("output"))
+        .and_then(|(_, v)| v.as_str())
+        .unwrap_or("")
+        .to_string())
+}
 
 pub struct NeovimRuntime {
     pub runtime: Runtime,
@@ -75,7 +105,7 @@ pub async fn show_error_message(
             Value::String(error_msg_highlight.clone()),
         ]),
     );
-    nvim.echo(prepared_lines, true, vec![]).await
+    nvim.echo(prepared_lines, true, nvim_dict! {}).await
 }
 
 // TODO: this function name is bringing confusion and is duplicated
@@ -92,27 +122,24 @@ async fn create_neovim_session(
         .await
         .context("Could not locate or start neovim process")?;
 
-    // Check the neovim version to ensure its high enough
-    match session
-        .neovim
-        .command_output(&format!("echo has('nvim-{NEOVIM_REQUIRED_VERSION}')"))
-        .await
-        .as_deref()
-    {
-        Ok("1") => {} // This is just a guard
-        _ => {
-            bail!("Neovide requires nvim version {NEOVIM_REQUIRED_VERSION} or higher. Download the latest version here https://github.com/neovim/neovim/wiki/Installing-Neovim");
-        }
-    }
-
-    let cmdline_settings = settings.get::<CmdLineSettings>();
-
-    let should_handle_clipboard = cmdline_settings.wsl || cmdline_settings.server.is_some();
     let api_information = get_api_information(&session.neovim).await?;
     info!(
         "Neovide registered to nvim with channel id {}",
         api_information.channel
     );
+
+    let (major, minor, patch) = NEOVIM_REQUIRED_VERSION;
+    if !api_information
+        .version
+        .has_version(major, minor, patch, None)
+    {
+        let found = api_information.version.string;
+        bail!("Neovide requires nvim version {major}.{minor}.{patch} or higher, but {found} was detected. Download the latest version here https://github.com/neovim/neovim/wiki/Installing-Neovim");
+    }
+
+    let cmdline_settings = settings.get::<CmdLineSettings>();
+
+    let should_handle_clipboard = cmdline_settings.wsl || cmdline_settings.server.is_some();
     // This is too verbose to keep enabled all the time
     // log::info!("Api information {:#?}", api_information);
     setup_neovide_specific_state(
