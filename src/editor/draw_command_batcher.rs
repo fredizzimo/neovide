@@ -1,9 +1,4 @@
-use std::{borrow::BorrowMut, cell::RefCell};
-
-use crate::{
-    editor::DrawCommand,
-    window::{EventPayload, UserEvent},
-};
+use crate::{editor::DrawCommand, window::EventPayload};
 
 use winit::event_loop::EventLoopProxy;
 

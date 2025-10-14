@@ -69,7 +69,7 @@ pub use channel_utils::*;
 #[cfg(target_os = "windows")]
 pub use windows_utils::*;
 
-use crate::settings::{load_last_window_settings, Config, PersistentWindowSettings, Settings};
+use crate::settings::{load_last_window_settings, Config, Settings};
 
 pub use profiling::startup_profiler;
 
