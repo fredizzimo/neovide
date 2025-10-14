@@ -16,6 +16,7 @@ use crate::{
     settings::*,
     units::GridSize,
     window::{EventPayload, UserEvent},
+    WindowSettings,
 };
 use anyhow::{bail, Context, Result};
 pub use handler::NeovimHandler;
@@ -149,6 +150,11 @@ async fn create_neovim_session(
         &settings,
     )
     .await?;
+    if api_information.version.has_version(0, 12, 0, Some(1264)) {
+        let mut window_settings = settings.get::<WindowSettings>();
+        window_settings.has_mouse_grid_detection = true;
+        settings.set::<WindowSettings>(&window_settings);
+    }
 
     start_ui_command_handler(handler.clone(), session.neovim.clone(), settings.clone());
     settings.read_initial_values(&session.neovim).await?;
