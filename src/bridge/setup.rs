@@ -1,3 +1,5 @@
+use std::vec;
+
 use anyhow::{Context, Result};
 use nvim_rs::{call_args, rpc::IntoVal, Neovim};
 use rmpv::Value;
@@ -12,6 +14,7 @@ use crate::{
 };
 
 const INIT_LUA: &str = include_str!("../../lua/init.lua");
+const HEALTH_LUA: &str = include_str!("../../lua/health.lua");
 
 pub async fn get_api_information(nvim: &Neovim<NeovimWriter>) -> Result<ApiInformation> {
     // Retrieve the channel number for communicating with neovide.
@@ -88,6 +91,12 @@ pub async fn setup_neovide_specific_state(
     )
     .await
     .context("Error when running Neovide init.lua")?;
+    nvim.exec_lua(
+        HEALTH_LUA,
+        vec![],
+    )
+    .await
+    .context("Error when running Neovide health.lua")?;
 
     Ok(())
 }
