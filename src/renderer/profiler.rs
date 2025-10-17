@@ -3,7 +3,11 @@ use std::sync::Arc;
 
 use crate::{
     profiling::tracy_zone,
-    renderer::{animation_utils::lerp, fonts::font_loader::*, RendererSettings},
+    renderer::{
+        animation_utils::lerp,
+        fonts::{font_loader::*, font_options::FontOptions},
+        RendererSettings,
+    },
     settings::Settings,
 };
 use skia_safe::{Canvas, Color, Font, Paint, Point, Rect, Size};
@@ -22,9 +26,9 @@ pub struct Profiler {
 impl Profiler {
     pub fn new(font_size: f32, settings: Arc<Settings>) -> Self {
         let font_key = FontKey::default();
-        let mut font_loader = FontLoader::new();
+        let mut font_loader = FontLoader::new(FontOptions::default());
         let font = font_loader
-            .get_or_load(&font_key, None)
+            .get_or_load(&font_key)
             .unwrap()
             .skia_font
             .with_size(font_size)

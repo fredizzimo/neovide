@@ -1,6 +1,7 @@
-use std::{collections::HashMap, fmt, iter, num::ParseFloatError, sync::Arc};
+use std::{collections::HashMap, fmt, iter, num::ParseFloatError, str::FromStr, sync::Arc};
 
-use itertools::Itertools;
+use harfrust::Feature;
+use itertools::{Either, Itertools};
 use log::warn;
 use serde::Deserialize;
 use skia_safe::{
@@ -46,9 +47,6 @@ pub struct SecondaryFontDescription {
     pub family: Option<String>,
     pub style: Option<String>,
 }
-
-#[derive(Clone, Debug, Deserialize, PartialEq)]
-pub struct FontFeature(pub String, pub u16);
 
 /// What a specific font is about.
 // TODO: could be made a bitfield sometime?
@@ -114,7 +112,7 @@ pub struct FontOptions {
     pub italic: Option<Vec<SecondaryFontDescription>>,
     pub bold: Option<Vec<SecondaryFontDescription>>,
     pub bold_italic: Option<Vec<SecondaryFontDescription>>,
-    pub features: HashMap<String /* family */, Vec<FontFeature> /* features */>,
+    pub features: HashMap<String /* family */, Vec<Feature> /* features */>,
     pub size: f32,
     pub width: f32,
     pub hinting: FontHinting,
@@ -122,21 +120,10 @@ pub struct FontOptions {
     pub underline_offset: Option<f32>,
 }
 
-impl FontFeature {
-    pub fn parse(feature: &str) -> Result<Self, &str> {
-        if let Some(name) = feature.strip_prefix('+') {
-            Ok(FontFeature(name.trim().to_string(), 1u16))
-        } else if let Some(name) = feature.strip_prefix('-') {
-            Ok(FontFeature(name.trim().to_string(), 0u16))
-        } else if let Some((name, value)) = feature.split_once('=') {
-            let value = value.parse();
-            if let Ok(value) = value {
-                Ok(FontFeature(name.to_string(), value))
-            } else {
-                warn!("Wrong feature format: {feature}");
-                Err(feature)
-            }
-        } else {
+pub fn parse_font_feature(feature: &str) -> Result<Feature, &str> {
+    match Feature::from_str(feature.trim()) {
+        Ok(value) => Ok(value),
+        Err(..) => {
             warn!("Wrong feature format: {feature}");
             Err(feature)
         }
@@ -201,9 +188,12 @@ impl FontOptions {
         self.normal.first().cloned()
     }
 
-    pub fn font_list(&self, style: CoarseStyle) -> Vec<FontDescription> {
-        if style == CoarseStyle::default() {
-            return self.normal.clone();
+    pub fn font_list<'a>(
+        &self,
+        style: &'a CoarseStyle,
+    ) -> impl Iterator<Item = FontDescription> + use<'a, '_> {
+        if *style == CoarseStyle::default() {
+            return Either::Left(self.normal.iter().cloned());
         }
 
         let fonts = match (style.bold, style.italic) {
@@ -215,46 +205,52 @@ impl FontOptions {
 
         let normal_fallback = self.normal.iter().map(|font| FontDescription {
             // use current requested font style instead of normal
-            style: style.name().map(str::to_string),
+            style: style.name().map(|v| v.to_string()),
             family: font.family.clone(),
         });
 
-        fonts
-            .as_ref()
-            .map(|fonts| {
-                fonts
-                    .iter()
-                    .filter(|font| font.family.is_some() || font.style.is_some())
-                    .map(|font| {
-                        if font.family.is_none() && self.primary_font().is_some() {
-                            error_msg!("Font style {:?} is missing font family", font.style);
-                            // only has style specified, use primary font family
-                            self.primary_font()
-                                .map(|primary_font| FontDescription {
-                                    family: primary_font.family.clone(),
-                                    style: font.style.clone(),
-                                })
-                                .unwrap()
-                        } else {
-                            FontDescription {
-                                family: font.family.clone().unwrap(),
-                                style: font
-                                    .style
-                                    .clone()
-                                    .or_else(|| style.name().map(str::to_string)),
-                            }
-                        }
-                    })
-                    .chain(normal_fallback.clone())
-                    .collect()
-            })
-            .unwrap_or_else(|| normal_fallback.collect())
+        Either::Right(
+            fonts
+                .as_ref()
+                .map(|fonts| {
+                    Either::Left(
+                        fonts
+                            .iter()
+                            .filter(|font| font.family.is_some() || font.style.is_some())
+                            .map(|font| {
+                                if font.family.is_none() && self.primary_font().is_some() {
+                                    error_msg!(
+                                        "Font style {:?} is missing font family",
+                                        font.style
+                                    );
+                                    // only has style specified, use primary font family
+                                    self.primary_font()
+                                        .map(|primary_font| FontDescription {
+                                            family: primary_font.family.clone(),
+                                            style: font.style.clone(),
+                                        })
+                                        .unwrap()
+                                } else {
+                                    FontDescription {
+                                        family: font.family.clone().unwrap(),
+                                        style: font
+                                            .style
+                                            .clone()
+                                            .or_else(|| style.name().map(|v| v.to_string())),
+                                    }
+                                }
+                            })
+                            .chain(normal_fallback.clone()),
+                    )
+                })
+                .unwrap_or_else(|| Either::Right(normal_fallback)),
+        )
     }
 
     pub fn possible_fonts(&self) -> Vec<FontDescription> {
         CoarseStyle::permutations()
             // partial functions when /s
-            .flat_map(|style| self.font_list(style))
+            .flat_map(|style| self.font_list(&style).collect_vec())
             .collect()
     }
 }

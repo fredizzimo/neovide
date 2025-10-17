@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use serde::Deserialize;
 
 use crate::renderer::fonts::font_options::{
-    points_to_pixels, FontDescription, FontEdging, FontFeature, FontHinting, FontOptions,
+    parse_font_feature, points_to_pixels, FontDescription, FontEdging, FontHinting, FontOptions,
     SecondaryFontDescription,
 };
 
@@ -112,7 +112,7 @@ impl From<FontSettings> for FontOptions {
                                 family,
                                 features
                                     .iter()
-                                    .map(|feature| FontFeature::parse(feature))
+                                    .map(|feature| parse_font_feature(feature))
                                     .filter_map(|x| x.ok())
                                     .collect::<Vec<_>>(),
                             )
