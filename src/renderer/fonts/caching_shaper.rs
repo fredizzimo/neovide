@@ -139,6 +139,7 @@ pub struct CachingShaper {
     linespace: f32,
     font_info: Option<(Metrics, f32)>,
     emoji_detector: EmojiDetector,
+    shaper_state: StatefulShaper,
 }
 
 impl CachingShaper {
@@ -156,6 +157,7 @@ impl CachingShaper {
                 emoji_presentation: CodePointSetData::new::<EmojiPresentation>(),
                 emoji_modifier: CodePointSetData::new::<EmojiModifier>(),
             },
+            shaper_state: StatefulShaper::new(),
         };
         shaper.reset_font_loader();
         shaper
@@ -360,7 +362,8 @@ impl CachingShaper {
         // Add parsed fonts from guifont or config file
 
         let glyph_width = self.font_base_dimensions().width;
-        let mut font_shaper = FontShaper::new();
+        let current_size = self.current_size();
+        let advance = self.info().1;
 
         let font_list = self.options.font_list(&style);
         let font_fallback_keys = font_list.map(|font_desc| FontKey {
@@ -369,76 +372,18 @@ impl CachingShaper {
             edging: self.options.edging.clone(),
         });
 
-        let mut clusters = word
-            .clusters()
-            .map(|(cell_nr, text)| GraphemeCluster {
-                cell_nr,
-                text,
-                complete: false,
-                glyphs: 0..0,
-            })
-            .collect_vec();
-        let mut glyphs = Vec::new();
-        let mut buffer = UnicodeBuffer::new();
-        let font_loader = &mut self.font_loader;
         let emoji_detector = &self.emoji_detector;
-
-        // The color emoji has the highest priority
-        let mut first_emoji_chunk = true;
-        for chunk in clusters.chunk_by_mut(|a, b| {
-            emoji_detector.is_color_emoji(a.text.chars())
-                != emoji_detector.is_color_emoji(b.text.chars())
-        }) {
-            if emoji_detector.is_color_emoji(chunk[0].text.chars()) {
-                let mut chars = chunk[0].text.chars();
-                let first_char = chars.next().unwrap_or_default();
-                if !first_emoji_chunk {
-                    buffer = font_shaper.shape_same_font(chunk, &mut glyphs, buffer);
-                } else if let Some(emoji_font) = font_loader.get_or_load_emoji(first_char) {
-                    buffer = font_shaper.shape(&emoji_font, chunk, &mut glyphs, buffer);
-                    first_emoji_chunk = false;
-                }
-            }
-        }
-
-        for key in font_fallback_keys {
-            if let Some(font_pair) = self.font_loader.get_or_load(&key) {
-                buffer = font_shaper.shape(&font_pair, &mut clusters, &mut glyphs, buffer);
-            }
-        }
-
-        let mut remaining_clusters = &mut clusters[..];
-        while let Some((index, first_invalid)) =
-            remaining_clusters.iter().find_position(|c| !c.complete)
-        {
-            let fallback_character = first_invalid.text.chars().next().unwrap_or('a');
-            remaining_clusters = &mut remaining_clusters[index..];
-            if let Some(fallback_font) =
-                self.font_loader
-                    .load_font_for_character(style, fallback_character, &[])
-            {
-                buffer = font_shaper.shape(&fallback_font, remaining_clusters, &mut glyphs, buffer);
-            }
-
-            // We need to progress at least one cluster forward for each system fallback to avoid an invalid loop
-            // Any failures will be shaped using the last resort font
-            remaining_clusters = &mut remaining_clusters[1..];
-        }
-
-        if let Some(last_resort) = self.font_loader.get_or_load_last_resort() {
-            let _ = font_shaper.shape(&last_resort, &mut clusters, &mut glyphs, buffer);
-        }
-
-        let current_size = self.current_size();
-        font_shaper.layout(
+        let font_loader = &mut self.font_loader;
+        self.shaper_state.shape(
+            word,
+            emoji_detector,
+            font_loader,
             current_size,
             glyph_width,
-            self.info().1,
-            &mut glyphs,
-            &clusters,
-        );
-
-        font_shaper.build_blob(&glyphs)
+            advance,
+            style,
+            font_fallback_keys,
+        )
     }
 
     pub fn shape_cached(
@@ -460,54 +405,130 @@ impl CachingShaper {
     }
 }
 
-struct FontShaper {
+struct StatefulShaper {
     used_fonts: Vec<Font>,
     blob_builder: TextBlobBuilder,
+    glyphs: Vec<Glyph>,
+    buffer: Option<UnicodeBuffer>,
 }
 
-impl FontShaper {
+impl StatefulShaper {
     fn new() -> Self {
         Self {
             used_fonts: Vec::new(),
             blob_builder: TextBlobBuilder::new(),
+            glyphs: Vec::new(),
+            buffer: Some(UnicodeBuffer::new()),
         }
     }
 
-    fn shape(
+    fn shape<I: Iterator<Item = FontKey>>(
         &mut self,
-        font_pair: &Rc<FontPair>,
-        clusters: &mut [GraphemeCluster],
-        glyphs: &mut Vec<Glyph>,
-        buffer: UnicodeBuffer,
-    ) -> UnicodeBuffer {
+        word: RenderedWord<'_>,
+        emoji_detector: &EmojiDetector,
+        font_loader: &mut FontLoader,
+        current_size: f32,
+        glyph_width: f32,
+        advance: f32,
+        style: CoarseStyle,
+        font_fallback_keys: I,
+    ) -> Option<TextBlob> {
+        self.used_fonts.clear();
+        self.glyphs.clear();
+
+        // TODO: Don't alloc
+        let mut clusters = word
+            .clusters()
+            .map(|(cell_nr, text)| GraphemeCluster {
+                cell_nr,
+                text,
+                complete: false,
+                glyphs: 0..0,
+            })
+            .collect_vec();
+
+        // The color emoji has the highest priority
+        let mut first_emoji_chunk = true;
+        for chunk in clusters.chunk_by_mut(|a, b| {
+            emoji_detector.is_color_emoji(a.text.chars())
+                != emoji_detector.is_color_emoji(b.text.chars())
+        }) {
+            if emoji_detector.is_color_emoji(chunk[0].text.chars()) {
+                let mut chars = chunk[0].text.chars();
+                let first_char = chars.next().unwrap_or_default();
+                if !first_emoji_chunk {
+                    self.shape_same_font(chunk);
+                } else if let Some(emoji_font) = font_loader.get_or_load_emoji(first_char) {
+                    self.shape_font(&emoji_font, chunk);
+                    first_emoji_chunk = false;
+                }
+            }
+        }
+
+        for key in font_fallback_keys {
+            if let Some(font_pair) = font_loader.get_or_load(&key) {
+                self.shape_font(&font_pair, &mut clusters);
+            }
+        }
+
+        let mut remaining_clusters = &mut clusters[..];
+        while let Some((index, first_invalid)) =
+            remaining_clusters.iter().find_position(|c| !c.complete)
+        {
+            let fallback_character = first_invalid.text.chars().next().unwrap_or('a');
+            remaining_clusters = &mut remaining_clusters[index..];
+            if let Some(fallback_font) =
+                font_loader.load_font_for_character(style, fallback_character, &[])
+            {
+                self.shape_font(&fallback_font, remaining_clusters);
+            }
+
+            // We need to progress at least one cluster forward for each system fallback to avoid an invalid loop
+            // Any failures will be shaped using the last resort font
+            remaining_clusters = &mut remaining_clusters[1..];
+        }
+
+        if let Some(last_resort) = font_loader.get_or_load_last_resort() {
+            self.shape_font(&last_resort, &mut clusters);
+        }
+
+        self.layout(current_size, glyph_width, advance, &clusters);
+
+        self.build_blob()
+    }
+
+    fn shape_font(&mut self, font_pair: &Rc<FontPair>, clusters: &mut [GraphemeCluster]) {
         // Don't shape the same font twice (it will never succed anyway)
         if self
             .used_fonts
             .iter()
             .any(|f| f.font_pair.key == font_pair.key)
         {
-            return buffer;
+            return;
         }
-        let start = glyphs.len();
-        let ret = shape_font(font_pair, clusters, glyphs, buffer);
+        let start = self.glyphs.len();
+        self.buffer = Some(shape_font(
+            font_pair,
+            clusters,
+            &mut self.glyphs,
+            self.buffer.take().unwrap(),
+        ));
         self.used_fonts.push(Font {
             font_pair: font_pair.clone(),
-            glyph_range: start..glyphs.len(),
+            glyph_range: start..self.glyphs.len(),
             scaled_size: 1.0,
         });
-        ret
     }
 
-    fn shape_same_font(
-        &mut self,
-        clusters: &mut [GraphemeCluster],
-        glyphs: &mut Vec<Glyph>,
-        buffer: UnicodeBuffer,
-    ) -> UnicodeBuffer {
+    fn shape_same_font(&mut self, clusters: &mut [GraphemeCluster]) {
         let last = self.used_fonts.last_mut().unwrap();
-        let ret = shape_font(&last.font_pair, clusters, glyphs, buffer);
-        last.glyph_range.end = glyphs.len();
-        ret
+        self.buffer = Some(shape_font(
+            &last.font_pair,
+            clusters,
+            &mut self.glyphs,
+            self.buffer.take().unwrap(),
+        ));
+        last.glyph_range.end = self.glyphs.len();
     }
 
     fn layout(
@@ -515,7 +536,6 @@ impl FontShaper {
         current_size: f32,
         glyph_width: f32,
         advance: f32,
-        glyphs: &mut [Glyph],
         clusters: &[GraphemeCluster],
     ) {
         let mut font_iter = self.used_fonts.iter_mut();
@@ -540,7 +560,7 @@ impl FontShaper {
             let scaled_size = current_size * scale;
             current_font.scaled_size = scaled_size;
 
-            let glyphs = &mut glyphs[cluster.glyphs.clone()];
+            let glyphs = &mut self.glyphs[cluster.glyphs.clone()];
             for glyph in glyphs.iter_mut() {
                 glyph.position = match glyph.position {
                     GlyphPosition::Relative(harfrust::GlyphPosition {
@@ -568,7 +588,7 @@ impl FontShaper {
         }
     }
 
-    fn build_blob(&mut self, glyphs: &[Glyph]) -> Option<TextBlob> {
+    fn build_blob(&mut self) -> Option<TextBlob> {
         for Font {
             font_pair,
             glyph_range,
@@ -580,7 +600,7 @@ impl FontShaper {
                 glyph_range.len(),
                 None,
             );
-            let font_glyphs = &glyphs[glyph_range.clone()];
+            let font_glyphs = &self.glyphs[glyph_range.clone()];
             for (dest_glyph, dest_position, source) in
                 izip!(dest_glyphs, dest_positions, font_glyphs)
             {
