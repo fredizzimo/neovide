@@ -410,6 +410,7 @@ struct StatefulShaper {
     blob_builder: TextBlobBuilder,
     glyphs: Vec<Glyph>,
     buffer: Option<UnicodeBuffer>,
+    clusters: Option<Vec<GraphemeCluster<'static>>>,
 }
 
 impl StatefulShaper {
@@ -419,12 +420,14 @@ impl StatefulShaper {
             blob_builder: TextBlobBuilder::new(),
             glyphs: Vec::new(),
             buffer: Some(UnicodeBuffer::new()),
+            clusters: Some(Vec::new()),
         }
     }
 
-    fn shape<I: Iterator<Item = FontKey>>(
+    #[allow(clippy::too_many_arguments)]
+    fn shape<'a, I: Iterator<Item = FontKey>>(
         &mut self,
-        word: RenderedWord<'_>,
+        word: RenderedWord<'a>,
         emoji_detector: &EmojiDetector,
         font_loader: &mut FontLoader,
         current_size: f32,
@@ -433,19 +436,18 @@ impl StatefulShaper {
         style: CoarseStyle,
         font_fallback_keys: I,
     ) -> Option<TextBlob> {
+        // Avoid allocation by re-using the same vectors
         self.used_fonts.clear();
         self.glyphs.clear();
+        let mut clusters: Vec<GraphemeCluster<'a>> =
+            safe_vec_transmute(self.clusters.take().unwrap());
 
-        // TODO: Don't alloc
-        let mut clusters = word
-            .clusters()
-            .map(|(cell_nr, text)| GraphemeCluster {
-                cell_nr,
-                text,
-                complete: false,
-                glyphs: 0..0,
-            })
-            .collect_vec();
+        clusters.extend(word.clusters().map(|(cell_nr, text)| GraphemeCluster {
+            cell_nr,
+            text,
+            complete: false,
+            glyphs: 0..0,
+        }));
 
         // The color emoji has the highest priority
         let mut first_emoji_chunk = true;
@@ -493,6 +495,8 @@ impl StatefulShaper {
         }
 
         self.layout(current_size, glyph_width, advance, &clusters);
+
+        self.clusters = Some(safe_vec_transmute(clusters));
 
         self.build_blob()
     }
@@ -706,4 +710,26 @@ impl EmojiDetector {
         }
         false
     }
+}
+
+fn safe_vec_transmute<T, U>(mut v: Vec<T>) -> Vec<U> {
+    assert_eq!(std::mem::size_of::<T>(), std::mem::size_of::<U>());
+    assert_eq!(std::mem::align_of::<T>(), std::mem::align_of::<U>());
+
+    v.clear();
+
+    let (ptr, len, cap) = vec_into_raw_parts(v);
+
+    // SAFETY:
+    //
+    // We assert T and U have the same size and alignment, and we clear the
+    // vector first.  This satisfies several invariants of Vec:from_raw_parts.
+    // The remaining invariants are satisfied because we get ptr, len, and cap
+    // from an existing vector.
+    unsafe { Vec::from_raw_parts(ptr as *mut U, len, cap) }
+}
+
+fn vec_into_raw_parts<T>(v: Vec<T>) -> (*mut T, usize, usize) {
+    let mut v = std::mem::ManuallyDrop::new(v);
+    (v.as_mut_ptr(), v.len(), v.capacity())
 }
