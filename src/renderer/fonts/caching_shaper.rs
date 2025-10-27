@@ -384,6 +384,7 @@ impl CachingShaper {
         let emoji_detector = &self.emoji_detector;
 
         // The color emoji has the highest priority
+        let mut first_emoji_chunk = true;
         for chunk in clusters.chunk_by_mut(|a, b| {
             emoji_detector.is_color_emoji(a.text.chars())
                 != emoji_detector.is_color_emoji(b.text.chars())
@@ -391,8 +392,11 @@ impl CachingShaper {
             if emoji_detector.is_color_emoji(chunk[0].text.chars()) {
                 let mut chars = chunk[0].text.chars();
                 let first_char = chars.next().unwrap_or_default();
-                if let Some(emoji_font) = font_loader.get_or_load_emoji(first_char) {
+                if !first_emoji_chunk {
+                    buffer = font_shaper.shape_same_font(chunk, &mut glyphs, buffer);
+                } else if let Some(emoji_font) = font_loader.get_or_load_emoji(first_char) {
                     buffer = font_shaper.shape(&emoji_font, chunk, &mut glyphs, buffer);
+                    first_emoji_chunk = false;
                 }
             }
         }
@@ -491,6 +495,18 @@ impl FontShaper {
             glyph_range: start..glyphs.len(),
             scaled_size: 1.0,
         });
+        ret
+    }
+
+    fn shape_same_font(
+        &mut self,
+        clusters: &mut [GraphemeCluster],
+        glyphs: &mut Vec<Glyph>,
+        buffer: UnicodeBuffer,
+    ) -> UnicodeBuffer {
+        let last = self.used_fonts.last_mut().unwrap();
+        let ret = shape_font(&last.font_pair, clusters, glyphs, buffer);
+        last.glyph_range.end = glyphs.len();
         ret
     }
 
