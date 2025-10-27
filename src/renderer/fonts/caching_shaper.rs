@@ -425,56 +425,14 @@ impl CachingShaper {
             let _ = font_shaper.shape(&last_resort, &mut clusters, &mut glyphs, buffer);
         }
 
-        let mut font_iter = font_shaper.used_fonts.iter_mut();
-        let mut font = font_iter.next();
         let current_size = self.current_size();
-        let mut glyph_nr = 0;
-        // TODO: move to own function instead of this crappy break
-        'outer: for cluster in clusters {
-            while glyph_nr >= font.as_ref().unwrap().glyph_range.end {
-                font = font_iter.next();
-                if font.is_none() {
-                    break 'outer;
-                }
-            }
-            //Align to the grid at the start of each cluster
-            let mut current_pos = glyph_width * cluster.cell_nr as f32;
-
-            let current_font = font.as_mut().unwrap();
-
-            let font_info = &current_font.font_pair.font_info;
-
-            let scale = self.info().1 / (font_info.advance * current_size);
-            log::info!("Scale {scale}");
-            let scaled_size = current_size * scale;
-            current_font.scaled_size = scaled_size;
-
-            let glyphs = &mut glyphs[cluster.glyphs];
-            for glyph in glyphs.iter_mut() {
-                glyph.position = match glyph.position {
-                    GlyphPosition::Relative(harfrust::GlyphPosition {
-                        x_offset,
-                        y_offset,
-                        x_advance,
-                        ..
-                    }) => {
-                        let base_pos = current_pos;
-                        current_pos += font_info.scale_offset(x_advance, scaled_size);
-                        GlyphPosition::Absolute(
-                            (
-                                base_pos + font_info.scale_offset(x_offset, scaled_size),
-                                font_info.scale_offset(y_offset, scaled_size),
-                            )
-                                .into(),
-                        )
-                    }
-                    _ => {
-                        panic!("We should only have relative positions here");
-                    }
-                }
-            }
-            glyph_nr += glyphs.len();
-        }
+        font_shaper.layout(
+            current_size,
+            glyph_width,
+            self.info().1,
+            &mut glyphs,
+            &clusters,
+        );
 
         font_shaper.build_blob(&glyphs)
     }
@@ -534,6 +492,64 @@ impl FontShaper {
             scaled_size: 1.0,
         });
         ret
+    }
+
+    fn layout(
+        &mut self,
+        current_size: f32,
+        glyph_width: f32,
+        advance: f32,
+        glyphs: &mut [Glyph],
+        clusters: &[GraphemeCluster],
+    ) {
+        let mut font_iter = self.used_fonts.iter_mut();
+        let mut font = font_iter.next();
+        let mut glyph_nr = 0;
+        for cluster in clusters {
+            while glyph_nr >= font.as_ref().unwrap().glyph_range.end {
+                font = font_iter.next();
+                if font.is_none() {
+                    return;
+                }
+            }
+            //Align to the grid at the start of each cluster
+            let mut current_pos = glyph_width * cluster.cell_nr as f32;
+
+            let current_font = font.as_mut().unwrap();
+
+            let font_info = &current_font.font_pair.font_info;
+
+            let scale = advance / (font_info.advance * current_size);
+            log::info!("Scale {scale}");
+            let scaled_size = current_size * scale;
+            current_font.scaled_size = scaled_size;
+
+            let glyphs = &mut glyphs[cluster.glyphs.clone()];
+            for glyph in glyphs.iter_mut() {
+                glyph.position = match glyph.position {
+                    GlyphPosition::Relative(harfrust::GlyphPosition {
+                        x_offset,
+                        y_offset,
+                        x_advance,
+                        ..
+                    }) => {
+                        let base_pos = current_pos;
+                        current_pos += font_info.scale_offset(x_advance, scaled_size);
+                        GlyphPosition::Absolute(
+                            (
+                                base_pos + font_info.scale_offset(x_offset, scaled_size),
+                                font_info.scale_offset(y_offset, scaled_size),
+                            )
+                                .into(),
+                        )
+                    }
+                    _ => {
+                        panic!("We should only have relative positions here");
+                    }
+                }
+            }
+            glyph_nr += glyphs.len();
+        }
     }
 
     fn build_blob(&mut self, glyphs: &[Glyph]) -> Option<TextBlob> {
